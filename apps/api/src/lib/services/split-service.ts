@@ -1,0 +1,314 @@
+import {
+  and,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  type SQL,
+  sql,
+} from "drizzle-orm";
+import { db, type TX } from "$/db";
+import {
+  categoriesTable,
+  type PaymentMethod,
+  peopleTable,
+  type SplitMethod,
+  settlementsTable,
+  splitGroupsTable,
+  splitSharesTable,
+  splitsTable,
+  transactionsTable,
+} from "$/db/schema";
+import { toPaise, toRupees } from "$/lib/utils/money";
+import { defaultAccountId } from "./account-service";
+
+/** `personId: null` = the user themself. `value` meaning depends on the method. */
+export type Participant = { personId: number | null; value?: number };
+
+type ShareResult =
+  | {
+      ok: true;
+      shares: {
+        personId: number | null;
+        amount: number;
+        value: number | null;
+      }[];
+    }
+  | { ok: false; message: string };
+
+/** Spreads leftover paise (from rounding) one by one over the first rows. */
+function spreadRemainder(amounts: number[], total: number) {
+  let diff = total - amounts.reduce((a, b) => a + b, 0);
+  for (let i = 0; diff !== 0 && amounts.length; i = (i + 1) % amounts.length) {
+    const step = diff > 0 ? 1 : -1;
+    amounts[i] = (amounts[i] ?? 0) + step;
+    diff -= step;
+  }
+  return amounts;
+}
+
+/** Splits `total` paise between participants. Shares always add up exactly to the total. */
+export function computeShares(
+  total: number,
+  method: SplitMethod,
+  participants: Participant[],
+): ShareResult {
+  const n = participants.length;
+  if (n === 0)
+    return { ok: false, message: "Add at least one person to split with" };
+  const seen = new Set(participants.map((p) => p.personId ?? "me"));
+  if (seen.size !== n) return { ok: false, message: "Someone is listed twice" };
+
+  const values = participants.map((p) => p.value ?? 0);
+  let amounts: number[];
+  switch (method) {
+    case "equal":
+      amounts = spreadRemainder(Array(n).fill(Math.floor(total / n)), total);
+      break;
+    case "exact": {
+      amounts = values.map(toPaise);
+      if (amounts.some((a) => a < 0))
+        return { ok: false, message: "Amounts can't be negative" };
+      const sum = amounts.reduce((a, b) => a + b, 0);
+      if (sum !== total)
+        return {
+          ok: false,
+          message: `Amounts add up to ₹${toRupees(sum)} but the total is ₹${toRupees(total)}`,
+        };
+      break;
+    }
+    case "percent": {
+      const sum = values.reduce((a, b) => a + b, 0);
+      if (values.some((v) => v < 0) || Math.abs(sum - 100) > 0.01)
+        return {
+          ok: false,
+          message: `Percentages add up to ${+sum.toFixed(2)}%, not 100%`,
+        };
+      amounts = spreadRemainder(
+        values.map((v) => Math.floor((total * v) / 100)),
+        total,
+      );
+      break;
+    }
+    case "shares": {
+      const sum = values.reduce((a, b) => a + b, 0);
+      if (values.some((v) => v < 0) || sum <= 0)
+        return { ok: false, message: "Give everyone a number of shares" };
+      amounts = spreadRemainder(
+        values.map((v) => Math.floor((total * v) / sum)),
+        total,
+      );
+      break;
+    }
+  }
+  return {
+    ok: true,
+    shares: participants.map((p, i) => ({
+      personId: p.personId,
+      amount: amounts[i] ?? 0,
+      value: method === "equal" ? null : (values[i] ?? 0),
+    })),
+  };
+}
+
+/* ---------------- balances ---------------- */
+
+export type Balance = {
+  owedToMe: number;
+  iOwe: number;
+  received: number;
+  paid: number;
+  /** > 0: they owe the user. < 0: the user owes them. (paise) */
+  net: number;
+};
+
+const empty = (): Balance => ({
+  owedToMe: 0,
+  iOwe: 0,
+  received: 0,
+  paid: 0,
+  net: 0,
+});
+
+/** Per-person balances between the user and each person, optionally within one group. */
+export async function personBalances(userId: number, groupId?: number) {
+  const S = splitsTable;
+  const SS = splitSharesTable;
+  const ST = settlementsTable;
+  const inGroup = (
+    col: typeof S.groupId | typeof ST.groupId,
+  ): SQL | undefined => (groupId ? eq(col, groupId) : undefined);
+
+  const [owed, owe, settled] = await Promise.all([
+    // User paid → each person's share is owed to the user.
+    db
+      .select({ personId: SS.personId, total: sql<string>`sum(${SS.amount})` })
+      .from(SS)
+      .innerJoin(S, eq(S.id, SS.splitId))
+      .where(
+        and(
+          eq(S.userId, userId),
+          isNull(S.paidByPersonId),
+          isNotNull(SS.personId),
+          inGroup(S.groupId),
+        ),
+      )
+      .groupBy(SS.personId),
+    // A person paid → the user's own share is owed to them.
+    db
+      .select({
+        personId: S.paidByPersonId,
+        total: sql<string>`sum(${SS.amount})`,
+      })
+      .from(SS)
+      .innerJoin(S, eq(S.id, SS.splitId))
+      .where(
+        and(
+          eq(S.userId, userId),
+          isNotNull(S.paidByPersonId),
+          isNull(SS.personId),
+          inGroup(S.groupId),
+        ),
+      )
+      .groupBy(S.paidByPersonId),
+    db
+      .select({
+        personId: ST.personId,
+        direction: ST.direction,
+        total: sql<string>`sum(${ST.amount})`,
+      })
+      .from(ST)
+      .where(and(eq(ST.userId, userId), inGroup(ST.groupId)))
+      .groupBy(ST.personId, ST.direction),
+  ]);
+
+  const map = new Map<number, Balance>();
+  const get = (id: number) => {
+    let b = map.get(id);
+    if (!b) {
+      b = empty();
+      map.set(id, b);
+    }
+    return b;
+  };
+  for (const r of owed)
+    if (r.personId) get(r.personId).owedToMe += Number(r.total);
+  for (const r of owe) if (r.personId) get(r.personId).iOwe += Number(r.total);
+  for (const r of settled) {
+    const b = get(r.personId);
+    if (r.direction === "received") b.received += Number(r.total);
+    else b.paid += Number(r.total);
+  }
+  for (const b of map.values())
+    b.net = b.owedToMe - b.iOwe - b.received + b.paid;
+  return map;
+}
+
+export const balanceInRupees = (b: Balance | undefined) => {
+  const x = b ?? empty();
+  return {
+    owedToMe: toRupees(x.owedToMe),
+    iOwe: toRupees(x.iOwe),
+    received: toRupees(x.received),
+    paid: toRupees(x.paid),
+    net: toRupees(x.net),
+  };
+};
+
+/* ---------------- ownership checks ---------------- */
+
+export async function ownedPeople(userId: number, ids: number[]) {
+  if (!ids.length) return [];
+  return db
+    .select()
+    .from(peopleTable)
+    .where(and(eq(peopleTable.userId, userId), inArray(peopleTable.id, ids)));
+}
+
+export async function ownedGroup(userId: number, id: number) {
+  const [g] = await db
+    .select()
+    .from(splitGroupsTable)
+    .where(
+      and(eq(splitGroupsTable.id, id), eq(splitGroupsTable.userId, userId)),
+    )
+    .limit(1);
+  return g;
+}
+
+export async function ownedDebitCategory(userId: number, id: number) {
+  const [c] = await db
+    .select()
+    .from(categoriesTable)
+    .where(
+      and(
+        eq(categoriesTable.id, id),
+        eq(categoriesTable.userId, userId),
+        eq(categoriesTable.type, "debit"),
+      ),
+    )
+    .limit(1);
+  return c;
+}
+
+/* ---------------- the user's own share as a transaction ---------------- */
+
+/**
+ * Keeps exactly one debit transaction per split for the user's own share
+ * (so reports and budgets count only what the user actually consumed), or
+ * none when the user isn't in the split / chose not to record it.
+ */
+export async function syncShareTransaction(
+  tx: TX,
+  split: {
+    id: number;
+    userId: number;
+    description: string;
+    date: string;
+    categoryId: number | null;
+    recordExpense: boolean;
+    accountId: number | null;
+    eventId: number | null;
+  },
+  myShare: number,
+  paymentMethod?: PaymentMethod,
+) {
+  const accountId =
+    split.accountId ?? (await defaultAccountId(split.userId, tx));
+  const [existing] = await tx
+    .select()
+    .from(transactionsTable)
+    .where(eq(transactionsTable.splitId, split.id))
+    .limit(1);
+  const want = split.recordExpense && myShare > 0 && split.categoryId !== null;
+  if (!want) {
+    if (existing)
+      await tx
+        .delete(transactionsTable)
+        .where(eq(transactionsTable.id, existing.id));
+    return;
+  }
+  const values = {
+    amount: myShare,
+    categoryId: split.categoryId!,
+    date: split.date,
+    note: `Split: ${split.description}`,
+    accountId,
+    eventId: split.eventId,
+    ...(paymentMethod && { paymentMethod }),
+  };
+  if (existing) {
+    await tx
+      .update(transactionsTable)
+      .set(values)
+      .where(eq(transactionsTable.id, existing.id));
+  } else {
+    await tx.insert(transactionsTable).values({
+      ...values,
+      userId: split.userId,
+      type: "debit",
+      splitId: split.id,
+      paymentMethod: paymentMethod ?? "upi",
+    });
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "name": "finance-tracker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --if-present --workspaces --parallel dev",
+    "build": "bun run --if-present --workspaces --parallel build",
+    "typecheck": "bun run --if-present --workspaces --parallel typecheck",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "check": "biome check ."
+  },
+  "workspaces": {
+    "catalog": {
+      "@types/react": "19.2.18",
+      "@types/react-dom": "19.2.7",
+      "elysia": "1.4.30",
+      "@elysiajs/eden": "1.4.9",
+      "react": "19.2.8",
+      "react-dom": "19.2.8",
+      "drizzle-orm": "1.0.0-rc.4",
+      "drizzle-kit": "1.0.0-rc.4",
+      "@biomejs/biome": "2.5.12",
+      "typescript": "7.0.2"
+    },
+    "packages": [
+      "apps/*"
+    ]
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.12",
+    "@types/bun": "^1.4.1",
+    "typescript": "7.0.2"
+  }
+}

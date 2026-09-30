@@ -1,0 +1,152 @@
+import { and, asc, desc, eq } from "drizzle-orm";
+import Elysia, { t } from "elysia";
+import { db } from "$/db";
+import {
+  categoriesTable,
+  frequencies,
+  paymentMethods,
+  recurringRulesTable,
+  txnTypes,
+} from "$/db/schema";
+import { resolveAccountId } from "$/lib/services/account-service";
+import { recurringService } from "$/lib/services/recurring-service";
+import { ownedCategory } from "$/lib/services/transaction-service";
+import { fail, ok } from "$/lib/utils";
+import { toPaise, toRupees } from "$/lib/utils/money";
+import { tEnum } from "$/lib/utils/schema";
+import { protectedUser } from "$/pre-processor";
+
+const R = recurringRulesTable;
+const tDate = t.String({ pattern: "^\\d{4}-\\d{2}-\\d{2}$" });
+
+const ruleBody = t.Object({
+  type: tEnum(txnTypes),
+  amount: t.Number({ exclusiveMinimum: 0 }),
+  categoryId: t.Integer({ minimum: 1 }),
+  paymentMethod: tEnum(paymentMethods),
+  /** Omitted = the user's default account. */
+  accountId: t.Optional(t.Integer({ minimum: 1 })),
+  note: t.Optional(t.Nullable(t.String({ maxLength: 500 }))),
+  frequency: tEnum(frequencies),
+  startDate: tDate,
+  endDate: t.Optional(t.Nullable(tDate)),
+});
+
+async function listRules(userId: number) {
+  const rows = await db
+    .select({
+      rule: R,
+      category: {
+        id: categoriesTable.id,
+        name: categoriesTable.name,
+        icon: categoriesTable.icon,
+        color: categoriesTable.color,
+      },
+    })
+    .from(R)
+    .innerJoin(categoriesTable, eq(categoriesTable.id, R.categoryId))
+    .where(eq(R.userId, userId))
+    .orderBy(desc(R.isActive), asc(R.nextRunDate));
+  return rows.map(({ rule, category }) => ({
+    ...rule,
+    amount: toRupees(rule.amount),
+    category,
+  }));
+}
+
+export const recurringController = new Elysia({
+  name: "recurring_controller",
+  prefix: "/recurring",
+})
+  .use(protectedUser)
+  .get("/", async ({ user }) => ok(await listRules(user.id)))
+  .post(
+    "/",
+    async ({ user, body, status }) => {
+      const cat = await ownedCategory(user.id, body.categoryId, body.type);
+      if (!cat.ok) return status(400, fail(cat.message));
+      if (body.endDate && body.endDate < body.startDate)
+        return status(400, fail("End date must be after start date"));
+      const account = await resolveAccountId(user.id, body.accountId);
+      if (!account.ok) return status(400, fail(account.message));
+      await db.insert(R).values({
+        ...body,
+        accountId: account.id,
+        note: body.note?.trim() || null,
+        amount: toPaise(body.amount),
+        userId: user.id,
+        nextRunDate: body.startDate,
+      });
+      const posted = await recurringService.runDue(user.id);
+      return ok(
+        { posted },
+        posted
+          ? `Recurring rule added, ${posted} past entr${posted > 1 ? "ies" : "y"} posted`
+          : "Recurring rule added",
+      );
+    },
+    { body: ruleBody },
+  )
+  .patch(
+    "/:id",
+    async ({ user, params, body, status }) => {
+      const [rule] = await db
+        .select()
+        .from(R)
+        .where(and(eq(R.id, params.id), eq(R.userId, user.id)))
+        .limit(1);
+      if (!rule) return status(404, fail("Rule not found"));
+      const type = body.type ?? rule.type;
+      const categoryId = body.categoryId ?? rule.categoryId;
+      const cat = await ownedCategory(user.id, categoryId, type);
+      if (!cat.ok) return status(400, fail(cat.message));
+      let accountId: number | undefined;
+      if (body.accountId !== undefined) {
+        const account = await resolveAccountId(user.id, body.accountId);
+        if (!account.ok) return status(400, fail(account.message));
+        accountId = account.id;
+      }
+      // Changing the start date restarts the schedule from there (future only).
+      const restart = body.startDate && body.startDate !== rule.startDate;
+      await db
+        .update(R)
+        .set({
+          type,
+          categoryId,
+          ...(accountId !== undefined && { accountId }),
+          ...(body.amount !== undefined && { amount: toPaise(body.amount) }),
+          ...(body.paymentMethod && { paymentMethod: body.paymentMethod }),
+          ...(body.note !== undefined && { note: body.note?.trim() || null }),
+          ...(body.frequency && { frequency: body.frequency }),
+          ...(body.endDate !== undefined && { endDate: body.endDate }),
+          ...(body.isActive !== undefined && { isActive: body.isActive }),
+          ...(restart && {
+            startDate: body.startDate,
+            nextRunDate: body.startDate,
+          }),
+        })
+        .where(eq(R.id, rule.id));
+      await recurringService.runDue(user.id);
+      return ok(null, "Recurring rule updated");
+    },
+    {
+      params: t.Object({ id: t.Numeric() }),
+      body: t.Composite([
+        t.Partial(ruleBody),
+        t.Object({ isActive: t.Optional(t.Boolean()) }),
+      ]),
+    },
+  )
+  .delete(
+    "/:id",
+    async ({ user, params, status }) => {
+      const [row] = await db
+        .delete(R)
+        .where(and(eq(R.id, params.id), eq(R.userId, user.id)))
+        .returning();
+      return row
+        ? ok(null, "Recurring rule deleted (past entries kept)")
+        : status(404, fail("Rule not found"));
+    },
+    { params: t.Object({ id: t.Numeric() }) },
+  );
