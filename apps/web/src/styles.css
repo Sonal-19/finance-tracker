@@ -141,3 +141,356 @@
 @utility tabular {
   font-variant-numeric: tabular-nums;
 }
+
+/* Glassmorphism & Modern SaaS Utilities */
+.glass-card {
+  background: color-mix(in oklab, var(--card) 80%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid color-mix(in oklab, var(--border) 75%, transparent);
+}
+
+.glass-pill {
+  background: color-mix(in oklab, var(--card) 70%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+}
+
+.glass-header {
+  background: color-mix(in oklab, var(--background) 75%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Radiant Mesh & Gradients */
+.bg-grid-pattern {
+  background-size: 32px 32px;
+  background-image: radial-gradient(
+    circle,
+    color-mix(in oklab, var(--foreground) 9%, transparent) 1px,
+    transparent 1px
+  );
+}
+
+.bg-dot-pattern {
+  background-size: 20px 20px;
+  background-image: radial-gradient(
+    circle,
+    color-mix(in oklab, var(--primary) 15%, transparent) 1.5px,
+    transparent 1.5px
+  );
+}
+
+.text-gradient-primary {
+  background: linear-gradient(
+    135deg,
+    var(--primary) 0%,
+    #14b8a6 50%,
+    #059669 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.dark .text-gradient-primary {
+  background: linear-gradient(135deg, #2dd4bf 0%, #38bdf8 50%, #34d399 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gradient-warm {
+  background: linear-gradient(135deg, #ea580c 0%, #f59e0b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.glow-teal {
+  box-shadow: 0 0 40px -10px
+    color-mix(in oklab, var(--primary) 35%, transparent);
+}
+
+.glow-income {
+  box-shadow: 0 0 35px -8px color-mix(in oklab, var(--income) 35%, transparent);
+}
+
+.glow-expense {
+  box-shadow: 0 0 35px -8px color-mix(in oklab, var(--expense) 35%, transparent);
+}
+
+.card-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.card-shine::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, #ffffff 12%, transparent),
+    transparent
+  );
+  transform: skewX(-20deg);
+  transition: left 0.75s ease;
+  pointer-events: none;
+}
+
+.card-shine:hover::before {
+  left: 200%;
+}
+
+/* Keyframe animations */
+@keyframes float-slow {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-float-slow {
+  animation: float-slow 5s ease-in-out infinite;
+}
+
+.animate-float-reverse {
+  animation: float-reverse 6s ease-in-out infinite;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 4s ease-in-out infinite;
+}
+
+.animate-pen-write {
+  animation: pen-write 2.5s ease-in-out infinite;
+}
+
+.animate-coin-spin {
+  animation: coin-spin 8s linear infinite;
+}
+
+.animate-shine-sweep {
+  animation: shimmer 3s infinite linear;
+}
+
+/* Notebook ledger grid & lines */
+.bg-notebook-lines {
+  background-image: repeating-linear-gradient(
+    transparent,
+    transparent 27px,
+    color-mix(in oklab, var(--primary) 12%, transparent) 28px
+  );
+  background-size: 100% 28px;
+}
+
+.bg-ledger-grid {
+  background-image:
+    linear-gradient(
+      to right,
+      color-mix(in oklab, var(--border) 60%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--border) 60%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 24px 24px;
+}
+
+@keyframes float-reverse {
+  0%,
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(10px) rotate(-2deg);
+  }
+}
+
+@keyframes pen-write {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  25% {
+    transform: translate(6px, -4px) rotate(3deg);
+  }
+  50% {
+    transform: translate(12px, 2px) rotate(-2deg);
+  }
+  75% {
+    transform: translate(18px, -2px) rotate(2deg);
+  }
+}
+
+@keyframes coin-spin {
+  0% {
+    transform: rotateY(0deg);
+  }
+  50% {
+    transform: rotateY(180deg) scale(1.05);
+  }
+  100% {
+    transform: rotateY(360deg);
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 0.2;
+  }
+  100% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Connected Tree branch & energy beam */
+@keyframes tree-pulse {
+  0% {
+    top: -10%;
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+.animate-tree-pulse {
+  animation: tree-pulse 2.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes branch-glow {
+  0%,
+  100% {
+    filter: drop-shadow(
+      0 0 4px color-mix(in oklab, var(--primary) 40%, transparent)
+    );
+  }
+  50% {
+    filter: drop-shadow(
+      0 0 12px color-mix(in oklab, var(--primary) 85%, transparent)
+    );
+  }
+}
+
+.animate-branch-glow {
+  animation: branch-glow 3.5s ease-in-out infinite;
+}
+
+@keyframes leaf-sway {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(4deg) scale(1.02);
+  }
+  75% {
+    transform: rotate(-4deg) scale(0.98);
+  }
+}
+
+.animate-leaf-sway {
+  animation: leaf-sway 4s ease-in-out infinite;
+}
+
+@keyframes sap-travel {
+  0% {
+    stroke-dashoffset: 120;
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0.2;
+  }
+}
+
+.animate-sap-travel {
+  stroke-dasharray: 20 60;
+  animation: sap-travel 2.5s linear infinite;
+}
+
+@keyframes ring-expand-compound {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(0.85);
+    opacity: 0.9;
+  }
+}
+
+.animate-ring-growth {
+  animation: ring-expand-compound 5s ease-in-out infinite;
+}
+
+@keyframes blossom-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(
+      0 0 8px color-mix(in oklab, var(--income) 50%, transparent)
+    );
+  }
+  50% {
+    transform: scale(1.08);
+    filter: drop-shadow(
+      0 0 20px color-mix(in oklab, var(--income) 90%, transparent)
+    );
+  }
+}
+
+.animate-blossom-pulse {
+  animation: blossom-pulse 3s ease-in-out infinite;
+}
