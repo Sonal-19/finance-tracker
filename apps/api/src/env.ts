@@ -30,3 +30,16 @@ export const APP_TZ = "Asia/Kolkata";
 export const FX_FALLBACK_USD_INR = Number(
   process.env.FX_FALLBACK_USD_INR ?? 95,
 );
+
+/** WebAuthn relying party. `RP_ID` must equal the browser's hostname exactly
+ * (no scheme/port); a passkey registered for one RP_ID is useless on another. */
+export const RP_ID =
+  process.env.RP_ID || (IS_PROD ? "tracker.com.u4.lol" : "localhost");
+
+/** Exact origins a passkey ceremony may come from. `null` (dev only) means
+ * any `http://localhost:*` origin. */
+export const RP_ALLOWED_ORIGINS: string[] | null = process.env.RP_ORIGINS
+  ? process.env.RP_ORIGINS.split(",")
+  : IS_PROD
+    ? ["https://tracker.com.u4.lol"]
+    : null;

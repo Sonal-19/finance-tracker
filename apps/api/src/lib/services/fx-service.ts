@@ -1,5 +1,5 @@
-import { FX_FALLBACK_USD_INR } from "$/env";
 import { today } from "$/lib/utils/period";
+import { systemConfigService } from "./system-config-service";
 
 export const foreignCurrencies = ["USD"] as const;
 export type ForeignCurrency = (typeof foreignCurrencies)[number];
@@ -49,7 +49,7 @@ class FxService {
         return (
           hit?.quote ?? {
             currency,
-            rate: FX_FALLBACK_USD_INR,
+            rate: systemConfigService.SYSTEM_CONFIG.FX.FALLBACK_USD_INR,
             date: today(),
             source: "fallback",
           }

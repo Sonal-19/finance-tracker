@@ -12,10 +12,12 @@
     "db:push": "drizzle-kit push --force",
     "db:seed": "bun src/db/seed/index.ts",
     "db:backfill-accounts": "bun src/db/scripts/backfill-accounts.ts",
+    "db:make-admin": "bun src/db/scripts/make-admin.ts",
     "db:studio": "drizzle-kit studio --port 5577"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.2",
+    "@passwordless-id/webauthn": "^2.4.0",
     "drizzle-orm": "catalog:",
     "elysia": "catalog:",
     "nodemailer": "^10.0.1"

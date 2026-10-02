@@ -3,6 +3,7 @@ import {
   ArrowLeftRight,
   LayoutDashboard,
   LogOut,
+  Megaphone,
   Menu,
   PieChart,
   Plus,
@@ -12,10 +13,11 @@ import { Logo } from "@/components/common/logo";
 import { SplitSheet } from "@/components/split/split-sheet";
 import { TransactionSheet } from "@/components/transactions/transaction-sheet";
 import { Button } from "@/components/ui/button";
+import { usePublicConfig } from "@/hooks/use-passkeys";
 import { cn } from "@/lib/utils";
 import type { AppUser } from "@/stores/auth-store";
 import { useTxnSheet } from "@/stores/txn-sheet-store";
-import { NAV } from "./nav-items";
+import { navFor } from "./nav-items";
 import { Avatar, UserMenu, useSignOut } from "./user-menu";
 
 const TABS = [
@@ -36,6 +38,7 @@ const MORE_PATHS = [
   "/recurring",
   "/categories",
   "/settings",
+  "/system-config",
 ];
 
 export function AppShell({
@@ -48,7 +51,9 @@ export function AppShell({
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const openNew = useTxnSheet((s) => s.openNew);
   const signOut = useSignOut();
-  const current = NAV.find((n) => pathname.startsWith(n.to));
+  const nav = navFor(user);
+  const current = nav.find((n) => pathname.startsWith(n.to));
+  const notice = usePublicConfig().data?.notice;
 
   return (
     <div className="min-h-dvh md:grid md:grid-cols-[250px_1fr]">
@@ -65,7 +70,7 @@ export function AppShell({
           </Button>
         </div>
         <nav className="mt-4 flex-1 space-y-0.5 overflow-y-auto px-3">
-          {NAV.map((n) => {
+          {nav.map((n) => {
             const active = pathname.startsWith(n.to);
             return (
               <Link
@@ -122,6 +127,16 @@ export function AppShell({
             <UserMenu user={user} />
           </div>
         </header>
+
+        {notice && (
+          <div
+            role="status"
+            className="flex items-start gap-2 border-b bg-accent px-4 py-2.5 text-sm text-accent-foreground md:px-8"
+          >
+            <Megaphone className="mt-0.5 size-4 shrink-0" />
+            <p className="min-w-0 whitespace-pre-line break-words">{notice}</p>
+          </div>
+        )}
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-4 pb-28 md:px-8 md:pt-6 md:pb-10">
           {children}

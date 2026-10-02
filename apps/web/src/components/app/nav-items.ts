@@ -6,6 +6,7 @@ import {
   PieChart,
   Repeat,
   Settings,
+  SlidersHorizontal,
   Tags,
   Target,
   Users,
@@ -25,3 +26,12 @@ export const NAV = [
   { to: "/categories", label: "Categories", icon: Tags },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
+
+/** Extra entries for `role = admin` (the API enforces it; this only hides
+ * the link). */
+export const ADMIN_NAV = [
+  { to: "/system-config", label: "System config", icon: SlidersHorizontal },
+] as const;
+
+export const navFor = (user: { role?: string } | null | undefined) =>
+  user?.role === "admin" ? [...NAV, ...ADMIN_NAV] : [...NAV];

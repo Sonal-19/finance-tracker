@@ -20,6 +20,7 @@ import { Route as AppMoreRouteImport } from './routes/_app/more'
 import { Route as AppRecurringRouteImport } from './routes/_app/recurring'
 import { Route as AppReportsRouteImport } from './routes/_app/reports'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as AppSystemConfigRouteImport } from './routes/_app/system-config'
 import { Route as AppTransactionsRouteImport } from './routes/_app/transactions'
 import { Route as AppAccountsIndexRouteImport } from './routes/_app/accounts/index'
 import { Route as AppAccountsAccountIdRouteImport } from './routes/_app/accounts/$accountId'
@@ -83,6 +84,11 @@ const AppSettingsRoute = AppSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSystemConfigRoute = AppSystemConfigRouteImport.update({
+  id: '/system-config',
+  path: '/system-config',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTransactionsRoute = AppTransactionsRouteImport.update({
   id: '/transactions',
   path: '/transactions',
@@ -135,6 +141,7 @@ export interface FileRoutesByFullPath {
   '/recurring': typeof AppRecurringRoute
   '/reports': typeof AppReportsRoute
   '/settings': typeof AppSettingsRoute
+  '/system-config': typeof AppSystemConfigRoute
   '/transactions': typeof AppTransactionsRoute
   '/accounts/$accountId': typeof AppAccountsAccountIdRoute
   '/events/$eventId': typeof AppEventsEventIdRoute
@@ -155,6 +162,7 @@ export interface FileRoutesByTo {
   '/recurring': typeof AppRecurringRoute
   '/reports': typeof AppReportsRoute
   '/settings': typeof AppSettingsRoute
+  '/system-config': typeof AppSystemConfigRoute
   '/transactions': typeof AppTransactionsRoute
   '/accounts/$accountId': typeof AppAccountsAccountIdRoute
   '/events/$eventId': typeof AppEventsEventIdRoute
@@ -177,6 +185,7 @@ export interface FileRoutesById {
   '/_app/recurring': typeof AppRecurringRoute
   '/_app/reports': typeof AppReportsRoute
   '/_app/settings': typeof AppSettingsRoute
+  '/_app/system-config': typeof AppSystemConfigRoute
   '/_app/transactions': typeof AppTransactionsRoute
   '/_app/accounts/$accountId': typeof AppAccountsAccountIdRoute
   '/_app/events/$eventId': typeof AppEventsEventIdRoute
@@ -199,6 +208,7 @@ export interface FileRouteTypes {
     | '/recurring'
     | '/reports'
     | '/settings'
+    | '/system-config'
     | '/transactions'
     | '/accounts/$accountId'
     | '/events/$eventId'
@@ -219,6 +229,7 @@ export interface FileRouteTypes {
     | '/recurring'
     | '/reports'
     | '/settings'
+    | '/system-config'
     | '/transactions'
     | '/accounts/$accountId'
     | '/events/$eventId'
@@ -240,6 +251,7 @@ export interface FileRouteTypes {
     | '/_app/recurring'
     | '/_app/reports'
     | '/_app/settings'
+    | '/_app/system-config'
     | '/_app/transactions'
     | '/_app/accounts/$accountId'
     | '/_app/events/$eventId'
@@ -335,6 +347,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/system-config': {
+      id: '/_app/system-config'
+      path: '/system-config'
+      fullPath: '/system-config'
+      preLoaderRoute: typeof AppSystemConfigRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/transactions': {
       id: '/_app/transactions'
       path: '/transactions'
@@ -403,6 +422,7 @@ interface AppRouteChildren {
   AppRecurringRoute: typeof AppRecurringRoute
   AppReportsRoute: typeof AppReportsRoute
   AppSettingsRoute: typeof AppSettingsRoute
+  AppSystemConfigRoute: typeof AppSystemConfigRoute
   AppTransactionsRoute: typeof AppTransactionsRoute
   AppAccountsAccountIdRoute: typeof AppAccountsAccountIdRoute
   AppEventsEventIdRoute: typeof AppEventsEventIdRoute
@@ -422,6 +442,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppRecurringRoute: AppRecurringRoute,
   AppReportsRoute: AppReportsRoute,
   AppSettingsRoute: AppSettingsRoute,
+  AppSystemConfigRoute: AppSystemConfigRoute,
   AppTransactionsRoute: AppTransactionsRoute,
   AppAccountsAccountIdRoute: AppAccountsAccountIdRoute,
   AppEventsEventIdRoute: AppEventsEventIdRoute,

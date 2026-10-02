@@ -5,6 +5,7 @@ export type AppUser = {
   id: number;
   name: string;
   email: string;
+  role: "user" | "admin";
   monthlyBudget: number | null;
 };
 

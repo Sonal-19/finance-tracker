@@ -33,6 +33,8 @@ Open http://localhost:3300.
 ## Features
 
 - Sign up with name + email (OTP verified) + password, log in, forgot password (OTP), change password, log out, delete account
+- **Passkeys**: add any number of passkeys in Settings and sign in with fingerprint, face or screen lock instead of a password
+- **System config** (admins only): turn sign-ups and passkey login on or off, cap passkeys per user, show a notice banner, set the fallback USD rate. Make yourself an admin with `bun run --cwd apps/api db:make-admin <email>`
 - Transactions CRUD with category, payment method (UPI, cash, bank, cards), date and note; search, filters, infinite scroll, undo delete, CSV export
 - Enter an amount in **US dollars**: it's converted to rupees using that day's USD→INR rate (live for today, historical for past dates, or your own rate), saved in INR, and the original $ amount + rate are kept for reference
 - **Split & share**: add friends, office colleagues, family/relatives or anyone; optional groups (trip, flat, office lunch); split a bill equally, by exact ₹, % or shares, paid by you or a friend; only your share counts as your expense; per-person and group balances, settle up (full/partial), WhatsApp reminders, and "Split with friends" on any existing expense

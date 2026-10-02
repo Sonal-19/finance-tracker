@@ -69,3 +69,19 @@ export const protectedUser = new Elysia({ name: "protected_user" })
     }
     return { user: auth.user, token: auth.token };
   });
+
+/** `role = admin` only. Everyone else gets the same 404 as a route that
+ * doesn't exist. */
+export const protectedAdmin = new Elysia({ name: "protected_admin" })
+  .use(authProcessor)
+  .onBeforeHandle({ as: "scoped" }, ({ auth, status }) => {
+    if (auth?.user?.role !== "admin") {
+      return status(404, { success: false, message: "Not found" });
+    }
+  })
+  .derive({ as: "scoped" }, ({ auth, status }) => {
+    if (auth?.user?.role !== "admin") {
+      return status(404, { success: false, message: "Not found" });
+    }
+    return { user: auth.user };
+  });

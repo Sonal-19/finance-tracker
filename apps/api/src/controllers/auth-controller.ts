@@ -6,17 +6,24 @@ import { seedDefaultAccounts } from "$/lib/services/account-service";
 import { coreAuthService } from "$/lib/services/core-auth-service";
 import { seedDefaultCategories } from "$/lib/services/default-categories";
 import { otpService } from "$/lib/services/otp-service";
+import { PasskeyError, passkeyService } from "$/lib/services/passkey-service";
 import { clientIp, rateLimitService } from "$/lib/services/rate-limit-service";
 import { publicUser, startSession } from "$/lib/services/session-service";
+import { systemConfigService } from "$/lib/services/system-config-service";
 import { fail, normalizeEmail, ok } from "$/lib/utils";
 import { authProcessor } from "$/pre-processor";
 
 const LOGIN_LIMIT = 5;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const PASSKEY_LIMIT = 30;
 
 const tEmail = t.String({ format: "email", maxLength: 254 });
 const tPassword = t.String({ minLength: 8, maxLength: 128 });
 const tOtp = t.String({ pattern: "^[0-9]{6}$" });
+
+const SIGNUPS_CLOSED = "New sign-ups are closed right now";
+const registrationOpen = () =>
+  systemConfigService.SYSTEM_CONFIG.AUTH.REGISTRATION_ENABLED;
 
 async function findUserByEmail(email: string) {
   const [user] = await db
@@ -31,9 +38,19 @@ export const authController = new Elysia({
   name: "auth_controller",
   prefix: "/auth",
 })
+  /** The slice of SYSTEM_CONFIG the logged-out pages and app shell need. */
+  .get("/config", () => {
+    const { AUTH, NOTICE } = systemConfigService.SYSTEM_CONFIG;
+    return ok({
+      registrationEnabled: AUTH.REGISTRATION_ENABLED,
+      passkeyLoginEnabled: AUTH.PASSKEY_LOGIN_ENABLED,
+      notice: NOTICE.ENABLED && NOTICE.MESSAGE.trim() ? NOTICE.MESSAGE : null,
+    });
+  })
   .post(
     "/register/send-otp",
     async ({ body, status, request, server }) => {
+      if (!registrationOpen()) return status(403, fail(SIGNUPS_CLOSED));
       if (
         !rateLimitService.hit(`otp:${clientIp(request, server)}`, 10, 3_600_000)
       )
@@ -59,6 +76,7 @@ export const authController = new Elysia({
   .post(
     "/register/verify",
     async ({ body, status, cookie, headers, request, server }) => {
+      if (!registrationOpen()) return status(403, fail(SIGNUPS_CLOSED));
       const email = normalizeEmail(body.email);
       if (await findUserByEmail(email))
         return status(409, fail("An account with this email already exists"));
@@ -119,6 +137,57 @@ export const authController = new Elysia({
       body: t.Object({
         email: t.String({ minLength: 3 }),
         password: t.String({ minLength: 1 }),
+      }),
+    },
+  )
+  .post("/passkey/login/options", ({ status, request, server }) => {
+    if (
+      !rateLimitService.hit(
+        `passkey:${clientIp(request, server)}`,
+        PASSKEY_LIMIT,
+        LOGIN_WINDOW_MS,
+      )
+    )
+      return status(429, fail("Too many attempts. Try again in 15 minutes."));
+    try {
+      return ok(passkeyService.beginLogin());
+    } catch (err) {
+      if (err instanceof PasskeyError) return status(403, fail(err.message));
+      throw err;
+    }
+  })
+  .post(
+    "/passkey/login/verify",
+    async ({ body, status, cookie, headers, request, server }) => {
+      let userId: number;
+      try {
+        userId = await passkeyService.completeLogin(
+          body.challengeId,
+          body.credential,
+        );
+      } catch (err) {
+        if (err instanceof PasskeyError) return status(403, fail(err.message));
+        throw err;
+      }
+      const [user] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.id, userId))
+        .limit(1);
+      if (!user) return status(403, fail("This passkey isn't recognised"));
+
+      // Same session issuance as password login.
+      await startSession(cookie, user.id, {
+        ip: clientIp(request, server),
+        userAgent: headers["user-agent"],
+      });
+      return ok(publicUser(user), "Login successful");
+    },
+    {
+      body: t.Object({
+        challengeId: t.String({ maxLength: 64 }),
+        // Opaque WebAuthn payload: the library does the real validation.
+        credential: t.Any(),
       }),
     },
   )

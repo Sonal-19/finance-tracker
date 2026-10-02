@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { LogOut, Monitor, Moon, Sun } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { PasskeysCard } from "@/components/app/passkeys-card";
 import { SectionCard } from "@/components/app/section-card";
 import { useSignOut } from "@/components/app/user-menu";
 import { Field } from "@/components/common/field";
@@ -118,6 +119,8 @@ function SettingsPage() {
           ]}
         />
       </SectionCard>
+
+      <PasskeysCard />
 
       <SectionCard title="Change password">
         <form

@@ -5,6 +5,7 @@ import { connectionTest } from "./db/connect";
 import { ALLOWED_ORIGIN_HOSTS, IS_PROD, PORT } from "./env";
 import { coreAuthService } from "./lib/services/core-auth-service";
 import { recurringService } from "./lib/services/recurring-service";
+import { systemConfigService } from "./lib/services/system-config-service";
 
 const app = new Elysia({ name: "main_app" })
   .use(
@@ -29,6 +30,7 @@ export type Server = typeof app;
 connectionTest().then(async (res) => {
   if (res) {
     await coreAuthService.initialize();
+    await systemConfigService.initialize();
     recurringService.startSchedule();
     app.listen(PORT);
     console.info(`ENV is ${process.env.NODE_ENV}`);

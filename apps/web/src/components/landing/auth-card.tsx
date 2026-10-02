@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Check,
   CheckCircle2,
+  Fingerprint,
   KeyRound,
   Loader2,
   Lock,
@@ -24,6 +25,11 @@ import { OtpInput } from "@/components/common/otp-input";
 import { PasswordInput } from "@/components/common/password-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  isPasskeySupported,
+  usePasskeyLogin,
+  usePublicConfig,
+} from "@/hooks/use-passkeys";
 import { api, callMsg } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -85,6 +91,10 @@ function LoginForm() {
     onSuccess: ({ data, message }) => onAuthed(data, message),
     onError: (e) => toast.error(e.message),
   });
+
+  const { data: config } = usePublicConfig();
+  const passkeyLogin = usePasskeyLogin();
+  const showPasskey = !!config?.passkeyLoginEnabled && isPasskeySupported();
 
   const handleFillDemo = () => {
     setEmail("demo@finance.local");
@@ -159,6 +169,35 @@ function LoginForm() {
         )}
       </Button>
 
+      {showPasskey && (
+        <>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="h-px flex-1 bg-border" />
+            or
+            <span className="h-px flex-1 bg-border" />
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="h-11 w-full font-semibold"
+            disabled={passkeyLogin.isPending}
+            onClick={() =>
+              passkeyLogin.mutate(undefined, {
+                onSuccess: ({ data, message }) => onAuthed(data, message),
+              })
+            }
+          >
+            {passkeyLogin.isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Fingerprint className="size-4" />
+            )}
+            Sign in with passkey
+          </Button>
+        </>
+      )}
+
       {IS_DEV && (
         <button
           type="button"
@@ -201,6 +240,8 @@ function RegisterForm() {
     onError: (e) => toast.error(e.message),
   });
 
+  const { data: config } = usePublicConfig();
+
   const passwordLengthOk = password.length >= 8;
   const passwordsMatch = confirmPw.length > 0 && confirmPw === password;
   const passwordMismatch = confirmPw.length > 0 && confirmPw !== password;
@@ -215,6 +256,18 @@ function RegisterForm() {
     if (/[^A-Za-z0-9]/.test(password)) s += 1;
     return s;
   })();
+
+  if (config && !config.registrationEnabled) {
+    return (
+      <div className="flex items-start gap-3 rounded-xl border bg-muted/60 p-4 text-sm">
+        <Lock className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+        <p>
+          New sign-ups are closed right now. If you already have an account, log
+          in instead.
+        </p>
+      </div>
+    );
+  }
 
   if (step === "details") {
     return (
