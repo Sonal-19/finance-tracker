@@ -8,7 +8,11 @@
     "typecheck": "bun run --if-present --workspaces --parallel typecheck",
     "lint": "biome lint .",
     "format": "biome format --write .",
-    "check": "biome check ."
+    "check": "biome check .",
+    "deploy": "zsh scripts/deploy-all.sh",
+    "deploy:backend": "zsh scripts/deploy-backend.sh",
+    "deploy:frontend": "zsh scripts/deploy-frontend.sh",
+    "deploy:seed": "zsh scripts/deploy-seed.sh"
   },
   "workspaces": {
     "catalog": {

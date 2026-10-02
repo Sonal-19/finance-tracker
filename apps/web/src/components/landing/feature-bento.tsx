@@ -1,21 +1,15 @@
 import {
   AlertTriangle,
-  ArrowRight,
   ArrowUpRight,
   CalendarRange,
   Check,
   CheckCircle2,
   Clock,
   IndianRupee,
-  Layers,
   Repeat,
-  ShieldCheck,
-  Sliders,
   SmartphoneNfc,
-  Sparkles,
   TrendingUp,
   Users,
-  Wallet,
   Zap,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
@@ -44,7 +38,8 @@ const RAILS: RailData[] = [
     name: "Google Pay",
     badge: "UPI QR",
     color: "text-blue-500 border-blue-500/30 bg-blue-500/10",
-    activeColor: "border-blue-500 bg-blue-500 text-white shadow-md shadow-blue-500/25",
+    activeColor:
+      "border-blue-500 bg-blue-500 text-white shadow-md shadow-blue-500/25",
     bgGlow: "from-blue-500/10 to-transparent",
     merchant: "Nature Basket Provisions",
     amount: "₹1,450",
@@ -57,7 +52,8 @@ const RAILS: RailData[] = [
     name: "PhonePe",
     badge: "Auto-VPA",
     color: "text-purple-500 border-purple-500/30 bg-purple-500/10",
-    activeColor: "border-purple-500 bg-purple-500 text-white shadow-md shadow-purple-500/25",
+    activeColor:
+      "border-purple-500 bg-purple-500 text-white shadow-md shadow-purple-500/25",
     bgGlow: "from-purple-500/10 to-transparent",
     merchant: "Swiggy Gourmet Feast",
     amount: "₹680",
@@ -70,7 +66,8 @@ const RAILS: RailData[] = [
     name: "Paytm",
     badge: "Transit",
     color: "text-sky-500 border-sky-500/30 bg-sky-500/10",
-    activeColor: "border-sky-500 bg-sky-500 text-white shadow-md shadow-sky-500/25",
+    activeColor:
+      "border-sky-500 bg-sky-500 text-white shadow-md shadow-sky-500/25",
     bgGlow: "from-sky-500/10 to-transparent",
     merchant: "Metro Transit Recharge",
     amount: "₹300",
@@ -83,7 +80,8 @@ const RAILS: RailData[] = [
     name: "CRED Pay",
     badge: "Rewards",
     color: "text-amber-500 border-amber-500/30 bg-amber-500/10",
-    activeColor: "border-amber-500 bg-amber-500 text-white shadow-md shadow-amber-500/25",
+    activeColor:
+      "border-amber-500 bg-amber-500 text-white shadow-md shadow-amber-500/25",
     bgGlow: "from-amber-500/10 to-transparent",
     merchant: "Blue Tokai Coffee Reserve",
     amount: "₹360",
@@ -96,7 +94,8 @@ const RAILS: RailData[] = [
     name: "Physical Cash",
     badge: "ATM Sync",
     color: "text-emerald-500 border-emerald-500/30 bg-emerald-500/10",
-    activeColor: "border-emerald-500 bg-emerald-500 text-white shadow-md shadow-emerald-500/25",
+    activeColor:
+      "border-emerald-500 bg-emerald-500 text-white shadow-md shadow-emerald-500/25",
     bgGlow: "from-emerald-500/10 to-transparent",
     merchant: "Local Kirana & Fruits",
     amount: "₹120",
@@ -106,11 +105,30 @@ const RAILS: RailData[] = [
   },
 ];
 
-const PERIOD_DATA: Record<Period, { delta: string; desc: string; bars: number[] }> = {
-  Day: { delta: "+₹420", desc: "Under daily spend target", bars: [35, 45, 20, 60, 25, 40, 30] },
-  Week: { delta: "+12.4%", desc: "Surplus saved vs last week", bars: [50, 65, 40, 75, 45, 80, 55] },
-  Month: { delta: "+18.6%", desc: "Retained vs previous month", bars: [60, 40, 85, 70, 95, 60, 80] },
-  Year: { delta: "+₹1.65L", desc: "Cumulative net capital gain", bars: [40, 55, 70, 65, 85, 90, 100] },
+const PERIOD_DATA: Record<
+  Period,
+  { delta: string; desc: string; bars: number[] }
+> = {
+  Day: {
+    delta: "+₹420",
+    desc: "Under daily spend target",
+    bars: [35, 45, 20, 60, 25, 40, 30],
+  },
+  Week: {
+    delta: "+12.4%",
+    desc: "Surplus saved vs last week",
+    bars: [50, 65, 40, 75, 45, 80, 55],
+  },
+  Month: {
+    delta: "+18.6%",
+    desc: "Retained vs previous month",
+    bars: [60, 40, 85, 70, 95, 60, 80],
+  },
+  Year: {
+    delta: "+₹1.65L",
+    desc: "Cumulative net capital gain",
+    bars: [40, 55, 70, 65, 85, 90, 100],
+  },
 };
 
 export function FeatureBento() {
@@ -119,7 +137,8 @@ export function FeatureBento() {
 
   // Card 1: Selected Rail
   const [selectedRail, setSelectedRail] = useState<RailId>("gpay");
-  const activeRailData: RailData = RAILS.find((r) => r.id === selectedRail) ?? RAILS[0]!;
+  const activeRailData: RailData =
+    RAILS.find((r) => r.id === selectedRail) ?? RAILS[0]!;
 
   // Card 2: Pacing Radar Spend Simulator
   const [budgetSpend, setBudgetSpend] = useState<number>(6800);
@@ -149,7 +168,9 @@ export function FeatureBento() {
   /* -------------------------------------------------------------------------- */
   const renderUpiCard = () => (
     <div className="relative flex h-full flex-col justify-between overflow-hidden rounded-[28px] border border-border/70 bg-card p-6 sm:p-8 shadow-sm transition-all duration-300 hover:border-primary/40 hover:shadow-xl dark:border-border/50">
-      <div className={`pointer-events-none absolute -right-20 -top-20 size-72 rounded-full bg-gradient-to-br ${activeRailData.bgGlow} blur-3xl`} />
+      <div
+        className={`pointer-events-none absolute -right-20 -top-20 size-72 rounded-full bg-gradient-to-br ${activeRailData.bgGlow} blur-3xl`}
+      />
 
       <div>
         {/* Header Badges */}
@@ -201,7 +222,9 @@ export function FeatureBento() {
                 }`}
               >
                 <span>{rail.name}</span>
-                <span className={`text-[10px] font-medium opacity-80 ${isSelected ? "text-white" : ""}`}>
+                <span
+                  className={`text-[10px] font-medium opacity-80 ${isSelected ? "text-white" : ""}`}
+                >
                   ({rail.badge})
                 </span>
               </button>
@@ -241,7 +264,9 @@ export function FeatureBento() {
         <span className="flex items-center gap-1 text-primary">
           <Zap className="size-3.5 fill-primary" /> Indian QR & UPI Optimized
         </span>
-        <span className="text-[11px] text-muted-foreground">Tap any rail to preview</span>
+        <span className="text-[11px] text-muted-foreground">
+          Tap any rail to preview
+        </span>
       </div>
     </div>
   );
@@ -260,8 +285,8 @@ export function FeatureBento() {
             isCritical
               ? "bg-rose-500/15"
               : isWarning
-              ? "bg-amber-500/15"
-              : "bg-emerald-500/15"
+                ? "bg-amber-500/15"
+                : "bg-emerald-500/15"
           }`}
         />
 
@@ -305,8 +330,8 @@ export function FeatureBento() {
                   isCritical
                     ? "text-rose-600 dark:text-rose-400 font-black"
                     : isWarning
-                    ? "text-amber-600 dark:text-amber-400 font-black"
-                    : "text-emerald-600 dark:text-emerald-400 font-extrabold"
+                      ? "text-amber-600 dark:text-amber-400 font-black"
+                      : "text-emerald-600 dark:text-emerald-400 font-extrabold"
                 }`}
               >
                 ₹{budgetSpend.toLocaleString("en-IN")} / ₹8,000
@@ -331,8 +356,8 @@ export function FeatureBento() {
                   isCritical
                     ? "bg-rose-500 shadow-sm shadow-rose-500/50"
                     : isWarning
-                    ? "bg-amber-500 shadow-sm shadow-amber-500/50"
-                    : "bg-emerald-500 shadow-sm shadow-emerald-500/50"
+                      ? "bg-amber-500 shadow-sm shadow-amber-500/50"
+                      : "bg-emerald-500 shadow-sm shadow-emerald-500/50"
                 }`}
                 style={{ width: `${Math.min(budgetPct, 100)}%` }}
               />
@@ -342,7 +367,9 @@ export function FeatureBento() {
 
             {/* Live Status Badge */}
             <div className="mt-3 flex items-center justify-between text-xs">
-              <span className="text-muted-foreground font-medium text-[11px]">Threshold Status:</span>
+              <span className="text-muted-foreground font-medium text-[11px]">
+                Threshold Status:
+              </span>
               {isCritical ? (
                 <span className="inline-flex items-center gap-1 font-black text-rose-600 dark:text-rose-400">
                   <span className="size-2 rounded-full bg-rose-500 animate-pulse" />
@@ -366,7 +393,9 @@ export function FeatureBento() {
         {/* Footer */}
         <div className="mt-6 flex items-center justify-between border-t border-border/70 pt-4 text-xs font-bold text-muted-foreground">
           <span className="text-foreground">Category Autoguard</span>
-          <span className="text-[11px] text-muted-foreground">Drag slider to test</span>
+          <span className="text-[11px] text-muted-foreground">
+            Drag slider to test
+          </span>
         </div>
       </div>
     );
@@ -392,8 +421,12 @@ export function FeatureBento() {
         </h3>
 
         <div className="mt-2 flex gap-1.5 text-[11px] font-semibold text-muted-foreground">
-          <span className="rounded-md bg-muted/80 px-2 py-0.5">👥 4 Friends</span>
-          <span className="rounded-md bg-muted/80 px-2 py-0.5">🌴 Goa Vacation</span>
+          <span className="rounded-md bg-muted/80 px-2 py-0.5">
+            👥 4 Friends
+          </span>
+          <span className="rounded-md bg-muted/80 px-2 py-0.5">
+            🌴 Goa Vacation
+          </span>
         </div>
 
         {/* Settlement Interactive Box */}
@@ -469,8 +502,12 @@ export function FeatureBento() {
         <div className="mt-4 rounded-2xl border border-border/80 bg-muted/30 p-3.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className={`size-2 rounded-full ${isAutopilotOn ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground"}`} />
-              <span className="text-xs font-bold text-foreground">House Rent Auto-Post</span>
+              <span
+                className={`size-2 rounded-full ${isAutopilotOn ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground"}`}
+              />
+              <span className="text-xs font-bold text-foreground">
+                House Rent Auto-Post
+              </span>
             </div>
             <span className="text-xs font-black text-rose-500">−₹18,000</span>
           </div>
@@ -546,7 +583,9 @@ export function FeatureBento() {
           {/* Micro Velocity Visual Bar */}
           <div className="mt-4 rounded-2xl border border-border/80 bg-muted/30 p-3.5">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground font-medium">{current.desc}</span>
+              <span className="text-muted-foreground font-medium">
+                {current.desc}
+              </span>
               <span className="font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
                 <TrendingUp className="size-3.5" /> {current.delta}
               </span>

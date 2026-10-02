@@ -1,5 +1,5 @@
 export const DATABASE_URL =
-  process.env.DATABASE_URL || "postgres://sonal@localhost:5432/finance_tracker";
+  process.env.DATABASE_URL || "postgres://localhost/finance_tracker";
 
 export const IS_PROD = process.env.NODE_ENV === "production";
 

@@ -1,32 +1,19 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import {
-  Activity,
   AlertTriangle,
-  ArrowDownLeft,
   ArrowRight,
-  ArrowUpRight,
-  BarChart3,
-  BellRing,
   Calculator,
   Check,
   CheckCircle2,
   ChevronDown,
-  Clock,
-  CreditCard,
-  IndianRupee,
-  Landmark,
   Layers,
   Lock,
   Moon,
   PiggyBank,
-  Play,
   Receipt,
-  Repeat,
   RotateCcw,
   ShieldCheck,
-  Sliders,
   SmartphoneNfc,
-  Sparkles,
   Sun,
   TrendingUp,
   Users,
@@ -930,7 +917,10 @@ function WealthCalculator({ onStartFree }: WealthCalculatorProps) {
   );
   const totalInvested = monthlySavings * months;
   const compoundInterest = Math.max(0, futureValue - totalInvested);
-  const principalRatio = Math.max(8, Math.min(92, Math.round((totalInvested / futureValue) * 100)));
+  const principalRatio = Math.max(
+    8,
+    Math.min(92, Math.round((totalInvested / futureValue) * 100)),
+  );
   const gainRatio = 100 - principalRatio;
   const multiplier = (futureValue / (totalInvested || 1)).toFixed(2);
 
@@ -965,10 +955,14 @@ function WealthCalculator({ onStartFree }: WealthCalculatorProps) {
             {/* Punchy Title */}
             <h3 className="mt-3 text-2xl sm:text-3xl font-black tracking-tight text-foreground">
               Turn Daily Leaks Into <br className="hidden sm:inline" />
-              <span className="text-gradient-primary">Generational Capital</span>.
+              <span className="text-gradient-primary">
+                Generational Capital
+              </span>
+              .
             </h3>
             <p className="mt-2 text-xs sm:text-sm text-muted-foreground">
-              Tweak parameters to project compounding power on your monthly surplus.
+              Tweak parameters to project compounding power on your monthly
+              surplus.
             </p>
           </div>
 
@@ -1124,7 +1118,8 @@ function WealthCalculator({ onStartFree }: WealthCalculatorProps) {
           <div className="relative overflow-hidden rounded-3xl border border-primary/30 bg-gradient-to-br from-primary/10 via-card to-emerald-500/5 p-6 sm:p-8 shadow-inner">
             <div className="flex items-center justify-between">
               <span className="text-xs font-black uppercase tracking-wider text-primary flex items-center gap-1.5">
-                <TrendingUp className="size-4" /> Projected Total Wealth ({years} Years)
+                <TrendingUp className="size-4" /> Projected Total Wealth (
+                {years} Years)
               </span>
               <span className="hidden sm:block rounded-full bg-primary/20 px-2.5 py-0.5 text-[11px] font-bold text-primary">
                 {cagr}% CAGR
@@ -1144,7 +1139,10 @@ function WealthCalculator({ onStartFree }: WealthCalculatorProps) {
             {/* Highlight Growth Badge */}
             <div className="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-500/15 border border-emerald-500/25 px-3 py-1.5 text-xs font-extrabold text-emerald-600 dark:text-emerald-400">
               <Zap className="size-3.5 fill-emerald-500" />
-              <span>+{formatCompactInr(compoundInterest)} ({gainRatio}%) in Pure Compound Growth</span>
+              <span>
+                +{formatCompactInr(compoundInterest)} ({gainRatio}%) in Pure
+                Compound Growth
+              </span>
             </div>
 
             {/* Dual-Segment Visual Allocation Bar */}
@@ -1168,11 +1166,21 @@ function WealthCalculator({ onStartFree }: WealthCalculatorProps) {
               <div className="mt-2.5 flex items-center justify-between text-xs">
                 <div className="flex items-center gap-1.5 font-semibold text-muted-foreground">
                   <span className="size-2.5 rounded-full bg-primary" />
-                  <span>Invested: <strong className="text-foreground">{formatCompactInr(totalInvested)}</strong></span>
+                  <span>
+                    Invested:{" "}
+                    <strong className="text-foreground">
+                      {formatCompactInr(totalInvested)}
+                    </strong>
+                  </span>
                 </div>
                 <div className="flex items-center gap-1.5 font-semibold text-emerald-600 dark:text-emerald-400">
                   <span className="size-2.5 rounded-full bg-emerald-500" />
-                  <span>Interest: <strong className="text-emerald-600 dark:text-emerald-400">+{formatCompactInr(compoundInterest)}</strong></span>
+                  <span>
+                    Interest:{" "}
+                    <strong className="text-emerald-600 dark:text-emerald-400">
+                      +{formatCompactInr(compoundInterest)}
+                    </strong>
+                  </span>
                 </div>
               </div>
             </div>
@@ -1187,12 +1195,15 @@ function WealthCalculator({ onStartFree }: WealthCalculatorProps) {
               <p className="mt-1 text-base font-black text-foreground">
                 ₹{monthlySavings.toLocaleString("en-IN")}
               </p>
-              <p className="text-[10px] text-muted-foreground">Retained cashflow</p>
+              <p className="text-[10px] text-muted-foreground">
+                Retained cashflow
+              </p>
             </div>
 
             <div className="rounded-2xl border border-border/80 bg-muted/30 p-3.5">
               <span className="text-[11px] font-bold text-muted-foreground flex items-center gap-1">
-                <ShieldCheck className="size-3 text-emerald-500" /> 1-Year Reserve
+                <ShieldCheck className="size-3 text-emerald-500" /> 1-Year
+                Reserve
               </span>
               <p className="mt-1 text-base font-black text-emerald-600 dark:text-emerald-400">
                 {formatCompactInr(yearlySavings)}
@@ -1207,14 +1218,17 @@ function WealthCalculator({ onStartFree }: WealthCalculatorProps) {
               <p className="mt-1 text-base font-black text-teal-600 dark:text-teal-400">
                 {multiplier}x
               </p>
-              <p className="text-[10px] text-muted-foreground">Capital efficiency</p>
+              <p className="text-[10px] text-muted-foreground">
+                Capital efficiency
+              </p>
             </div>
           </div>
 
           {/* Native Action Footer */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
             <p className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
-              <Lock className="size-3.5 text-primary" /> 100% Private · Zero tracking telemetry
+              <Lock className="size-3.5 text-primary" /> 100% Private · Zero
+              tracking telemetry
             </p>
             {onStartFree && (
               <button
