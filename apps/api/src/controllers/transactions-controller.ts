@@ -20,12 +20,12 @@ import {
   txnWhere,
 } from "$/lib/services/transaction-service";
 import { csvEscape, fail, ok } from "$/lib/utils";
-import { toPaise, toRupees } from "$/lib/utils/money";
+import { amountOf } from "$/lib/utils/money";
 import { tEnum } from "$/lib/utils/schema";
 import { protectedUser } from "$/pre-processor";
 
 const tDate = t.String({ pattern: "^\\d{4}-\\d{2}-\\d{2}$" });
-const tAmount = t.Number({ exclusiveMinimum: 0, maximum: 1_000_000_000 });
+const tAmount = t.Integer({ exclusiveMinimum: 0, maximum: 100_000_000_000 });
 
 const filterQuery = t.Object({
   type: t.Optional(tEnum(txnTypes)),
@@ -37,7 +37,7 @@ const filterQuery = t.Object({
   from: t.Optional(tDate),
   to: t.Optional(tDate),
   q: t.Optional(t.String({ maxLength: 100 })),
-  minAmount: t.Optional(t.Numeric()),
+  minAmount: t.Optional(t.Numeric({ minimum: 0 })),
   maxAmount: t.Optional(t.Numeric()),
 });
 
@@ -56,15 +56,15 @@ function toFilters(q: FilterQuery): TxnFilters {
       ?.split(",")
       .map(Number)
       .filter((n) => Number.isInteger(n) && n > 0),
-    minAmount: q.minAmount !== undefined ? toPaise(q.minAmount) : undefined,
-    maxAmount: q.maxAmount !== undefined ? toPaise(q.maxAmount) : undefined,
+    minAmount: q.minAmount,
+    maxAmount: q.maxAmount,
   };
 }
 
 const currencies = ["INR", ...foreignCurrencies] as const;
 type Currency = (typeof currencies)[number];
 
-/** Resolves the INR paise to store plus the original-currency columns. */
+/** Resolves the INR amount to store plus the original-currency columns. */
 async function convert(
   amount: number,
   currency: Currency,
@@ -73,15 +73,15 @@ async function convert(
 ) {
   if (currency === "INR")
     return {
-      amount: toPaise(amount),
+      amount,
       originalAmount: null,
       originalCurrency: null,
       fxRate: null,
     };
   const rate = manualRate ?? (await fxService.forDate(currency, date)).rate;
   return {
-    amount: toPaise(amount * rate),
-    originalAmount: toPaise(amount),
+    amount: Math.round(amount * rate),
+    originalAmount: amount,
     originalCurrency: currency,
     fxRate: rate,
   };
@@ -158,11 +158,11 @@ export const transactionsController = new Elysia({
           r.account.name,
           r.book.name,
           r.event?.name,
-          toRupees(r.amount).toFixed(2),
+          (amountOf(r.amount) / 100).toFixed(2),
           r.note,
           r.originalAmount === null
             ? ""
-            : toRupees(r.originalAmount).toFixed(2),
+            : (amountOf(r.originalAmount) / 100).toFixed(2),
           r.originalCurrency,
           r.fxRate,
         ]
@@ -323,9 +323,9 @@ export const transactionsController = new Elysia({
       return ok(
         {
           ...row,
-          amount: toRupees(row.amount),
+          amount: amountOf(row.amount),
           originalAmount:
-            row.originalAmount === null ? null : toRupees(row.originalAmount),
+            row.originalAmount === null ? null : amountOf(row.originalAmount),
         },
         "Transaction deleted",
       );

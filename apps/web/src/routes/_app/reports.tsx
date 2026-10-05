@@ -24,7 +24,7 @@ import { ErrorState, PageLoader } from "@/components/common/states";
 import { useActiveAccounts } from "@/hooks/use-accounts";
 import { useBookScope } from "@/hooks/use-books";
 import { useSummary } from "@/hooks/use-finance";
-import { money, pct, todayStr } from "@/lib/format";
+import { formatAmount, pct, todayStr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/reports")({
@@ -153,13 +153,13 @@ function ReportsPage() {
                             {bucketLabel(b.key, data.unit, true)}
                           </td>
                           <td className="py-2 text-right text-income">
-                            {money(b.income)}
+                            {formatAmount(b.income)}
                           </td>
                           <td className="py-2 text-right text-expense">
-                            {money(b.expense)}
+                            {formatAmount(b.expense)}
                           </td>
                           <td className="py-2 text-right font-medium">
-                            {money(b.income - b.expense)}
+                            {formatAmount(b.income - b.expense)}
                           </td>
                         </tr>
                       ))}

@@ -12,7 +12,7 @@ import { PageLoader } from "@/components/common/states";
 import { Button } from "@/components/ui/button";
 import { type Account, useAccounts } from "@/hooks/use-accounts";
 import { accountTypeLabel } from "@/lib/accounts";
-import { money } from "@/lib/format";
+import { formatAmount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/accounts/")({
@@ -56,7 +56,7 @@ function AccountRow({ a }: { a: Account }) {
             a.balance < 0 ? "text-expense" : "text-foreground",
           )}
         >
-          {money(isCard && a.balance < 0 ? -a.balance : a.balance)}
+          {formatAmount(isCard && a.balance < 0 ? -a.balance : a.balance)}
         </p>
       </div>
       <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
@@ -114,17 +114,19 @@ function AccountsPage() {
               Total balance · {active.length} payment methods
             </p>
             <p className="tabular mt-1 text-3xl font-bold">
-              {money(data.total)}
+              {formatAmount(data.total)}
             </p>
             <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
               <div>
                 <p className="text-white/75">You have</p>
-                <p className="tabular font-semibold">{money(data.assets)}</p>
+                <p className="tabular font-semibold">
+                  {formatAmount(data.assets)}
+                </p>
               </div>
               <div>
                 <p className="text-white/75">You owe (cards etc.)</p>
                 <p className="tabular font-semibold">
-                  {money(data.liabilities)}
+                  {formatAmount(data.liabilities)}
                 </p>
               </div>
             </div>

@@ -1,11 +1,12 @@
 import { useState } from "react";
+import { DateInput } from "@/components/common/date-input";
 import { Field } from "@/components/common/field";
 import { ResponsiveSheet } from "@/components/common/responsive-sheet";
 import { Segmented } from "@/components/common/segmented";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAddSettlement } from "@/hooks/use-splits";
-import { money, todayStr } from "@/lib/format";
+import { formatAmount, toAmount, todayStr } from "@/lib/format";
 
 export type SettleTarget = {
   personId: number;
@@ -52,8 +53,8 @@ export function SettleSheet({
       description={
         value && Math.abs(value.net) > 0.005
           ? value.net > 0
-            ? `${first} owes you ${money(value.net)}`
-            : `You owe ${first} ${money(-value.net)}`
+            ? `${first} owes you ${formatAmount(value.net)}`
+            : `You owe ${first} ${formatAmount(-value.net)}`
           : "You're all settled up"
       }
     >
@@ -67,7 +68,7 @@ export function SettleSheet({
               personId: value.personId,
               groupId: value.groupId ?? null,
               direction,
-              amount: Number(amount),
+              amount: toAmount(Number(amount)),
               date,
               note: note.trim() || null,
             },
@@ -98,11 +99,10 @@ export function SettleSheet({
           />
         </Field>
         <Field label="Date" htmlFor="settle-date">
-          <Input
+          <DateInput
             id="settle-date"
-            type="date"
             value={date}
-            onChange={(e) => setDate(e.target.value)}
+            onChange={(v) => setDate(v)}
           />
         </Field>
         <Field label="Note (optional)" htmlFor="settle-note">

@@ -23,7 +23,7 @@ import {
   useSplitSummary,
   useSplits,
 } from "@/hooks/use-splits";
-import { money } from "@/lib/format";
+import { formatAmount } from "@/lib/format";
 import { RELATIONS, type Relation, relationLabel } from "@/lib/split";
 import { cn } from "@/lib/utils";
 import { useSplitSheet } from "@/stores/split-sheet-store";
@@ -67,19 +67,19 @@ function SplitPage() {
         <div className="rounded-2xl border bg-card p-3 sm:p-4">
           <p className="text-xs text-muted-foreground">You're owed</p>
           <p className="tabular mt-1 truncate text-lg font-bold text-income sm:text-2xl">
-            {money(s?.owedToYou ?? 0)}
+            {formatAmount(s?.owedToYou ?? 0)}
           </p>
         </div>
         <div className="rounded-2xl border bg-card p-3 sm:p-4">
           <p className="text-xs text-muted-foreground">You owe</p>
           <p className="tabular mt-1 truncate text-lg font-bold text-expense sm:text-2xl">
-            {money(s?.youOwe ?? 0)}
+            {formatAmount(s?.youOwe ?? 0)}
           </p>
         </div>
         <div className="rounded-2xl border bg-card p-3 sm:p-4">
           <p className="text-xs text-muted-foreground">Net</p>
           <p className="tabular mt-1 truncate text-lg font-bold sm:text-2xl">
-            {money(s?.net ?? 0)}
+            {formatAmount(s?.net ?? 0)}
           </p>
         </div>
       </div>
@@ -241,7 +241,7 @@ function GroupsTab({ onAdd }: { onAdd: () => void }) {
           <div className="min-w-0 flex-1">
             <p className="truncate font-semibold">{g.name}</p>
             <p className="truncate text-xs text-muted-foreground">
-              {g.members.length + 1} people · spent {money(g.totalSpent)}
+              {g.members.length + 1} people · spent {formatAmount(g.totalSpent)}
             </p>
             <div className="mt-1.5 flex -space-x-2">
               {g.members.slice(0, 5).map((m) => (
@@ -301,12 +301,12 @@ function SharedTab() {
             <p className="truncate font-medium">{s.description}</p>
             <p className="truncate text-xs text-muted-foreground">
               {s.date} · from {s.ownerName} (@{s.ownerUsername}) · bill{" "}
-              {money(s.total)}
+              {formatAmount(s.total)}
             </p>
           </div>
           <div className="text-right">
             <p className="tabular font-semibold text-expense">
-              −{money(s.myShare)}
+              −{formatAmount(s.myShare)}
             </p>
             <label className="mt-1 flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
               Add to expenses

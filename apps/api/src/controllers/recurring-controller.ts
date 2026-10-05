@@ -12,7 +12,7 @@ import { resolveBookId } from "$/lib/services/book-service";
 import { recurringService } from "$/lib/services/recurring-service";
 import { ownedCategory } from "$/lib/services/transaction-service";
 import { fail, ok } from "$/lib/utils";
-import { toPaise, toRupees } from "$/lib/utils/money";
+import { amountOf } from "$/lib/utils/money";
 import { tEnum } from "$/lib/utils/schema";
 import { protectedUser } from "$/pre-processor";
 
@@ -21,7 +21,7 @@ const tDate = t.String({ pattern: "^\\d{4}-\\d{2}-\\d{2}$" });
 
 const ruleBody = t.Object({
   type: tEnum(txnTypes),
-  amount: t.Number({ exclusiveMinimum: 0 }),
+  amount: t.Integer({ exclusiveMinimum: 0 }),
   categoryId: t.Integer({ minimum: 1 }),
   /** Omitted = the user's default account. */
   accountId: t.Optional(t.Integer({ minimum: 1 })),
@@ -50,7 +50,7 @@ async function listRules(userId: number) {
     .orderBy(sql`${R.status} <> 'active'`, asc(R.nextRunDate));
   return rows.map(({ rule, category }) => ({
     ...rule,
-    amount: toRupees(rule.amount),
+    amount: amountOf(rule.amount),
     category,
   }));
 }
@@ -77,7 +77,7 @@ export const recurringController = new Elysia({
         accountId: account.id,
         bookId: book.id,
         note: body.note?.trim() || null,
-        amount: toPaise(body.amount),
+        amount: body.amount,
         userId: user.id,
         nextRunDate: body.startDate,
       });
@@ -125,7 +125,7 @@ export const recurringController = new Elysia({
           categoryId,
           ...(accountId !== undefined && { accountId }),
           ...(bookId !== undefined && { bookId }),
-          ...(body.amount !== undefined && { amount: toPaise(body.amount) }),
+          ...(body.amount !== undefined && { amount: body.amount }),
           ...(body.note !== undefined && { note: body.note?.trim() || null }),
           ...(body.frequency && { frequency: body.frequency }),
           ...(body.endDate !== undefined && { endDate: body.endDate }),

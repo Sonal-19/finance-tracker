@@ -4,6 +4,7 @@ import { Minus, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { CategoryIcon, COLORS } from "@/components/common/category-icon";
 import { confirm } from "@/components/common/confirm-dialog";
+import { DateInput } from "@/components/common/date-input";
 import { Field } from "@/components/common/field";
 import { PageHeader } from "@/components/common/page-header";
 import { ResponsiveSheet } from "@/components/common/responsive-sheet";
@@ -18,7 +19,14 @@ import {
   useGoals,
   useSaveGoal,
 } from "@/hooks/use-finance";
-import { money, shortDate, todayStr, ymd } from "@/lib/format";
+import {
+  formatAmount,
+  fromAmount,
+  shortDate,
+  toAmount,
+  todayStr,
+  ymd,
+} from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/goals")({
@@ -119,17 +127,17 @@ function GoalsPage() {
                       <p className="truncate font-semibold">{g.name}</p>
                     </div>
                     <p className="tabular mt-2 text-lg font-bold">
-                      {money(g.saved)}
+                      {formatAmount(g.saved)}
                     </p>
                     <p className="tabular text-xs text-muted-foreground">
-                      of {money(g.target)}
+                      of {formatAmount(g.target)}
                     </p>
                   </div>
                 </div>
                 <p className="mt-3 text-xs text-muted-foreground">
                   {ratio >= 1
                     ? "🎉 Goal reached!"
-                    : `${money(left)} to go${g.targetDate ? ` · by ${shortDate(g.targetDate)}` : ""}${monthsLeft && monthsLeft > 0 ? ` · ~${money(left / monthsLeft)}/month` : ""}`}
+                    : `${formatAmount(left)} to go${g.targetDate ? ` · by ${shortDate(g.targetDate)}` : ""}${monthsLeft && monthsLeft > 0 ? ` · ~${formatAmount(left / monthsLeft)}/month` : ""}`}
                 </p>
                 <div className="mt-4 flex gap-2">
                   <Button
@@ -206,7 +214,7 @@ function GoalSheet({
     if (value && value !== "new")
       setForm({
         name: value.name,
-        target: String(value.target),
+        target: String(fromAmount(value.target)),
         targetDate: value.targetDate ? ymd(value.targetDate) : "",
         color: value.color,
         icon: value.icon,
@@ -234,7 +242,7 @@ function GoalSheet({
             {
               id: value && value !== "new" ? value.id : undefined,
               name: form.name,
-              target: Number(form.target),
+              target: toAmount(Number(form.target)),
               targetDate: form.targetDate || null,
               color: form.color,
               icon: form.icon,
@@ -270,12 +278,11 @@ function GoalSheet({
             />
           </Field>
           <Field label="Target date" htmlFor="goal-date">
-            <Input
+            <DateInput
               id="goal-date"
-              type="date"
               min={todayStr()}
               value={form.targetDate}
-              onChange={(e) => setForm({ ...form, targetDate: e.target.value })}
+              onChange={(v) => setForm({ ...form, targetDate: v })}
             />
           </Field>
         </div>
@@ -355,7 +362,10 @@ function ContributionSheet({
           add.mutate(
             {
               id: value.goal.id,
-              amount: mode === "add" ? Number(amount) : -Number(amount),
+              amount:
+                mode === "add"
+                  ? toAmount(Number(amount))
+                  : -toAmount(Number(amount)),
               date,
             },
             { onSuccess: onClose },
@@ -382,11 +392,10 @@ function ContributionSheet({
           />
         </Field>
         <Field label="Date" htmlFor="contrib-date">
-          <Input
+          <DateInput
             id="contrib-date"
-            type="date"
             value={date}
-            onChange={(e) => setDate(e.target.value)}
+            onChange={(v) => setDate(v)}
           />
         </Field>
         <Button

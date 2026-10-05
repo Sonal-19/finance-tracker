@@ -13,6 +13,7 @@ import { EmptyState, PageLoader } from "@/components/common/states";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/use-auth";
+import { useBookScope } from "@/hooks/use-books";
 import {
   useBudgets,
   useCategories,
@@ -20,8 +21,7 @@ import {
   useSaveBudget,
   useUpdateProfile,
 } from "@/hooks/use-finance";
-import { useBookScope } from "@/hooks/use-books";
-import { money } from "@/lib/format";
+import { formatAmount, fromAmount, toAmount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/budgets")({
@@ -96,7 +96,9 @@ function BudgetsPage() {
             ) : (
               <p className="text-sm text-muted-foreground">
                 You've spent{" "}
-                <b className="text-foreground">{money(overall?.spent ?? 0)}</b>{" "}
+                <b className="text-foreground">
+                  {formatAmount(overall?.spent ?? 0)}
+                </b>{" "}
                 this month. Set an overall limit to track it.
               </p>
             )}
@@ -186,10 +188,10 @@ function BudgetBar({
     <div className="space-y-2">
       <div className="flex items-baseline justify-between text-sm">
         <span className={cn("tabular font-semibold", large && "text-xl")}>
-          {money(spent)}
+          {formatAmount(spent)}
         </span>
         <span className="tabular text-muted-foreground">
-          of {money(budget)}
+          of {formatAmount(budget)}
         </span>
       </div>
       <Progress
@@ -208,8 +210,8 @@ function BudgetBar({
         )}
       >
         {ratio > 1
-          ? `Over by ${money(spent - budget)}`
-          : `${money(budget - spent)} left · ${Math.round(ratio * 100)}% used`}
+          ? `Over by ${formatAmount(spent - budget)}`
+          : `${formatAmount(budget - spent)} left · ${Math.round(ratio * 100)}% used`}
       </p>
     </div>
   );
@@ -232,7 +234,7 @@ function CategoryBudgetSheet({
   if (value !== lastValue) {
     setLastValue(value);
     setCategoryId(value?.categoryId ?? null);
-    setAmount(value?.amount ? String(value.amount) : "");
+    setAmount(value?.amount ? String(fromAmount(value.amount)) : "");
   }
   const editingExisting = !!value?.categoryId;
   const options = categories.filter(
@@ -253,7 +255,7 @@ function CategoryBudgetSheet({
           e.preventDefault();
           if (!categoryId || !(Number(amount) > 0)) return;
           save.mutate(
-            { categoryId, amount: Number(amount) },
+            { categoryId, amount: toAmount(Number(amount)) },
             { onSuccess: onClose },
           );
         }}
@@ -314,7 +316,7 @@ function OverallBudgetSheet({
   const [wasOpen, setWasOpen] = useState(false);
   if (open !== wasOpen) {
     setWasOpen(open);
-    if (open) setAmount(current ? String(current) : "");
+    if (open) setAmount(current ? String(fromAmount(current)) : "");
   }
   return (
     <ResponsiveSheet
@@ -328,7 +330,7 @@ function OverallBudgetSheet({
         onSubmit={(e) => {
           e.preventDefault();
           update.mutate(
-            { monthlyBudget: amount ? Number(amount) : null },
+            { monthlyBudget: amount ? toAmount(Number(amount)) : null },
             { onSuccess: () => onOpenChange(false) },
           );
         }}

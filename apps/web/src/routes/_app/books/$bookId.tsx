@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { SectionCard } from "@/components/app/section-card";
-import { type EditableBook, BookSheet } from "@/components/books/book-sheet";
+import { BookSheet, type EditableBook } from "@/components/books/book-sheet";
 import { CategoryDonut } from "@/components/charts/category-donut";
 import { CategoryIcon } from "@/components/common/category-icon";
 import { confirm } from "@/components/common/confirm-dialog";
@@ -25,7 +25,7 @@ import {
   useSaveBook,
 } from "@/hooks/use-books";
 import { useTransactions } from "@/hooks/use-finance";
-import { money } from "@/lib/format";
+import { formatAmount } from "@/lib/format";
 import { useTxnSheet } from "@/stores/txn-sheet-store";
 
 export const Route = createFileRoute("/_app/books/$bookId")({
@@ -113,20 +113,20 @@ function BookPage() {
                 {b.outstanding < 0 ? "Received extra" : "Yet to get back"}
               </p>
               <p className="tabular text-3xl font-bold">
-                {money(Math.abs(b.outstanding))}
+                {formatAmount(Math.abs(b.outstanding))}
               </p>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-2 text-center text-sm">
               <div className="rounded-xl bg-muted/60 p-2.5">
                 <p className="text-xs text-muted-foreground">Spent</p>
                 <p className="tabular font-semibold text-expense">
-                  −{money(b.spent)}
+                  −{formatAmount(b.spent)}
                 </p>
               </div>
               <div className="rounded-xl bg-muted/60 p-2.5">
                 <p className="text-xs text-muted-foreground">Received back</p>
                 <p className="tabular font-semibold text-income">
-                  +{money(b.received)}
+                  +{formatAmount(b.received)}
                 </p>
               </div>
             </div>
@@ -134,10 +134,12 @@ function BookPage() {
         ) : (
           <div className="mt-5 text-center">
             <p className="text-sm text-muted-foreground">Spent in this book</p>
-            <p className="tabular text-3xl font-bold">{money(b.spent)}</p>
+            <p className="tabular text-3xl font-bold">
+              {formatAmount(b.spent)}
+            </p>
             <p className="text-xs text-muted-foreground">
               {b.count} entries
-              {b.received > 0 && ` · received ${money(b.received)}`}
+              {b.received > 0 && ` · received ${formatAmount(b.received)}`}
             </p>
           </div>
         )}

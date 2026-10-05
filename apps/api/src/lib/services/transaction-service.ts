@@ -19,7 +19,7 @@ import {
   type TxnType,
   transactionsTable,
 } from "$/db/schema";
-import { toRupees } from "$/lib/utils/money";
+import { amountOf } from "$/lib/utils/money";
 
 export type TxnFilters = {
   type?: TxnType;
@@ -115,8 +115,8 @@ type TxnRow = Awaited<ReturnType<typeof selectTxns>>[number];
 
 export const serializeTxn = (r: TxnRow) => ({
   ...r,
-  amount: toRupees(r.amount),
-  originalAmount: r.originalAmount === null ? null : toRupees(r.originalAmount),
+  amount: amountOf(r.amount),
+  originalAmount: r.originalAmount === null ? null : amountOf(r.originalAmount),
 });
 
 export async function listTransactions(
@@ -170,13 +170,13 @@ export async function listTransactions(
     hasMore,
     totals: {
       count: totals?.count ?? 0,
-      income: toRupees(totals?.income),
-      expense: toRupees(totals?.expense),
+      income: amountOf(totals?.income),
+      expense: amountOf(totals?.expense),
     },
     dayTotals: Object.fromEntries(
       dayRows.map((d) => [
         d.date,
-        { income: toRupees(d.income), expense: toRupees(d.expense) },
+        { income: amountOf(d.income), expense: amountOf(d.expense) },
       ]),
     ),
   };

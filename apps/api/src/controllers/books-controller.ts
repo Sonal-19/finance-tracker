@@ -10,7 +10,7 @@ import {
 } from "$/db/schema";
 import { bookSummaries, ownedBook } from "$/lib/services/book-service";
 import { fail, ok } from "$/lib/utils";
-import { toRupees } from "$/lib/utils/money";
+import { amountOf } from "$/lib/utils/money";
 import { tEnum } from "$/lib/utils/schema";
 import { protectedUser } from "$/pre-processor";
 
@@ -84,7 +84,7 @@ export const booksController = new Elysia({
         .orderBy(desc(sql`sum(${T.amount})`));
       return ok({
         book,
-        byCategory: byCategory.map((c) => ({ ...c, total: toRupees(c.total) })),
+        byCategory: byCategory.map((c) => ({ ...c, total: amountOf(c.total) })),
       });
     },
     { params: tId },

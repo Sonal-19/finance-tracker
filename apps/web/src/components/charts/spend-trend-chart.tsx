@@ -8,7 +8,7 @@ import {
   YAxis,
 } from "recharts";
 import type { Summary } from "@/hooks/use-finance";
-import { moneyShort } from "@/lib/format";
+import { formatAmountShort } from "@/lib/format";
 import { ChartTooltip, EXPENSE_COLOR } from "./chart-tooltip";
 import { bucketLabel } from "./income-expense-chart";
 
@@ -45,7 +45,7 @@ export function SpendTrendChart({
             axisLine={false}
             width={48}
             tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-            tickFormatter={(v: number) => moneyShort(v)}
+            tickFormatter={(v: number) => formatAmountShort(v)}
           />
           <Tooltip
             cursor={{

@@ -2,7 +2,7 @@ import { CategoryIcon } from "@/components/common/category-icon";
 import { Label } from "@/components/ui/label";
 import { useActiveAccounts, useEvents } from "@/hooks/use-accounts";
 import { useActiveBooks } from "@/hooks/use-books";
-import { money, ymd } from "@/lib/format";
+import { formatAmount, ymd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const chip =
@@ -43,7 +43,7 @@ export function AccountPicker({
                   {a.name}
                 </span>
                 <span className="tabular block text-[11px] text-muted-foreground">
-                  {money(a.balance)}
+                  {formatAmount(a.balance)}
                 </span>
               </span>
             </button>

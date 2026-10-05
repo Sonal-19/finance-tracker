@@ -1,6 +1,6 @@
 import { CategoryIcon } from "@/components/common/category-icon";
 import type { Split } from "@/hooks/use-splits";
-import { money, shortDate } from "@/lib/format";
+import { formatAmount, shortDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useSplitSheet } from "@/stores/split-sheet-store";
 
@@ -26,7 +26,7 @@ export function SplitRow({ split, effect }: { split: Split; effect?: number }) {
           {[
             shortDate(split.date),
             split.group?.name,
-            `${split.paidBy ? split.paidBy.name.split(" ")[0] : "You"} paid ${money(split.total)}`,
+            `${split.paidBy ? split.paidBy.name.split(" ")[0] : "You"} paid ${formatAmount(split.total)}`,
           ]
             .filter(Boolean)
             .join(" · ")}
@@ -47,7 +47,7 @@ export function SplitRow({ split, effect }: { split: Split; effect?: number }) {
               value > 0 ? "text-income" : "text-expense",
             )}
           >
-            {money(Math.abs(value))}
+            {formatAmount(Math.abs(value))}
           </p>
         )}
       </div>

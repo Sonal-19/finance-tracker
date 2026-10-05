@@ -1,6 +1,6 @@
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import type * as React from "react";
-import { money } from "@/lib/format";
+import { formatAmount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /** KPI tile with change vs the previous period. `goodWhenUp` flips the tone for expenses. */
@@ -50,7 +50,7 @@ export function StatCard({
         )}
       </div>
       <p className="tabular mt-2 truncate text-xl font-bold sm:text-2xl">
-        {display ?? money(value)}
+        {display ?? formatAmount(value)}
       </p>
       {change !== null && Number.isFinite(change) && (
         <p

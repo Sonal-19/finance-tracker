@@ -2,6 +2,7 @@ import { ArrowDown } from "lucide-react";
 import { useState } from "react";
 import { AccountPicker } from "@/components/app/pickers";
 import { CategoryIcon, COLORS } from "@/components/common/category-icon";
+import { DateInput } from "@/components/common/date-input";
 import { Field } from "@/components/common/field";
 import { ResponsiveSheet } from "@/components/common/responsive-sheet";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ import {
   useSaveAccount,
 } from "@/hooks/use-accounts";
 import { ACCOUNT_TYPES } from "@/lib/accounts";
-import { todayStr } from "@/lib/format";
+import { fromAmount, toAmount, todayStr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export type EditableAccount = AccountInput & { id?: number };
@@ -53,7 +54,9 @@ export function AccountSheet({
     if (value)
       setForm({
         ...value,
-        opening: value.openingBalance ? String(value.openingBalance) : "",
+        opening: value.openingBalance
+          ? String(fromAmount(value.openingBalance))
+          : "",
       });
   }
   const isCard = form.type === "credit_card";
@@ -69,7 +72,7 @@ export function AccountSheet({
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
-          const opening = Number(form.opening || 0);
+          const opening = toAmount(Number(form.opening || 0));
           save.mutate(
             {
               id: value?.id,
@@ -248,7 +251,7 @@ export function TransferSheet({
             {
               fromAccountId: from!,
               toAccountId: to!,
-              amount: Number(amount),
+              amount: toAmount(Number(amount)),
               date,
               note: note.trim() || null,
             },
@@ -279,12 +282,7 @@ export function TransferSheet({
             />
           </Field>
           <Field label="Date" htmlFor="tr-date">
-            <Input
-              id="tr-date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
+            <DateInput id="tr-date" value={date} onChange={(v) => setDate(v)} />
           </Field>
         </div>
         <Field label="Note (optional)" htmlFor="tr-note">

@@ -16,7 +16,7 @@ import {
   usersTable,
 } from "$/db/schema";
 import { seedDefaultCategories } from "$/lib/services/default-categories";
-import { toPaise } from "$/lib/utils/money";
+import { rupees } from "$/lib/utils/money";
 import { addDays, addMonths, today } from "$/lib/utils/period";
 import { seedSplits } from "./split-data";
 
@@ -60,7 +60,7 @@ async function mainSeed() {
         email: DEMO_EMAIL,
         username: "demo",
         passwordHash: await Bun.password.hash(DEMO_PASSWORD),
-        monthlyBudget: toPaise(75_000),
+        monthlyBudget: rupees(75_000),
       })
       .returning();
     if (!user) throw new Error("user seed failed");
@@ -84,7 +84,7 @@ async function mainSeed() {
           type: "bank",
           icon: "landmark",
           color: "#2563eb",
-          openingBalance: toPaise(45_000),
+          openingBalance: rupees(45_000),
           defaultSince: new Date(),
         },
         {
@@ -93,7 +93,7 @@ async function mainSeed() {
           type: "cash",
           icon: "banknote",
           color: "#16a34a",
-          openingBalance: toPaise(3_000),
+          openingBalance: rupees(3_000),
         },
         {
           userId: user.id,
@@ -109,7 +109,7 @@ async function mainSeed() {
           type: "wallet",
           icon: "wallet",
           color: "#0ea5e9",
-          openingBalance: toPaise(1_500),
+          openingBalance: rupees(1_500),
         },
       ])
       .returning()) as [
@@ -156,7 +156,7 @@ async function mainSeed() {
     const add = (
       type: "credit" | "debit",
       name: string,
-      rupees: number,
+      inRupees: number,
       date: string,
       via: Via,
       note?: string,
@@ -166,7 +166,7 @@ async function mainSeed() {
         userId: user.id,
         type,
         categoryId: cat(name),
-        amount: toPaise(rupees),
+        amount: rupees(inRupees),
         date,
         accountId: accountFor(via),
         bookId: personal.id,
@@ -185,7 +185,7 @@ async function mainSeed() {
           color: "#f97316",
           startDate: addDays(end, -9),
           endDate: addDays(end, -8),
-          budget: toPaise(5_000),
+          budget: rupees(5_000),
         },
         {
           userId: user.id,
@@ -194,7 +194,7 @@ async function mainSeed() {
           color: "#0ea5e9",
           startDate: addDays(end, -6),
           endDate: addDays(end, -4),
-          budget: toPaise(15_000),
+          budget: rupees(15_000),
         },
       ])
       .returning();
@@ -307,7 +307,7 @@ async function mainSeed() {
           userId: user.id,
           fromAccountId: hdfc.id,
           toAccountId: cash.id,
-          amount: toPaise(9_000),
+          amount: rupees(9_000),
           date: d,
           note: "ATM withdrawal",
         });
@@ -316,7 +316,7 @@ async function mainSeed() {
           userId: user.id,
           fromAccountId: hdfc.id,
           toAccountId: card.id,
-          amount: toPaise(6_000),
+          amount: rupees(6_000),
           date: d,
           note: "Credit card bill",
         });
@@ -328,7 +328,7 @@ async function mainSeed() {
       {
         userId: user.id,
         type: "credit",
-        amount: toPaise(85_000),
+        amount: rupees(85_000),
         categoryId: cat("Salary"),
         accountId: hdfc.id,
         bookId: personal.id,
@@ -340,7 +340,7 @@ async function mainSeed() {
       {
         userId: user.id,
         type: "debit",
-        amount: toPaise(18_000),
+        amount: rupees(18_000),
         categoryId: cat("Room rent"),
         accountId: hdfc.id,
         bookId: personal.id,
@@ -355,11 +355,11 @@ async function mainSeed() {
       {
         userId: user.id,
         categoryId: cat("Food & dining"),
-        amount: toPaise(8_000),
+        amount: rupees(8_000),
       },
-      { userId: user.id, categoryId: cat("Grocery"), amount: toPaise(6_000) },
-      { userId: user.id, categoryId: cat("Shopping"), amount: toPaise(5_000) },
-      { userId: user.id, categoryId: cat("Travel"), amount: toPaise(4_000) },
+      { userId: user.id, categoryId: cat("Grocery"), amount: rupees(6_000) },
+      { userId: user.id, categoryId: cat("Shopping"), amount: rupees(5_000) },
+      { userId: user.id, categoryId: cat("Travel"), amount: rupees(4_000) },
     ]);
 
     const [goal] = await tx
@@ -367,15 +367,15 @@ async function mainSeed() {
       .values({
         userId: user.id,
         name: "Emergency fund",
-        target: toPaise(200_000),
+        target: rupees(200_000),
         targetDate: addMonths(end, 10),
         color: "#10b981",
         icon: "shield",
       })
       .returning();
     await tx.insert(goalContributionsTable).values([
-      { goalId: goal!.id, amount: toPaise(25_000), date: addDays(start, 2) },
-      { goalId: goal!.id, amount: toPaise(15_000), date: addDays(start, 33) },
+      { goalId: goal!.id, amount: rupees(25_000), date: addDays(start, 2) },
+      { goalId: goal!.id, amount: rupees(15_000), date: addDays(start, 33) },
     ]);
     await seedSplits(tx, user.id, cat, end, goaTrip!.id);
     console.info(`Seeded ${txns.length} transactions + shared expenses`);

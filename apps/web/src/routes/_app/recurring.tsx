@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AccountPicker, BookPicker } from "@/components/app/pickers";
 import { CategoryIcon } from "@/components/common/category-icon";
 import { confirm } from "@/components/common/confirm-dialog";
+import { DateInput } from "@/components/common/date-input";
 import { Field } from "@/components/common/field";
 import { PageHeader } from "@/components/common/page-header";
 import { ResponsiveSheet } from "@/components/common/responsive-sheet";
@@ -22,7 +23,14 @@ import {
   useRecurring,
   useSaveRecurring,
 } from "@/hooks/use-finance";
-import { money, shortDate, todayStr, ymd } from "@/lib/format";
+import {
+  formatAmount,
+  fromAmount,
+  shortDate,
+  toAmount,
+  todayStr,
+  ymd,
+} from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/recurring")({
@@ -70,7 +78,7 @@ function RecurringPage() {
         <div className="rounded-2xl border bg-card p-4 text-sm">
           Fixed monthly outgo:{" "}
           <b className="tabular text-expense">
-            ≈ {money(Math.round(monthlyOut))}
+            ≈ {formatAmount(Math.round(monthlyOut))}
           </b>
         </div>
       )}
@@ -116,7 +124,7 @@ function RecurringPage() {
                 )}
               >
                 {r.type === "credit" ? "+" : "−"}
-                {money(r.amount)}
+                {formatAmount(r.amount)}
               </span>
               <div className="-mr-2 ml-auto flex shrink-0 basis-full justify-end sm:basis-auto">
                 <Button
@@ -202,7 +210,7 @@ function RecurringSheet({
       value && value !== "new"
         ? {
             type: value.type,
-            amount: String(value.amount),
+            amount: String(fromAmount(value.amount)),
             categoryId: value.categoryId,
             accountId: value.accountId,
             bookId: value.bookId,
@@ -233,7 +241,7 @@ function RecurringSheet({
             {
               id: value && value !== "new" ? value.id : undefined,
               ...form,
-              amount: Number(form.amount),
+              amount: toAmount(Number(form.amount)),
               categoryId: form.categoryId,
               note: form.note?.trim() || null,
               endDate: form.endDate || null,
@@ -311,22 +319,18 @@ function RecurringSheet({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Start date" htmlFor="rec-start">
-            <Input
+            <DateInput
               id="rec-start"
-              type="date"
               value={form.startDate}
-              onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+              onChange={(v) => setForm({ ...form, startDate: v })}
             />
           </Field>
           <Field label="End date (optional)" htmlFor="rec-end">
-            <Input
+            <DateInput
               id="rec-end"
-              type="date"
               min={form.startDate}
               value={form.endDate ?? ""}
-              onChange={(e) =>
-                setForm({ ...form, endDate: e.target.value || null })
-              }
+              onChange={(v) => setForm({ ...form, endDate: v || null })}
             />
           </Field>
         </div>

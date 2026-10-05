@@ -3,7 +3,7 @@ import Elysia, { t } from "elysia";
 import { db } from "$/db";
 import { goalContributionsTable, goalsTable } from "$/db/schema";
 import { fail, ok } from "$/lib/utils";
-import { toPaise, toRupees } from "$/lib/utils/money";
+import { amountOf } from "$/lib/utils/money";
 import { today } from "$/lib/utils/period";
 import { protectedUser } from "$/pre-processor";
 
@@ -13,7 +13,7 @@ const tDate = t.String({ pattern: "^\\d{4}-\\d{2}-\\d{2}$" });
 
 const goalBody = t.Object({
   name: t.String({ minLength: 1, maxLength: 60 }),
-  target: t.Number({ exclusiveMinimum: 0 }),
+  target: t.Integer({ exclusiveMinimum: 0 }),
   targetDate: t.Optional(t.Nullable(tDate)),
   color: t.String({ pattern: "^#[0-9a-fA-F]{6}$" }),
   icon: t.String({ pattern: "^[a-z0-9-]{1,40}$" }),
@@ -47,8 +47,8 @@ export const goalsController = new Elysia({
     return ok(
       rows.map(({ goal, saved }) => ({
         ...goal,
-        target: toRupees(goal.target),
-        saved: toRupees(saved),
+        target: amountOf(goal.target),
+        saved: amountOf(saved),
       })),
     );
   })
@@ -62,7 +62,7 @@ export const goalsController = new Elysia({
         .from(C)
         .where(eq(C.goalId, params.id))
         .orderBy(desc(C.date), desc(C.id));
-      return ok(rows.map((r) => ({ ...r, amount: toRupees(r.amount) })));
+      return ok(rows.map((r) => ({ ...r, amount: amountOf(r.amount) })));
     },
     { params: t.Object({ id: t.Numeric() }) },
   )
@@ -74,12 +74,12 @@ export const goalsController = new Elysia({
         .values({
           ...body,
           name: body.name.trim(),
-          target: toPaise(body.target),
+          target: body.target,
           userId: user.id,
         })
         .returning();
       return ok(
-        { ...row!, target: toRupees(row!.target), saved: 0 },
+        { ...row!, target: amountOf(row!.target), saved: 0 },
         "Goal created",
       );
     },
@@ -95,7 +95,7 @@ export const goalsController = new Elysia({
         .set({
           ...body,
           ...(body.name && { name: body.name.trim() }),
-          ...(body.target !== undefined && { target: toPaise(body.target) }),
+          ...(body.target !== undefined && { target: body.target }),
         })
         .where(eq(G.id, params.id));
       return ok(null, "Goal updated");
@@ -123,7 +123,7 @@ export const goalsController = new Elysia({
       if (body.amount === 0) return status(400, fail("Amount can't be zero"));
       await db.insert(C).values({
         goalId: params.id,
-        amount: toPaise(body.amount),
+        amount: body.amount,
         date: body.date ?? today(),
         note: body.note?.trim() || null,
       });
@@ -135,7 +135,7 @@ export const goalsController = new Elysia({
     {
       params: t.Object({ id: t.Numeric() }),
       body: t.Object({
-        amount: t.Number(),
+        amount: t.Integer(),
         date: t.Optional(tDate),
         note: t.Optional(t.Nullable(t.String({ maxLength: 200 }))),
       }),

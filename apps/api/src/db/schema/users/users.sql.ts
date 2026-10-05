@@ -30,7 +30,7 @@ export const usersTable = pgTable("users", (pg) => ({
     .default("manual"),
   passwordHash: pg.text("password_hash").notNull(),
   role: userRoleEnum("role").notNull().default("user"),
-  /** Overall monthly spending budget in paise; null = not set. */
+  /** Overall monthly spending budget; null = not set. */
   monthlyBudget: pg.bigint("monthly_budget", { mode: "number" }),
   createdAt: pg
     .timestamp("created_at", { withTimezone: true })

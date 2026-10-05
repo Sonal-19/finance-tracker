@@ -1,13 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronRight, Plus } from "lucide-react";
 import { useState } from "react";
-import { type EditableBook, BookSheet } from "@/components/books/book-sheet";
+import { BookSheet, type EditableBook } from "@/components/books/book-sheet";
 import { CategoryIcon } from "@/components/common/category-icon";
 import { PageHeader } from "@/components/common/page-header";
 import { PageLoader } from "@/components/common/states";
 import { Button } from "@/components/ui/button";
 import { type Book, useBooks } from "@/hooks/use-books";
-import { money } from "@/lib/format";
+import { formatAmount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/books/")({
@@ -51,7 +51,7 @@ function BookCard({ b }: { b: Book }) {
             {separate ? "to get back" : "spent"}
           </p>
           <p className="tabular font-semibold">
-            {money(separate ? Math.max(b.outstanding, 0) : b.spent)}
+            {formatAmount(separate ? Math.max(b.outstanding, 0) : b.spent)}
           </p>
         </div>
         <ChevronRight className="size-4 shrink-0 text-muted-foreground" />

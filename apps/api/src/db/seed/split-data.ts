@@ -12,7 +12,7 @@ import {
   type Participant,
   syncShareTransaction,
 } from "$/lib/services/split-service";
-import { toPaise } from "$/lib/utils/money";
+import { rupees } from "$/lib/utils/money";
 import { addDays } from "$/lib/utils/period";
 
 /** Demo people, a trip group, a few shared bills and one repayment. */
@@ -117,7 +117,7 @@ export async function seedSplits(
   ];
 
   for (const b of bills) {
-    const result = computeShares(toPaise(b.total), "equal", b.participants);
+    const result = computeShares(rupees(b.total), "equal", b.participants);
     if (!result.ok) throw new Error(result.message);
     const [split] = await tx
       .insert(splitsTable)
@@ -125,7 +125,7 @@ export async function seedSplits(
         userId,
         groupId: b.groupId,
         description: b.description,
-        total: toPaise(b.total),
+        total: rupees(b.total),
         date: b.date,
         paidByPersonId: b.paidBy,
         method: "equal",
@@ -145,7 +145,7 @@ export async function seedSplits(
     personId: aman,
     groupId: goa!.id,
     direction: "received",
-    amount: toPaise(1000),
+    amount: rupees(1000),
     date: addDays(end, -1),
     note: "GPay",
   });

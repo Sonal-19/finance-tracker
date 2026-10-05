@@ -5,7 +5,8 @@ Architecture mirrors `~/Developer/Projects/shimlawale-crm`.
 
 - Ports: API **4300**, web **3300** (Vite proxies `/api`). DB: `finance_tracker` on local Postgres.
 - Commands: `bun run dev`, `bun run typecheck`, `bun run lint`, `bun run --cwd apps/api db:push | db:seed`.
-- Money is stored in **paise** (bigint) and sent over the API in rupees (`lib/utils/money.ts`). Currency is INR only, formatted `en-IN`.
+- Amounts are integers (bigint) in the smallest INR unit everywhere: stored that way, sent by the API that way, and accepted by it that way. The web turns them into text only with `formatAmount` / `formatAmountShort` / `formatSignedAmount` (`lib/format.ts`, `en-IN`, ₹1,23,456.00); forms convert typed rupees with `toAmount` and prefill with `fromAmount`. The API has the same `formatAmount` in `lib/utils/money.ts` for messages/exports, plus `rupees()` for seeds. Currency is INR only.
+- Dates: every date field uses `components/common/date-input.tsx` (`DateInput`, shows dd/MM/yyyy, value is `yyyy-MM-dd`); never use `<input type="date">`.
 - Dates are date-only `yyyy-MM-dd` strings in `Asia/Kolkata`; Eden is created with `parseDate: false` so they stay strings.
 - Every response uses the `ok()` / `fail()` envelope; the web unwraps it with `call()` / `callMsg()` from `src/lib/api.ts`.
 - Logged-in routes use `protectedUser` and are grouped in `controllers/index.ts` so its scoped hooks don't hit `/auth/*`.

@@ -9,9 +9,9 @@ import {
   startOfWeek,
 } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { DateInput } from "@/components/common/date-input";
 import { Segmented } from "@/components/common/segmented";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import type { Period } from "@/hooks/use-finance";
 import { todayStr } from "@/lib/format";
 
@@ -89,20 +89,18 @@ export function PeriodPicker({
       />
       {value.period === "custom" ? (
         <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
-          <Input
-            type="date"
+          <DateInput
             aria-label="From date"
             value={value.from ?? ""}
             max={value.to}
-            onChange={(e) => onChange({ ...value, from: e.target.value })}
+            onChange={(v) => onChange({ ...value, from: v })}
             className="sm:w-44"
           />
-          <Input
-            type="date"
+          <DateInput
             aria-label="To date"
             value={value.to ?? ""}
             min={value.from}
-            onChange={(e) => onChange({ ...value, to: e.target.value })}
+            onChange={(v) => onChange({ ...value, to: v })}
             className="sm:w-44"
           />
         </div>

@@ -17,7 +17,7 @@ import {
   useDeleteGroup,
   useSplitGroup,
 } from "@/hooks/use-splits";
-import { money } from "@/lib/format";
+import { formatAmount } from "@/lib/format";
 import { useSplitSheet } from "@/stores/split-sheet-store";
 
 export const Route = createFileRoute("/_app/split/groups/$groupId")({
@@ -86,15 +86,17 @@ function GroupPage() {
         <div className="mt-5 grid grid-cols-3 gap-2 text-center">
           <div className="rounded-xl bg-muted p-3">
             <p className="text-xs text-muted-foreground">Group spent</p>
-            <p className="tabular font-bold">{money(data.totalSpent)}</p>
+            <p className="tabular font-bold">{formatAmount(data.totalSpent)}</p>
           </div>
           <div className="rounded-xl bg-muted p-3">
             <p className="text-xs text-muted-foreground">Your share</p>
-            <p className="tabular font-bold">{money(data.myTotalShare)}</p>
+            <p className="tabular font-bold">
+              {formatAmount(data.myTotalShare)}
+            </p>
           </div>
           <div className="rounded-xl bg-muted p-3">
             <p className="text-xs text-muted-foreground">Paid by you</p>
-            <p className="tabular font-bold">{money(data.paidByMe)}</p>
+            <p className="tabular font-bold">{formatAmount(data.paidByMe)}</p>
           </div>
         </div>
         <Button

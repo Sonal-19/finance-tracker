@@ -11,7 +11,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useCalendar } from "@/hooks/use-finance";
-import { money, moneyShort, todayStr, ymd } from "@/lib/format";
+import { formatAmount, formatAmountShort, todayStr, ymd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /** Month grid; each day's cell is tinted by how much was spent (single-hue sequential). */
@@ -52,8 +52,8 @@ export function SpendCalendar({
         <div className="text-center">
           <p className="font-semibold">{format(first, "MMMM yyyy")}</p>
           <p className="tabular text-xs text-muted-foreground">
-            <span className="text-income">+{money(monthIncome)}</span> ·{" "}
-            <span className="text-expense">−{money(monthExpense)}</span>
+            <span className="text-income">+{formatAmount(monthIncome)}</span> ·{" "}
+            <span className="text-expense">−{formatAmount(monthExpense)}</span>
           </p>
         </div>
         <Button
@@ -85,7 +85,7 @@ export function SpendCalendar({
               onClick={() => onDayClick?.(key)}
               title={
                 v
-                  ? `${format(d, "d MMM")}: spent ${money(v.expense)}, received ${money(v.income)}`
+                  ? `${format(d, "d MMM")}: spent ${formatAmount(v.expense)}, received ${formatAmount(v.income)}`
                   : format(d, "d MMM")
               }
               className={cn(
@@ -113,7 +113,7 @@ export function SpendCalendar({
                       : "text-muted-foreground",
                   )}
                 >
-                  {moneyShort(v.expense).replace("₹", "")}
+                  {formatAmountShort(v.expense).replace("₹", "")}
                 </span>
               )}
               {v && v.income > 0 && (

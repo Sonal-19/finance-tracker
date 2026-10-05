@@ -8,6 +8,7 @@ import {
 } from "@/components/app/pickers";
 import { CategoryIcon } from "@/components/common/category-icon";
 import { confirm } from "@/components/common/confirm-dialog";
+import { DateInput } from "@/components/common/date-input";
 import { ResponsiveSheet } from "@/components/common/responsive-sheet";
 import { Segmented } from "@/components/common/segmented";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,14 @@ import {
   useFxRate,
   useSaveTransaction,
 } from "@/hooks/use-finance";
-import { money, shortDate, todayStr, ymd } from "@/lib/format";
+import {
+  formatAmount,
+  fromAmount,
+  shortDate,
+  toAmount,
+  todayStr,
+  ymd,
+} from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useSplitSheet } from "@/stores/split-sheet-store";
 import { useTxnSheet } from "@/stores/txn-sheet-store";
@@ -90,12 +98,12 @@ export function TransactionSheet() {
             editing.originalAmount !== null
               ? {
                   currency: "USD" as const,
-                  amount: String(editing.originalAmount),
+                  amount: String(fromAmount(editing.originalAmount)),
                   fxRate: editing.fxRate ? String(editing.fxRate) : "",
                 }
               : {
                   currency: "INR" as const,
-                  amount: String(editing.amount),
+                  amount: String(fromAmount(editing.amount)),
                   fxRate: "",
                 }),
           }
@@ -118,12 +126,12 @@ export function TransactionSheet() {
   const set = <K extends keyof Form>(k: K, v: Form[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
   const cats = categories.filter((c) => c.type === form.type);
-  const amount = Number(form.amount);
+  const amount = toAmount(Number(form.amount));
   const isForeign = form.currency !== "INR";
   const fx = useFxRate(form.currency, form.date);
   const manualRate = Number(form.fxRate);
   const rate = isForeign ? (manualRate > 0 ? manualRate : fx.data?.rate) : 1;
-  const inrAmount = rate ? Math.round(amount * rate * 100) / 100 : null;
+  const inrAmount = rate ? Math.round(amount * rate) : null;
   const [editingRate, setEditingRate] = useState(false);
   const valid =
     amount > 0 &&
@@ -138,7 +146,7 @@ export function TransactionSheet() {
       {
         id: editing?.id,
         type: form.type,
-        amount: Math.round(amount * 100) / 100,
+        amount,
         currency: form.currency,
         ...(isForeign && manualRate > 0 && { fxRate: manualRate }),
         categoryId: form.categoryId,
@@ -189,7 +197,7 @@ export function TransactionSheet() {
               </p>
             </div>
             <span className="tabular font-semibold">
-              {money(editing.amount)}
+              {formatAmount(editing.amount)}
             </span>
           </div>
           <p className="text-sm text-muted-foreground">
@@ -320,7 +328,9 @@ export function TransactionSheet() {
                   <ArrowRightLeft className="size-4" /> Saved as
                 </span>
                 <span className="tabular text-base font-bold">
-                  {inrAmount !== null && amount > 0 ? money(inrAmount) : "₹—"}
+                  {inrAmount !== null && amount > 0
+                    ? formatAmount(inrAmount)
+                    : "₹—"}
                 </span>
               </div>
               {editingRate ? (
@@ -422,12 +432,11 @@ export function TransactionSheet() {
                 {d.l}
               </Button>
             ))}
-            <Input
+            <DateInput
               id="txn-date"
-              type="date"
               max="2100-12-31"
               value={form.date}
-              onChange={(e) => set("date", e.target.value)}
+              onChange={(v) => set("date", v)}
               className="flex-1"
             />
           </div>

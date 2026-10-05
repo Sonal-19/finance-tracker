@@ -7,7 +7,7 @@ import {
   transactionsTable,
   transfersTable,
 } from "$/db/schema";
-import { toRupees } from "$/lib/utils/money";
+import { amountOf } from "$/lib/utils/money";
 
 export const DEFAULT_ACCOUNTS = [
   {
@@ -135,12 +135,12 @@ export async function accountBalances(userId: number, accountId?: number) {
       Number(r.transfersIn);
     return {
       ...a,
-      openingBalance: toRupees(a.openingBalance),
-      balance: toRupees(balance),
-      income: toRupees(r.income),
-      expense: toRupees(r.expense),
-      transfersOut: toRupees(r.transfersOut),
-      transfersIn: toRupees(r.transfersIn),
+      openingBalance: amountOf(a.openingBalance),
+      balance: amountOf(balance),
+      income: amountOf(r.income),
+      expense: amountOf(r.expense),
+      transfersOut: amountOf(r.transfersOut),
+      transfersIn: amountOf(r.transfersIn),
       /** Transactions, transfers and recurring rules referencing this account. */
       usage: r.usage,
     };
@@ -158,7 +158,7 @@ const totalBalanceQuery = db
 /** Sum of active accounts' balances (rupees). */
 export async function totalBalance(userId: number) {
   const [row] = await totalBalanceQuery.execute({ userId });
-  return toRupees(row?.total);
+  return amountOf(row?.total);
 }
 
 /** Fills `accountId` on rows that don't have one (used by recurring posts, seeds). */

@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { useDeleteEvent, useEvent, useSaveEvent } from "@/hooks/use-accounts";
 import { useTransactions } from "@/hooks/use-finance";
 import { dateRangeLabel } from "@/lib/accounts";
-import { dayLabel, money, shortDate } from "@/lib/format";
+import { dayLabel, formatAmount, shortDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useTxnSheet } from "@/stores/txn-sheet-store";
 
@@ -99,10 +99,10 @@ function EventPage() {
 
         <div className="mt-5 text-center">
           <p className="text-sm text-muted-foreground">Spent at this event</p>
-          <p className="tabular text-3xl font-bold">{money(e.spent)}</p>
+          <p className="tabular text-3xl font-bold">{formatAmount(e.spent)}</p>
           <p className="text-xs text-muted-foreground">
             {e.count} entries
-            {e.received > 0 && ` · received ${money(e.received)}`}
+            {e.received > 0 && ` · received ${formatAmount(e.received)}`}
           </p>
         </div>
         {e.budget ? (
@@ -115,8 +115,8 @@ function EventPage() {
               )}
             >
               {e.spent > e.budget
-                ? `Over the ${money(e.budget)} budget by ${money(e.spent - e.budget)}`
-                : `${money(e.budget - e.spent)} left of ${money(e.budget)} budget`}
+                ? `Over the ${formatAmount(e.budget)} budget by ${formatAmount(e.spent - e.budget)}`
+                : `${formatAmount(e.budget - e.spent)} left of ${formatAmount(e.budget)} budget`}
             </p>
           </div>
         ) : null}

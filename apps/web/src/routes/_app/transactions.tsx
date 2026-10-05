@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Download, Filter, Plus, Search as SearchIcon, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { CategoryIcon } from "@/components/common/category-icon";
+import { DateInput } from "@/components/common/date-input";
 import { PageHeader } from "@/components/common/page-header";
 import { ResponsiveSheet } from "@/components/common/responsive-sheet";
 import { Segmented } from "@/components/common/segmented";
@@ -22,7 +23,7 @@ import {
   useCategories,
   useTransactions,
 } from "@/hooks/use-finance";
-import { money, shortDate } from "@/lib/format";
+import { formatAmount, shortDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useTxnSheet } from "@/stores/txn-sheet-store";
 
@@ -241,13 +242,13 @@ function TransactionsPage() {
           <div>
             <p className="text-muted-foreground">Income</p>
             <p className="tabular font-semibold text-income">
-              {money(totals.income)}
+              {formatAmount(totals.income)}
             </p>
           </div>
           <div>
             <p className="text-muted-foreground">Expense</p>
             <p className="tabular font-semibold text-expense">
-              {money(totals.expense)}
+              {formatAmount(totals.expense)}
             </p>
           </div>
           <div>
@@ -255,7 +256,7 @@ function TransactionsPage() {
               {totals.count} entries · Net
             </p>
             <p className="tabular font-semibold">
-              {money(totals.income - totals.expense)}
+              {formatAmount(totals.income - totals.expense)}
             </p>
           </div>
         </div>
@@ -329,21 +330,15 @@ function FilterSheet({
         <div className="space-y-2">
           <Label>Date range</Label>
           <div className="grid grid-cols-2 gap-2">
-            <Input
-              type="date"
+            <DateInput
               aria-label="From"
               value={draft.from ?? ""}
-              onChange={(e) =>
-                setDraft({ ...draft, from: e.target.value || undefined })
-              }
+              onChange={(v) => setDraft({ ...draft, from: v || undefined })}
             />
-            <Input
-              type="date"
+            <DateInput
               aria-label="To"
               value={draft.to ?? ""}
-              onChange={(e) =>
-                setDraft({ ...draft, to: e.target.value || undefined })
-              }
+              onChange={(v) => setDraft({ ...draft, to: v || undefined })}
             />
           </div>
         </div>

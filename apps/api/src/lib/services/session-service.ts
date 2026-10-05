@@ -1,7 +1,7 @@
 import type { Cookie } from "elysia";
 import type { SelectUser } from "$/db/schema";
 import { IS_PROD, SESSION_DAYS } from "$/env";
-import { toRupees } from "$/lib/utils/money";
+import { amountOf } from "$/lib/utils/money";
 import { coreAuthService } from "./core-auth-service";
 
 /** Issues a session token and stores it in the httpOnly `token` cookie. */
@@ -27,6 +27,6 @@ export function publicUser(user: SelectUser) {
   const { passwordHash: _passwordHash, monthlyBudget, ...rest } = user;
   return {
     ...rest,
-    monthlyBudget: monthlyBudget === null ? null : toRupees(monthlyBudget),
+    monthlyBudget: monthlyBudget === null ? null : amountOf(monthlyBudget),
   };
 }

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { CategoryIcon, COLORS } from "@/components/common/category-icon";
+import { DateInput } from "@/components/common/date-input";
 import { Field } from "@/components/common/field";
 import { ResponsiveSheet } from "@/components/common/responsive-sheet";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { type EventInput, useSaveEvent } from "@/hooks/use-accounts";
 import { EVENT_ICONS } from "@/lib/accounts";
-import { todayStr } from "@/lib/format";
+import { fromAmount, toAmount, todayStr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export type EditableEvent = EventInput & { id?: number };
@@ -53,7 +54,7 @@ export function EventSheet({
         color: value.color,
         startDate: value.startDate ?? "",
         endDate: value.endDate ?? "",
-        budget: value.budget ? String(value.budget) : "",
+        budget: value.budget ? String(fromAmount(value.budget)) : "",
         note: value.note ?? "",
         isActive: value.activation === "active",
       });
@@ -81,7 +82,7 @@ export function EventSheet({
               color: form.color,
               startDate: form.startDate || null,
               endDate: form.endDate || null,
-              budget: form.budget ? Number(form.budget) : null,
+              budget: form.budget ? toAmount(Number(form.budget)) : null,
               note: form.note.trim() || null,
               activation: form.isActive ? "active" : "inactive",
             },
@@ -136,20 +137,18 @@ export function EventSheet({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Starts (optional)" htmlFor="ev-start">
-            <Input
+            <DateInput
               id="ev-start"
-              type="date"
               value={form.startDate}
-              onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+              onChange={(v) => setForm({ ...form, startDate: v })}
             />
           </Field>
           <Field label="Ends (optional)" htmlFor="ev-end">
-            <Input
+            <DateInput
               id="ev-end"
-              type="date"
               min={form.startDate || undefined}
               value={form.endDate}
-              onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+              onChange={(v) => setForm({ ...form, endDate: v })}
               aria-invalid={badRange}
             />
           </Field>

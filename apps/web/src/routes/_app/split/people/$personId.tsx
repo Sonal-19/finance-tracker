@@ -30,7 +30,7 @@ import {
   useDeleteSettlement,
   usePerson,
 } from "@/hooks/use-splits";
-import { money, shortDate } from "@/lib/format";
+import { formatAmount, shortDate } from "@/lib/format";
 import { relationLabel, reminderText, waPhone } from "@/lib/split";
 import { cn } from "@/lib/utils";
 import { useSplitSheet } from "@/stores/split-sheet-store";
@@ -151,7 +151,7 @@ function PersonPage() {
                   net > 0 ? "text-income" : "text-expense",
                 )}
               >
-                {money(Math.abs(net))}
+                {formatAmount(Math.abs(net))}
               </p>
             </>
           )}
@@ -218,7 +218,7 @@ function PersonPage() {
                     </p>
                   </div>
                   <span className="tabular font-semibold">
-                    {money(a.settlement.amount)}
+                    {formatAmount(a.settlement.amount)}
                   </span>
                   <Button
                     variant="ghost"

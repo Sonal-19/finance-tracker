@@ -2,7 +2,7 @@ import { pgTable, unique } from "drizzle-orm/pg-core";
 import { usersTable } from "../users/users.sql";
 import { categoriesTable } from "./categories.sql";
 
-/** Monthly spending limit for one expense category (paise). */
+/** Monthly spending limit for one expense category. */
 export const budgetsTable = pgTable(
   "budgets",
   (pg) => ({

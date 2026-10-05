@@ -18,7 +18,7 @@ export const transactionsTable = pgTable(
       .notNull()
       .references(() => usersTable.id, { onDelete: "cascade" }),
     type: txnTypeEnum("type").notNull(),
-    /** Always positive, in paise. `type` carries the sign. */
+    /** Always positive. `type` carries the sign. */
     amount: pg.bigint({ mode: "number" }).notNull(),
     categoryId: pg
       .integer("category_id")

@@ -17,7 +17,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { money } from "@/lib/format";
+import { formatAmount, toAmount } from "@/lib/format";
 
 type ThematicTab = "notebook" | "wallet" | "bank" | "piggy";
 
@@ -344,7 +344,7 @@ export function ThematicShowcase() {
                             Live Calculated Balance
                           </p>
                           <p className="text-sm font-black text-foreground">
-                            ₹{money(ledgerNet)}
+                            {formatAmount(toAmount(ledgerNet))}
                           </p>
                         </div>
                       </div>
@@ -480,7 +480,7 @@ export function ThematicShowcase() {
                               }`}
                             >
                               {entry.type === "credit" ? "+" : "−"}₹
-                              {money(entry.amount)}
+                              {formatAmount(toAmount(entry.amount))}
                             </span>
                           </motion.div>
                         ))}
@@ -492,11 +492,15 @@ export function ThematicShowcase() {
                   <div className="mt-4 flex items-center justify-between border-t border-border/70 pt-3 text-xs">
                     <span className="text-muted-foreground">
                       Total debits:{" "}
-                      <b className="text-expense">₹{money(totalDebits)}</b>
+                      <b className="text-expense">
+                        {formatAmount(toAmount(totalDebits))}
+                      </b>
                     </span>
                     <span className="text-muted-foreground">
                       Total credits:{" "}
-                      <b className="text-income">₹{money(totalCredits)}</b>
+                      <b className="text-income">
+                        {formatAmount(toAmount(totalCredits))}
+                      </b>
                     </span>
                   </div>
                 </div>
@@ -559,7 +563,7 @@ export function ThematicShowcase() {
                             Physical Cash in Hand
                           </p>
                           <p className="text-sm font-black text-foreground">
-                            ₹{money(cashBalance)}
+                            {formatAmount(toAmount(cashBalance))}
                           </p>
                         </div>
                       </div>
@@ -592,7 +596,7 @@ export function ThematicShowcase() {
                           Bank Account Balance
                         </p>
                         <p className="mt-1 text-xl font-black text-foreground">
-                          ₹{money(bankBalance)}
+                          {formatAmount(toAmount(bankBalance))}
                         </p>
                         <p className="mt-1 text-[10px] text-muted-foreground">
                           HDFC Bank (Primary)
@@ -604,7 +608,7 @@ export function ThematicShowcase() {
                           Cash in Wallet
                         </p>
                         <p className="mt-1 text-xl font-black text-amber-500 dark:text-amber-400">
-                          ₹{money(cashBalance)}
+                          {formatAmount(toAmount(cashBalance))}
                         </p>
                         <p className="mt-1 text-[10px] text-muted-foreground">
                           Pocket Currency
@@ -637,7 +641,7 @@ export function ThematicShowcase() {
                             className="h-8 border-border/80 hover:border-primary hover:text-primary"
                           >
                             <RefreshCw className="mr-1 size-3" /> Withdraw ₹
-                            {money(amt)}
+                            {formatAmount(toAmount(amt))}
                           </Button>
                         ))}
                       </div>
@@ -916,7 +920,8 @@ export function ThematicShowcase() {
                             Active Savings Accumulated
                           </p>
                           <p className="text-sm font-black text-foreground">
-                            ₹{money(piggySavings)} / ₹{money(targetGoal)}
+                            {formatAmount(toAmount(piggySavings))} /{" "}
+                            {formatAmount(toAmount(targetGoal))}
                           </p>
                         </div>
                       </div>
@@ -968,10 +973,10 @@ export function ThematicShowcase() {
 
                       <div className="mt-3 flex justify-between text-xs font-semibold">
                         <span className="text-foreground">
-                          ₹{money(piggySavings)} Saved
+                          {formatAmount(toAmount(piggySavings))} Saved
                         </span>
                         <span className="text-muted-foreground">
-                          Goal: ₹{money(targetGoal)}
+                          Goal: {formatAmount(toAmount(targetGoal))}
                         </span>
                       </div>
                     </div>
@@ -998,7 +1003,7 @@ export function ThematicShowcase() {
                             className="h-9 bg-primary px-3 text-xs font-bold text-primary-foreground shadow-sm hover:bg-primary/95"
                           >
                             <Coins className="mr-1.5 size-3.5 animate-bounce" />{" "}
-                            +₹{money(amt)} Drop Coin
+                            +{formatAmount(toAmount(amt))} Drop Coin
                           </Button>
                         ))}
                       </div>

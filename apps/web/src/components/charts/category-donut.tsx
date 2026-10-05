@@ -1,7 +1,7 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { CategoryIcon } from "@/components/common/category-icon";
 import { EmptyState } from "@/components/common/states";
-import { money, moneyShort } from "@/lib/format";
+import { formatAmount, formatAmountShort } from "@/lib/format";
 import { ChartTooltip } from "./chart-tooltip";
 
 type Row = {
@@ -79,7 +79,9 @@ export function CategoryDonut({
           <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
             <div>
               <p className="text-xs text-muted-foreground">{label}</p>
-              <p className="tabular text-lg font-bold">{moneyShort(total)}</p>
+              <p className="tabular text-lg font-bold">
+                {formatAmountShort(total)}
+              </p>
             </div>
           </div>
         </div>
@@ -93,7 +95,7 @@ export function CategoryDonut({
                   <div className="flex items-baseline justify-between gap-2 text-sm">
                     <span className="truncate font-medium">{s.name}</span>
                     <span className="tabular shrink-0 font-semibold">
-                      {money(s.total)}
+                      {formatAmount(s.total)}
                     </span>
                   </div>
                   <div className="mt-1 flex items-center gap-2">

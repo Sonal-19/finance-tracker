@@ -149,7 +149,7 @@ export const splitsTable = pgTable(
 );
 
 /** Each participant's share. `personId` null = the user. `value` is what was
- * typed for the method (₹ for exact, % for percent, count for shares). */
+ * typed for the method (amount for exact, % for percent, count for shares). */
 export const splitSharesTable = pgTable(
   "split_shares",
   (pg) => ({

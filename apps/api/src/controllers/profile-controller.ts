@@ -14,7 +14,6 @@ import {
   validateUsername,
 } from "$/lib/services/username-service";
 import { fail, ok } from "$/lib/utils";
-import { toPaise } from "$/lib/utils/money";
 import { tEnum } from "$/lib/utils/schema";
 import { protectedUser } from "$/pre-processor";
 
@@ -63,10 +62,7 @@ export const profileController = new Elysia({
             }),
             ...(body.name !== undefined && { name: body.name.trim() }),
             ...(body.monthlyBudget !== undefined && {
-              monthlyBudget:
-                body.monthlyBudget === null
-                  ? null
-                  : toPaise(body.monthlyBudget),
+              monthlyBudget: body.monthlyBudget,
             }),
           })
           .where(eq(usersTable.id, user.id))
@@ -85,7 +81,7 @@ export const profileController = new Elysia({
         username: t.Optional(t.String({ pattern: USERNAME_PATTERN })),
         taggedExpenses: t.Optional(tEnum(taggedExpenseModes)),
         name: t.Optional(t.String({ minLength: 2, maxLength: 80 })),
-        monthlyBudget: t.Optional(t.Nullable(t.Number({ minimum: 0 }))),
+        monthlyBudget: t.Optional(t.Nullable(t.Integer({ minimum: 0 }))),
       }),
     },
   )

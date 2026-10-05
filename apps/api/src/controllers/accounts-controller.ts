@@ -10,7 +10,7 @@ import {
 } from "$/db/schema";
 import { accountBalances, ownedAccount } from "$/lib/services/account-service";
 import { fail, ok } from "$/lib/utils";
-import { toPaise, toRupees } from "$/lib/utils/money";
+import { amountOf, formatAmount } from "$/lib/utils/money";
 import { today } from "$/lib/utils/period";
 import { tEnum } from "$/lib/utils/schema";
 import { protectedUser } from "$/pre-processor";
@@ -35,7 +35,10 @@ const accountBody = t.Object({
   icon: t.String({ pattern: "^[a-z0-9-]{1,40}$" }),
   color: t.String({ pattern: "^#[0-9a-fA-F]{6}$" }),
   /** Rupees; negative for a credit card that already has dues. */
-  openingBalance: t.Number({ minimum: -1_000_000_000, maximum: 1_000_000_000 }),
+  openingBalance: t.Integer({
+    minimum: -100_000_000_000,
+    maximum: 100_000_000_000,
+  }),
 });
 
 async function makeDefault(userId: number, id: number) {
@@ -93,12 +96,12 @@ const accountsController = new Elysia({
           .values({
             ...body,
             name: body.name.trim(),
-            openingBalance: toPaise(body.openingBalance),
+            openingBalance: body.openingBalance,
             userId: user.id,
           })
           .returning();
         return ok(
-          { ...row!, openingBalance: toRupees(row!.openingBalance) },
+          { ...row!, openingBalance: amountOf(row!.openingBalance) },
           `${row!.name} added`,
         );
       } catch (e) {
@@ -129,7 +132,7 @@ const accountsController = new Elysia({
             ...body,
             ...(body.name && { name: body.name.trim() }),
             ...(body.openingBalance !== undefined && {
-              openingBalance: toPaise(body.openingBalance),
+              openingBalance: body.openingBalance,
             }),
             ...(body.status &&
               body.status !== account.status && {
@@ -255,7 +258,7 @@ const transfersController = new Elysia({
         )
         .orderBy(desc(TR.date), desc(TR.id))
         .limit(query.limit ?? 50);
-      return ok(rows.map((r) => ({ ...r, amount: toRupees(r.amount) })));
+      return ok(rows.map((r) => ({ ...r, amount: amountOf(r.amount) })));
     },
     {
       query: t.Object({
@@ -280,20 +283,20 @@ const transfersController = new Elysia({
         userId: user.id,
         fromAccountId: from.id,
         toAccountId: to.id,
-        amount: toPaise(body.amount),
+        amount: body.amount,
         date: body.date ?? today(),
         note: body.note?.trim() || null,
       });
       return ok(
         null,
-        `Moved ₹${body.amount.toLocaleString("en-IN")} from ${from.name} to ${to.name}`,
+        `Moved ${formatAmount(body.amount)} from ${from.name} to ${to.name}`,
       );
     },
     {
       body: t.Object({
         fromAccountId: t.Integer({ minimum: 1 }),
         toAccountId: t.Integer({ minimum: 1 }),
-        amount: t.Number({ exclusiveMinimum: 0, maximum: 1_000_000_000 }),
+        amount: t.Integer({ exclusiveMinimum: 0, maximum: 100_000_000_000 }),
         date: t.Optional(tDate),
         note: t.Optional(t.Nullable(t.String({ maxLength: 200 }))),
       }),

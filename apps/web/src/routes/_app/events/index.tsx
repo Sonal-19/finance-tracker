@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { type AppEvent, useEvents } from "@/hooks/use-accounts";
 import { dateRangeLabel } from "@/lib/accounts";
-import { money, shortDate } from "@/lib/format";
+import { formatAmount, shortDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/events/")({
@@ -56,7 +56,7 @@ export function EventCard({ e }: { e: AppEvent }) {
         </div>
         <div className="text-right">
           <p className="text-[11px] text-muted-foreground">spent</p>
-          <p className="tabular font-semibold">{money(e.spent)}</p>
+          <p className="tabular font-semibold">{formatAmount(e.spent)}</p>
         </div>
         <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
       </div>
@@ -70,8 +70,8 @@ export function EventCard({ e }: { e: AppEvent }) {
             )}
           >
             {e.spent > e.budget
-              ? `Over budget by ${money(e.spent - e.budget)}`
-              : `${money(e.budget - e.spent)} left of ${money(e.budget)}`}
+              ? `Over budget by ${formatAmount(e.spent - e.budget)}`
+              : `${formatAmount(e.budget - e.spent)} left of ${formatAmount(e.budget)}`}
           </p>
         </div>
       ) : null}

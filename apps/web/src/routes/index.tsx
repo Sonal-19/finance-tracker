@@ -28,7 +28,7 @@ import { AuthCard, type AuthMode } from "@/components/landing/auth-card";
 import { FeatureBento } from "@/components/landing/feature-bento";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
-import { money } from "@/lib/format";
+import { formatAmount, formatAmountShort, toAmount } from "@/lib/format";
 import { useThemeStore } from "@/stores/theme-store";
 
 export const Route = createFileRoute("/")({
@@ -336,7 +336,7 @@ function PaymentSlipSimulator() {
 
                   <div className="flex items-baseline gap-2 pt-0.5">
                     <span className="text-3xl sm:text-4xl font-black tracking-tight text-foreground font-mono">
-                      −₹{money(amount)}
+                      −{formatAmount(toAmount(amount))}
                     </span>
                     <span className="text-xs font-semibold text-muted-foreground">
                       via {upiData.name}
@@ -408,7 +408,8 @@ function PaymentSlipSimulator() {
                       Dining & Weekend Outings
                     </h3>
                     <p className="text-xs text-muted-foreground">
-                      Monthly Cap: ₹{money(budgetCap)} · Cycle: Oct 2026
+                      Monthly Cap: {formatAmount(toAmount(budgetCap))} · Cycle:
+                      Oct 2026
                     </p>
                   </div>
 
@@ -422,18 +423,18 @@ function PaymentSlipSimulator() {
                             : "text-foreground"
                       }`}
                     >
-                      ₹{money(simSpend)}
+                      {formatAmount(toAmount(simSpend))}
                     </span>
                     <span className="text-xs font-semibold text-muted-foreground">
-                      of ₹{money(budgetCap)} cap
+                      of {formatAmount(toAmount(budgetCap))} cap
                     </span>
                   </div>
 
                   {/* Dynamic Progress Bar */}
                   <div className="space-y-2 rounded-2xl border border-border/70 bg-muted/30 dark:bg-black/30 dark:border-white/5 p-3">
                     <div className="flex justify-between text-xs font-medium text-muted-foreground">
-                      <span>Spent: ₹{money(simSpend)}</span>
-                      <span>Cap: ₹{money(budgetCap)}</span>
+                      <span>Spent: {formatAmount(toAmount(simSpend))}</span>
+                      <span>Cap: {formatAmount(toAmount(budgetCap))}</span>
                     </div>
                     <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted dark:bg-white/10">
                       <div
@@ -449,8 +450,8 @@ function PaymentSlipSimulator() {
                     </div>
                     <p className="text-[11px] text-muted-foreground">
                       {simSpend > budgetCap
-                        ? `🚨 Exceeded monthly cap by ₹${money(simSpend - budgetCap)}! Dashboard lock engaged.`
-                        : `₹${money(budgetCap - simSpend)} remaining before hitting your monthly cap.`}
+                        ? `🚨 Exceeded monthly cap by ${formatAmount(toAmount(simSpend - budgetCap))}! Dashboard lock engaged.`
+                        : `${formatAmount(toAmount(budgetCap - simSpend))} remaining before hitting your monthly cap.`}
                     </p>
                   </div>
                 </motion.div>
@@ -486,13 +487,14 @@ function PaymentSlipSimulator() {
                       Goa Trip Beach Villa
                     </h3>
                     <p className="text-xs text-muted-foreground">
-                      Total Bill: ₹{money(totalBill)} · 4 Equal Splits
+                      Total Bill: {formatAmount(toAmount(totalBill))} · 4 Equal
+                      Splits
                     </p>
                   </div>
 
                   <div className="flex items-baseline gap-2 pt-0.5">
                     <span className="text-3xl sm:text-4xl font-black tracking-tight text-foreground font-mono">
-                      ₹{money(yourShare)}
+                      {formatAmount(toAmount(yourShare))}
                     </span>
                     <span className="text-xs font-semibold text-primary">
                       Your exact personal share
@@ -513,7 +515,7 @@ function PaymentSlipSimulator() {
                           </span>
                           <div className="flex items-center gap-2">
                             <span className="text-muted-foreground font-mono">
-                              ₹{money(m.share)}
+                              {formatAmount(toAmount(m.share))}
                             </span>
                             {isPaid ? (
                               <span className="rounded-md bg-income/15 px-2 py-0.5 text-[10px] font-bold text-income">
@@ -556,24 +558,27 @@ function PaymentSlipSimulator() {
                       Emergency Fund (6 Mos)
                     </h3>
                     <p className="text-xs text-muted-foreground">
-                      Target: ₹{money(goalTarget)} · Target: Dec 2026
+                      Target: {formatAmount(toAmount(goalTarget))} · Target: Dec
+                      2026
                     </p>
                   </div>
 
                   <div className="flex items-baseline gap-2 pt-0.5">
                     <span className="text-3xl sm:text-4xl font-black tracking-tight text-primary font-mono">
-                      ₹{money(totalGoalSaved)}
+                      {formatAmount(toAmount(totalGoalSaved))}
                     </span>
                     <span className="text-xs font-semibold text-muted-foreground">
-                      of ₹{money(goalTarget)} goal
+                      of {formatAmount(toAmount(goalTarget))} goal
                     </span>
                   </div>
 
                   {/* Progress Milestone Bar */}
                   <div className="space-y-2 rounded-2xl border border-border/70 bg-muted/30 dark:bg-black/30 dark:border-white/5 p-3">
                     <div className="flex justify-between text-xs font-medium text-muted-foreground">
-                      <span>Saved: ₹{money(totalGoalSaved)}</span>
-                      <span>Target: ₹{money(goalTarget)}</span>
+                      <span>
+                        Saved: {formatAmount(toAmount(totalGoalSaved))}
+                      </span>
+                      <span>Target: {formatAmount(toAmount(goalTarget))}</span>
                     </div>
                     <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted dark:bg-white/10">
                       <div
@@ -583,7 +588,7 @@ function PaymentSlipSimulator() {
                     </div>
                     <p className="text-[11px] text-muted-foreground">
                       {goalTarget > totalGoalSaved
-                        ? `Only ₹${money(goalTarget - totalGoalSaved)} away from 100% financial peace of mind.`
+                        ? `Only ${formatAmount(toAmount(goalTarget - totalGoalSaved))} away from 100% financial peace of mind.`
                         : "🎉 Milestone 100% unlocked! Goal achieved."}
                     </p>
                   </div>
@@ -698,7 +703,7 @@ function PaymentSlipSimulator() {
                     Interactive Controls
                   </span>
                   <span className="text-[11px] font-semibold text-primary">
-                    ₹{money(simSpend)} simulated
+                    {formatAmount(toAmount(simSpend))} simulated
                   </span>
                 </div>
                 <h4 className="text-base sm:text-lg font-bold text-foreground">
@@ -834,14 +839,14 @@ function PaymentSlipSimulator() {
                       }
                       className="rounded-xl border border-primary/30 bg-primary/10 p-2.5 text-center text-xs font-bold text-primary hover:bg-primary/20 active:scale-95 cursor-pointer"
                     >
-                      +₹{money(amt)}
+                      +{formatAmount(toAmount(amt))}
                     </button>
                   ))}
                 </div>
 
                 <div className="flex items-center justify-between border-t border-border/70 dark:border-white/10 pt-2 text-xs">
                   <span className="text-muted-foreground">
-                    Simulated additions: +₹{money(extraDeposit)}
+                    Simulated additions: +{formatAmount(toAmount(extraDeposit))}
                   </span>
                   <button
                     type="button"
@@ -924,13 +929,7 @@ function WealthCalculator({ onStartFree }: WealthCalculatorProps) {
   const gainRatio = 100 - principalRatio;
   const multiplier = (futureValue / (totalInvested || 1)).toFixed(2);
 
-  // Smart Indian compact currency formatter
-  const formatCompactInr = (val: number) => {
-    if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
-    if (val >= 100000) return `₹${(val / 100000).toFixed(2)} L`;
-    if (val >= 1000) return `₹${(val / 1000).toFixed(1)} K`;
-    return `₹${val.toLocaleString("en-IN")}`;
-  };
+  const formatCompactInr = (val: number) => formatAmountShort(toAmount(val));
 
   return (
     <div className="relative overflow-hidden rounded-[32px] border border-border/80 bg-card p-5 sm:p-8 md:p-10 shadow-2xl backdrop-blur-xl dark:border-border/50">
@@ -973,7 +972,7 @@ function WealthCalculator({ onStartFree }: WealthCalculatorProps) {
               <div className="flex items-center justify-between text-xs font-bold">
                 <span className="text-foreground">Monthly In-Hand</span>
                 <span className="font-mono text-sm text-primary font-black">
-                  ₹{income.toLocaleString("en-IN")}
+                  {formatAmount(toAmount(income))}
                 </span>
               </div>
 
@@ -1132,7 +1131,7 @@ function WealthCalculator({ onStartFree }: WealthCalculatorProps) {
                 {formatCompactInr(futureValue)}
               </p>
               <p className="mt-1 text-xs text-muted-foreground font-mono">
-                ₹{futureValue.toLocaleString("en-IN")} total compound corpus
+                {formatAmount(toAmount(futureValue))} total compound corpus
               </p>
             </div>
 
@@ -1193,7 +1192,7 @@ function WealthCalculator({ onStartFree }: WealthCalculatorProps) {
                 <Wallet className="size-3 text-primary" /> Monthly Surplus
               </span>
               <p className="mt-1 text-base font-black text-foreground">
-                ₹{monthlySavings.toLocaleString("en-IN")}
+                {formatAmount(toAmount(monthlySavings))}
               </p>
               <p className="text-[10px] text-muted-foreground">
                 Retained cashflow

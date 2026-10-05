@@ -9,7 +9,7 @@ import {
   YAxis,
 } from "recharts";
 import type { Summary } from "@/hooks/use-finance";
-import { moneyShort } from "@/lib/format";
+import { formatAmountShort } from "@/lib/format";
 import {
   ChartTooltip,
   EXPENSE_COLOR,
@@ -66,7 +66,7 @@ export function IncomeExpenseChart({
               axisLine={false}
               width={48}
               tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-              tickFormatter={(v: number) => moneyShort(v)}
+              tickFormatter={(v: number) => formatAmountShort(v)}
             />
             <Tooltip
               cursor={{ fill: "var(--muted)", opacity: 0.6 }}

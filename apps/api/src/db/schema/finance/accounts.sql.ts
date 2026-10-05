@@ -36,7 +36,7 @@ export const accountsTable = pgTable(
     type: accountTypeEnum("type").notNull().default("bank"),
     icon: pg.text().notNull().default("landmark"),
     color: pg.text().notNull().default("#2563eb"),
-    /** Balance before the first tracked transaction (paise, may be negative for cards). */
+    /** Balance before the first tracked transaction (may be negative for cards). */
     openingBalance: pg
       .bigint("opening_balance", { mode: "number" })
       .notNull()

@@ -7,6 +7,7 @@ import {
 } from "@/components/app/pickers";
 import { CategoryIcon } from "@/components/common/category-icon";
 import { confirm } from "@/components/common/confirm-dialog";
+import { DateInput } from "@/components/common/date-input";
 import { Field } from "@/components/common/field";
 import { ResponsiveSheet } from "@/components/common/responsive-sheet";
 import { Segmented } from "@/components/common/segmented";
@@ -25,7 +26,13 @@ import {
   useSplit,
   useSplitGroups,
 } from "@/hooks/use-splits";
-import { money, todayStr, ymd } from "@/lib/format";
+import {
+  formatAmount,
+  fromAmount,
+  toAmount,
+  todayStr,
+  ymd,
+} from "@/lib/format";
 import { previewShares, SPLIT_METHODS, type SplitMethod } from "@/lib/split";
 import { cn } from "@/lib/utils";
 import { useSplitSheet } from "@/stores/split-sheet-store";
@@ -102,7 +109,7 @@ export function SplitSheet() {
       if (!s) return;
       setForm({
         description: s.description,
-        total: String(s.total),
+        total: String(fromAmount(s.total)),
         date: ymd(s.date),
         groupId: s.group?.id ?? null,
         paidBy: keyOf(s.paidBy?.id ?? null),
@@ -111,7 +118,9 @@ export function SplitSheet() {
         values: Object.fromEntries(
           s.shares.map((x) => [
             keyOf(x.personId),
-            x.value === null ? "" : String(x.value),
+            x.value === null
+              ? ""
+              : String(s.method === "exact" ? fromAmount(x.amount) : x.value),
           ]),
         ),
         categoryId: s.category?.id ?? null,
@@ -135,7 +144,7 @@ export function SplitSheet() {
     if (prefill.personId) f.selected = ["me", keyOf(prefill.personId)];
     if (prefill.fromTransaction) {
       const t = prefill.fromTransaction;
-      f.total = String(t.amount);
+      f.total = String(fromAmount(t.amount));
       f.date = ymd(t.date);
       f.categoryId = t.categoryId;
       f.description = t.note || t.categoryName;
@@ -149,7 +158,12 @@ export function SplitSheet() {
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
-  const total = Number(form.total);
+  const total = toAmount(Number(form.total));
+  /** What was typed for a participant, in the unit the API expects. */
+  const typedValue = (k: Key) =>
+    form.method === "exact"
+      ? toAmount(Number(form.values[k] ?? 0))
+      : Number(form.values[k] ?? 0);
   const nameOf = (k: Key) =>
     k === "me" ? "You" : (people.find((p) => p.id === Number(k))?.name ?? "?");
 
@@ -160,7 +174,7 @@ export function SplitSheet() {
         form.method,
         form.selected.map((k) => ({
           key: k,
-          value: Number(form.values[k] ?? 0),
+          value: typedValue(k),
         })),
       ),
     [total, form.method, form.selected, form.values],
@@ -207,7 +221,7 @@ export function SplitSheet() {
       {
         id: editId ?? undefined,
         description: form.description.trim(),
-        total: Math.round(total * 100) / 100,
+        total,
         date: form.date,
         groupId: form.groupId,
         paidByPersonId: idOf(form.paidBy),
@@ -215,7 +229,7 @@ export function SplitSheet() {
         participants: form.selected.map((k) => ({
           personId: idOf(k),
           ...(form.method !== "equal" && {
-            value: Number(form.values[k] ?? 0),
+            value: typedValue(k),
           }),
         })),
         categoryId: form.categoryId,
@@ -281,11 +295,10 @@ export function SplitSheet() {
                 />
               </Field>
               <Field label="Date" htmlFor="split-date">
-                <Input
+                <DateInput
                   id="split-date"
-                  type="date"
                   value={form.date}
-                  onChange={(e) => set("date", e.target.value)}
+                  onChange={(v) => set("date", v)}
                   className="w-40"
                 />
               </Field>
@@ -451,7 +464,7 @@ export function SplitSheet() {
                       </div>
                     )}
                     <span className="tabular w-24 text-right text-sm font-semibold">
-                      {money(preview.amounts[k] ?? 0)}
+                      {formatAmount(preview.amounts[k] ?? 0)}
                     </span>
                   </li>
                 ))}
@@ -469,7 +482,8 @@ export function SplitSheet() {
                       Add my share to my expenses
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Only {money(myShare)} counts in your reports & budgets.
+                      Only {formatAmount(myShare)} counts in your reports &
+                      budgets.
                     </p>
                   </div>
                   <Switch
@@ -506,17 +520,18 @@ export function SplitSheet() {
               <p className="rounded-xl border border-dashed p-3 text-center text-sm">
                 {payer === "me" ? (
                   <>
-                    You paid <b>{money(total)}</b>
-                    {meIn && <> · your share {money(myShare)}</>} ·{" "}
+                    You paid <b>{formatAmount(total)}</b>
+                    {meIn && <> · your share {formatAmount(myShare)}</>} ·{" "}
                     <b className="text-income">
-                      others owe you {money(total - myShare)}
+                      others owe you {formatAmount(total - myShare)}
                     </b>
                   </>
                 ) : (
                   <>
-                    {nameOf(payer)} paid <b>{money(total)}</b> ·{" "}
+                    {nameOf(payer)} paid <b>{formatAmount(total)}</b> ·{" "}
                     <b className="text-expense">
-                      you owe {nameOf(payer).split(" ")[0]} {money(myShare)}
+                      you owe {nameOf(payer).split(" ")[0]}{" "}
+                      {formatAmount(myShare)}
                     </b>
                   </>
                 )}

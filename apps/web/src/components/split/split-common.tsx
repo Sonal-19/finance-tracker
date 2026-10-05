@@ -1,4 +1,4 @@
-import { money } from "@/lib/format";
+import { formatAmount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const AVATAR_COLORS = [
@@ -67,7 +67,7 @@ export function BalanceLabel({
             net > 0 ? "text-income" : "text-expense",
           )}
         >
-          {money(Math.abs(net))}
+          {formatAmount(Math.abs(net))}
         </p>
       )}
     </div>

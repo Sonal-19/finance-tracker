@@ -1,4 +1,4 @@
-import { money } from "@/lib/format";
+import { formatAmount } from "@/lib/format";
 
 type Item = {
   name?: string | number;
@@ -40,7 +40,7 @@ export function ChartTooltip({
             {p.name}
           </span>
           <span className="tabular font-medium">
-            {money(Number(p.value ?? 0))}
+            {formatAmount(Number(p.value ?? 0))}
           </span>
         </div>
       ))}

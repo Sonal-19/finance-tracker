@@ -38,7 +38,7 @@ import {
   usernameService,
 } from "$/lib/services/username-service";
 import { fail, ok } from "$/lib/utils";
-import { toPaise, toRupees } from "$/lib/utils/money";
+import { amountOf, formatAmount } from "$/lib/utils/money";
 import { today } from "$/lib/utils/period";
 import { tEnum } from "$/lib/utils/schema";
 import { protectedUser } from "$/pre-processor";
@@ -114,7 +114,7 @@ async function hydrateSplits(userId: number, rows: SplitRow[]) {
       id: r.id,
       description: r.description,
       date: r.date,
-      total: toRupees(r.total),
+      total: amountOf(r.total),
       method: r.method,
       note: r.note,
       ownShare: r.ownShare,
@@ -133,13 +133,13 @@ async function hydrateSplits(userId: number, rows: SplitRow[]) {
           }
         : null,
       paidBy: payer ? { id: payer.id, name: payer.name } : null,
-      myShare: toRupees(myShare),
+      myShare: amountOf(myShare),
       /** + others owe the user this much from this bill, − the user owes the payer. */
-      myEffect: payer ? -toRupees(myShare) : toRupees(r.total - myShare),
+      myEffect: payer ? -amountOf(myShare) : amountOf(r.total - myShare),
       shares: mine.map((s) => ({
         personId: s.personId,
         name: s.personId === null ? "You" : (s.name ?? "?"),
-        amount: toRupees(s.amount),
+        amount: amountOf(s.amount),
         value: s.value,
       })),
     };
@@ -234,9 +234,9 @@ const peopleController = new Elysia({
           date: st.date,
           effect:
             st.direction === "received"
-              ? -toRupees(st.amount)
-              : toRupees(st.amount),
-          settlement: { ...st, amount: toRupees(st.amount) },
+              ? -amountOf(st.amount)
+              : amountOf(st.amount),
+          settlement: { ...st, amount: amountOf(st.amount) },
         })),
       ].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
       return ok({
@@ -422,7 +422,7 @@ const groupsController = new Elysia({
       groups.map(({ group, spent }) => {
         return {
           ...group,
-          totalSpent: toRupees(spent),
+          totalSpent: amountOf(spent),
           members: members
             .filter((m) => m.groupId === group.id)
             .map((m) => m.person),
@@ -523,7 +523,7 @@ const groupsController = new Elysia({
 
 const splitBody = t.Object({
   description: t.String({ minLength: 1, maxLength: 120 }),
-  total: t.Number({ exclusiveMinimum: 0, maximum: 1_000_000_000 }),
+  total: t.Integer({ exclusiveMinimum: 0, maximum: 100_000_000_000 }),
   date: tDate,
   groupId: t.Optional(t.Nullable(t.Integer({ minimum: 1 }))),
   /** null / omitted = the user paid */
@@ -591,7 +591,7 @@ async function prepareSplit(userId: number, body: SplitBody) {
   )
     return { error: "Add at least one person to split with" };
 
-  const total = toPaise(body.total);
+  const total = body.total;
   const result = computeShares(total, body.method, body.participants);
   if (!result.ok) return { error: result.message };
   const myShare = result.shares.find((s) => s.personId === null)?.amount ?? 0;
@@ -666,8 +666,8 @@ const splitsController = new Elysia({
     return ok(
       rows.map(({ copyId, total, myShare, ...r }) => ({
         ...r,
-        total: toRupees(total),
-        myShare: toRupees(myShare),
+        total: amountOf(total),
+        myShare: amountOf(myShare),
         /** Whether my share is booked as an expense in my own books. */
         decision: copyId !== null ? ("added" as const) : ("skipped" as const),
       })),
@@ -732,9 +732,9 @@ const splitsController = new Elysia({
       else youOwe -= b.net;
     }
     return ok({
-      owedToYou: toRupees(owedToYou),
-      youOwe: toRupees(youOwe),
-      net: toRupees(owedToYou - youOwe),
+      owedToYou: amountOf(owedToYou),
+      youOwe: amountOf(youOwe),
+      net: amountOf(owedToYou - youOwe),
     });
   })
   .get(
@@ -882,15 +882,15 @@ const settlementsController = new Elysia({
         personId: person.id,
         groupId: body.groupId ?? null,
         direction: body.direction,
-        amount: toPaise(body.amount),
+        amount: body.amount,
         date: body.date ?? today(),
         note: body.note?.trim() || null,
       });
       return ok(
         null,
         body.direction === "received"
-          ? `Recorded ₹${body.amount} from ${person.name}`
-          : `Recorded ₹${body.amount} paid to ${person.name}`,
+          ? `Recorded ${formatAmount(body.amount)} from ${person.name}`
+          : `Recorded ${formatAmount(body.amount)} paid to ${person.name}`,
       );
     },
     {
@@ -898,7 +898,7 @@ const settlementsController = new Elysia({
         personId: t.Integer({ minimum: 1 }),
         groupId: t.Optional(t.Nullable(t.Integer({ minimum: 1 }))),
         direction: tEnum(settlementDirections),
-        amount: t.Number({ exclusiveMinimum: 0, maximum: 1_000_000_000 }),
+        amount: t.Integer({ exclusiveMinimum: 0, maximum: 100_000_000_000 }),
         date: t.Optional(tDate),
         note: t.Optional(t.Nullable(t.String({ maxLength: 200 }))),
       }),

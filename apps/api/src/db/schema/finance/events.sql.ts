@@ -20,7 +20,7 @@ export const eventsTable = pgTable(
     color: pg.text().notNull().default("#db2777"),
     startDate: pg.date("start_date", { mode: "string" }),
     endDate: pg.date("end_date", { mode: "string" }),
-    /** Optional spending budget (paise). */
+    /** Optional spending budget. */
     budget: pg.bigint({ mode: "number" }),
     /** When this became the active event; null = not active. */
     activeSince: pg.timestamp("active_since", { withTimezone: true }),

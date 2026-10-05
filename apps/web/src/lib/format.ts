@@ -1,11 +1,6 @@
 import { format, parseISO } from "date-fns";
 
-const inr = new Intl.NumberFormat("en-IN", {
-  style: "currency",
-  currency: "INR",
-  maximumFractionDigits: 0,
-});
-const inrPaise = new Intl.NumberFormat("en-IN", {
+const inrFormatter = new Intl.NumberFormat("en-IN", {
   style: "currency",
   currency: "INR",
   minimumFractionDigits: 2,
@@ -18,13 +13,22 @@ const inrCompact = new Intl.NumberFormat("en-IN", {
   maximumFractionDigits: 1,
 });
 
-/** ₹1,23,456.5 */
-export const money = (n: number) =>
-  (Number.isInteger(Math.round(n * 100) / 100) ? inr : inrPaise).format(n);
+/**
+ * The one place amounts are turned into text. The API sends and stores every amount as an
+ * integer in the smallest INR unit; this divides it down and formats as ₹1,23,456.00.
+ */
+export const formatAmount = (value?: number | null) =>
+  inrFormatter.format((value ?? 0) / 100);
 /** ₹1.2L / ₹12K */
-export const moneyShort = (n: number) => inrCompact.format(n);
-export const signedMoney = (n: number, type: "credit" | "debit") =>
-  `${type === "credit" ? "+" : "−"}${money(n)}`;
+export const formatAmountShort = (value?: number | null) =>
+  inrCompact.format((value ?? 0) / 100);
+export const formatSignedAmount = (value: number, type: "credit" | "debit") =>
+  `${type === "credit" ? "+" : "−"}${formatAmount(value)}`;
+
+/** An amount typed or shown in rupees (inputs, charts) → the API's integer amount. */
+export const toAmount = (rupees: number) => Math.round(rupees * 100);
+/** An API amount → rupees, for editable inputs and chart axes. */
+export const fromAmount = (value: number) => value / 100;
 
 /** Date-only value → "yyyy-MM-dd". Eden may parse "2026-09-27" into a Date
  * (UTC midnight), so accept both shapes. */
@@ -45,6 +49,10 @@ export function dayLabel(d: string | Date) {
   if (s === yest) return "Yesterday";
   return format(parseDay(s), "EEE, d MMM yyyy");
 }
+
+/** Date-only value → "dd/MM/yyyy" (the Indian numeric format). */
+export const formatDate = (d: string | Date) =>
+  format(parseDay(d), "dd/MM/yyyy");
 
 export const shortDate = (d: string | Date) =>
   format(parseDay(d), "d MMM yyyy");

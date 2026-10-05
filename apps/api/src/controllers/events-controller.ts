@@ -3,7 +3,7 @@ import Elysia, { t } from "elysia";
 import { db } from "$/db";
 import { categoriesTable, eventsTable, transactionsTable } from "$/db/schema";
 import { fail, ok } from "$/lib/utils";
-import { toPaise, toRupees } from "$/lib/utils/money";
+import { amountOf } from "$/lib/utils/money";
 import { today } from "$/lib/utils/period";
 import { tEnum } from "$/lib/utils/schema";
 import { protectedUser } from "$/pre-processor";
@@ -20,7 +20,7 @@ const eventBody = t.Object({
   startDate: t.Optional(t.Nullable(tDate)),
   endDate: t.Optional(t.Nullable(tDate)),
   /** Rupees; null = no budget. */
-  budget: t.Optional(t.Nullable(t.Number({ exclusiveMinimum: 0 }))),
+  budget: t.Optional(t.Nullable(t.Integer({ exclusiveMinimum: 0 }))),
   note: t.Optional(t.Nullable(t.String({ maxLength: 300 }))),
   /** `active` makes this the event new transactions default to. */
   activation: t.Optional(tEnum(["active", "inactive"] as const)),
@@ -58,9 +58,9 @@ const serializeEvent = (
   const now = today();
   return {
     ...e,
-    budget: e.budget === null ? null : toRupees(e.budget),
-    spent: toRupees(s?.spent),
-    received: toRupees(s?.received),
+    budget: e.budget === null ? null : amountOf(e.budget),
+    spent: amountOf(s?.spent),
+    received: amountOf(s?.received),
     count: s?.count ?? 0,
     status:
       e.startDate && e.startDate > now
@@ -155,8 +155,8 @@ export const eventsController = new Elysia({
       ]);
       return ok({
         event: serializeEvent(event, totals),
-        byCategory: byCategory.map((c) => ({ ...c, total: toRupees(c.total) })),
-        byDay: byDay.map((d) => ({ date: d.date, spent: toRupees(d.spent) })),
+        byCategory: byCategory.map((c) => ({ ...c, total: amountOf(c.total) })),
+        byDay: byDay.map((d) => ({ date: d.date, spent: amountOf(d.spent) })),
       });
     },
     { params: tId },
@@ -173,7 +173,7 @@ export const eventsController = new Elysia({
           ...rest,
           name: rest.name.trim(),
           note: rest.note?.trim() || null,
-          budget: budget ? toPaise(budget) : null,
+          budget: budget ? budget : null,
           userId: user.id,
         })
         .returning();
@@ -205,7 +205,7 @@ export const eventsController = new Elysia({
             ...(rest.name && { name: rest.name.trim() }),
             ...(rest.note !== undefined && { note: rest.note?.trim() || null }),
             ...(budget !== undefined && {
-              budget: budget ? toPaise(budget) : null,
+              budget: budget ? budget : null,
             }),
           })
           .where(and(eq(E.id, event.id), eq(E.userId, user.id)));

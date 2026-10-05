@@ -35,7 +35,7 @@ import {
 } from "@/hooks/use-accounts";
 import { useSummary, useTransactions } from "@/hooks/use-finance";
 import { accountTypeLabel } from "@/lib/accounts";
-import { money, shortDate, todayStr } from "@/lib/format";
+import { formatAmount, shortDate, todayStr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useTxnSheet } from "@/stores/txn-sheet-store";
 
@@ -154,14 +154,14 @@ function AccountPage() {
               a.balance < 0 && !isCard && "text-expense",
             )}
           >
-            {money(isCard && a.balance < 0 ? -a.balance : a.balance)}
+            {formatAmount(isCard && a.balance < 0 ? -a.balance : a.balance)}
           </p>
         </div>
         <div className="mt-4 grid grid-cols-3 gap-2 text-center">
           <div className="rounded-xl bg-muted p-2.5">
             <p className="text-[11px] text-muted-foreground">In · this month</p>
             <p className="tabular text-sm font-semibold text-income">
-              {money(m?.income ?? 0)}
+              {formatAmount(m?.income ?? 0)}
             </p>
           </div>
           <div className="rounded-xl bg-muted p-2.5">
@@ -169,13 +169,13 @@ function AccountPage() {
               Out · this month
             </p>
             <p className="tabular text-sm font-semibold text-expense">
-              {money(m?.expense ?? 0)}
+              {formatAmount(m?.expense ?? 0)}
             </p>
           </div>
           <div className="rounded-xl bg-muted p-2.5">
             <p className="text-[11px] text-muted-foreground">Opening</p>
             <p className="tabular text-sm font-semibold">
-              {money(a.openingBalance)}
+              {formatAmount(a.openingBalance)}
             </p>
           </div>
         </div>
@@ -255,7 +255,7 @@ function AccountPage() {
                   )}
                 >
                   {out ? "−" : "+"}
-                  {money(t.amount)}
+                  {formatAmount(t.amount)}
                 </span>
                 <Button
                   variant="ghost"

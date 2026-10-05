@@ -2,7 +2,7 @@ import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { db } from "$/db";
 import { categoriesTable, transactionsTable } from "$/db/schema";
 import { countedBookCond } from "$/lib/services/book-service";
-import { toRupees } from "$/lib/utils/money";
+import { amountOf } from "$/lib/utils/money";
 import {
   addDays,
   addMonths,
@@ -45,8 +45,8 @@ async function totals(userId: number, r: Range, scope: ReportScope) {
     .select({ income, expense, count: sql<number>`count(*)::int` })
     .from(T)
     .where(inRange(userId, r, scope));
-  const inc = toRupees(row?.income);
-  const exp = toRupees(row?.expense);
+  const inc = amountOf(row?.income);
+  const exp = amountOf(row?.expense);
   return { income: inc, expense: exp, net: inc - exp, count: row?.count ?? 0 };
 }
 
@@ -109,8 +109,8 @@ export async function summary(
   let cumulative = 0;
   const buckets = bucketKeys(r, unit).map((key) => {
     const b = byKey.get(key);
-    const inc = toRupees(b?.income);
-    const exp = toRupees(b?.expense);
+    const inc = amountOf(b?.income);
+    const exp = amountOf(b?.expense);
     cumulative += exp;
     // The running total stops at today so the trend line doesn't run flat into the future.
     const future = key > nowKey && !b;
@@ -131,7 +131,7 @@ export async function summary(
 
   const categories = categoryRows.map((c) => ({
     ...c,
-    total: toRupees(c.total),
+    total: amountOf(c.total),
   }));
   return {
     range: r,
@@ -166,8 +166,8 @@ export async function calendar(
     to,
     days: rows.map((d) => ({
       date: d.date,
-      income: toRupees(d.income),
-      expense: toRupees(d.expense),
+      income: amountOf(d.income),
+      expense: amountOf(d.expense),
     })),
   };
 }

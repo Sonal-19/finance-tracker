@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
+import { formatAmount, toAmount } from "@/lib/format";
 
 type RailId = "gpay" | "phonepe" | "paytm" | "cred" | "cash";
 type Period = "Day" | "Week" | "Month" | "Year";
@@ -334,7 +335,8 @@ export function FeatureBento() {
                       : "text-emerald-600 dark:text-emerald-400 font-extrabold"
                 }`}
               >
-                ₹{budgetSpend.toLocaleString("en-IN")} / ₹8,000
+                {formatAmount(toAmount(budgetSpend))} /{" "}
+                {formatAmount(toAmount(8000))}
               </span>
             </div>
 

@@ -6,7 +6,7 @@ import {
   splitsTable,
   transactionsTable,
 } from "$/db/schema";
-import { toRupees } from "$/lib/utils/money";
+import { amountOf } from "$/lib/utils/money";
 
 export const DEFAULT_BOOK = {
   name: "Personal",
@@ -113,8 +113,8 @@ export async function bookSummaries(userId: number, bookId?: number) {
     .where(and(eq(B.userId, userId), bookId ? eq(B.id, bookId) : undefined))
     .orderBy(sql`${B.defaultSince} nulls last`, B.id);
   return rows.map(({ book, ...r }) => {
-    const spent = toRupees(r.spent);
-    const received = toRupees(r.received);
+    const spent = amountOf(r.spent);
+    const received = amountOf(r.received);
     return {
       ...book,
       spent,

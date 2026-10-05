@@ -20,6 +20,7 @@ import { TransactionRow } from "@/components/transactions/transaction-list";
 import { Button } from "@/components/ui/button";
 import { useActiveAccounts, useActiveEvent } from "@/hooks/use-accounts";
 import { useAuth } from "@/hooks/use-auth";
+import { useBookScope } from "@/hooks/use-books";
 import {
   useBalance,
   useBudgets,
@@ -28,9 +29,8 @@ import {
   useSummary,
   useTransactions,
 } from "@/hooks/use-finance";
-import { useBookScope } from "@/hooks/use-books";
 import { useSplitSummary } from "@/hooks/use-splits";
-import { money, pct, shortDate, todayStr } from "@/lib/format";
+import { formatAmount, pct, shortDate, todayStr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useTxnSheet } from "@/stores/txn-sheet-store";
 
@@ -117,7 +117,7 @@ function Dashboard() {
             →
           </p>
           <p className="tabular mt-1 text-3xl font-bold sm:text-4xl">
-            {money(balance.data?.balance ?? 0)}
+            {formatAmount(balance.data?.balance ?? 0)}
           </p>
         </Link>
         <div className="mt-5 grid grid-cols-3 gap-3 text-sm">
@@ -126,7 +126,7 @@ function Dashboard() {
               <ArrowDownLeft className="size-3.5" /> Income
             </p>
             <p className="tabular font-semibold">
-              {money(m?.current.income ?? 0)}
+              {formatAmount(m?.current.income ?? 0)}
             </p>
           </div>
           <div>
@@ -134,7 +134,7 @@ function Dashboard() {
               <ArrowUpRight className="size-3.5" /> Spent
             </p>
             <p className="tabular font-semibold">
-              {money(m?.current.expense ?? 0)}
+              {formatAmount(m?.current.expense ?? 0)}
             </p>
           </div>
           <div>
@@ -144,7 +144,7 @@ function Dashboard() {
         </div>
         <p className="mt-3 text-xs text-white/70">
           {format(new Date(), "MMMM yyyy")} · Today spent{" "}
-          {money(todaySummary.data?.current.expense ?? 0)}
+          {formatAmount(todaySummary.data?.current.expense ?? 0)}
         </p>
       </div>
 
@@ -169,7 +169,7 @@ function Dashboard() {
                     a.balance < 0 && "text-expense",
                   )}
                 >
-                  {money(a.balance)}
+                  {formatAmount(a.balance)}
                 </span>
               </span>
             </Link>
@@ -194,8 +194,11 @@ function Dashboard() {
               {activeEvent.name} is live
             </p>
             <p className="truncate text-xs text-muted-foreground">
-              New expenses are tagged to it · spent {money(activeEvent.spent)}
-              {activeEvent.budget ? ` of ${money(activeEvent.budget)}` : ""}
+              New expenses are tagged to it · spent{" "}
+              {formatAmount(activeEvent.spent)}
+              {activeEvent.budget
+                ? ` of ${formatAmount(activeEvent.budget)}`
+                : ""}
             </p>
           </div>
           <span className="text-sm font-medium text-primary">Open →</span>
@@ -315,9 +318,9 @@ function Dashboard() {
                   splitSummary.data.youOwe > 0)
                   ? [
                       splitSummary.data.owedToYou > 0 &&
-                        `You're owed ${money(splitSummary.data.owedToYou)}`,
+                        `You're owed ${formatAmount(splitSummary.data.owedToYou)}`,
                       splitSummary.data.youOwe > 0 &&
-                        `you owe ${money(splitSummary.data.youOwe)}`,
+                        `you owe ${formatAmount(splitSummary.data.youOwe)}`,
                     ]
                       .filter(Boolean)
                       .join(" · ")
@@ -339,10 +342,10 @@ function Dashboard() {
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="tabular font-semibold">
-                    {money(overall.spent)}
+                    {formatAmount(overall.spent)}
                   </span>
                   <span className="tabular text-muted-foreground">
-                    of {money(overall.budget)}
+                    of {formatAmount(overall.budget)}
                   </span>
                 </div>
                 <Progress
@@ -352,8 +355,8 @@ function Dashboard() {
                 />
                 <p className="text-xs text-muted-foreground">
                   {overall.spent <= overall.budget
-                    ? `${money(overall.budget - overall.spent)} left this month`
-                    : `${money(overall.spent - overall.budget)} over budget`}
+                    ? `${formatAmount(overall.budget - overall.spent)} left this month`
+                    : `${formatAmount(overall.spent - overall.budget)} over budget`}
                 </p>
               </div>
             ) : (
@@ -402,7 +405,7 @@ function Dashboard() {
                       )}
                     >
                       {r.type === "credit" ? "+" : "−"}
-                      {money(r.amount)}
+                      {formatAmount(r.amount)}
                     </span>
                   </li>
                 ))}
@@ -468,8 +471,8 @@ function BudgetAlert({
       <p>
         <b>{name}</b>:{" "}
         {over
-          ? `over budget by ${money(spent - budget)} (${money(spent)} of ${money(budget)})`
-          : `${Math.round((spent / budget) * 100)}% used — ${money(budget - spent)} left`}
+          ? `over budget by ${formatAmount(spent - budget)} (${formatAmount(spent)} of ${formatAmount(budget)})`
+          : `${Math.round((spent / budget) * 100)}% used — ${formatAmount(budget - spent)} left`}
       </p>
     </div>
   );

@@ -23,7 +23,7 @@ import {
   userBlocksTable,
   usersTable,
 } from "$/db/schema";
-import { toPaise, toRupees } from "$/lib/utils/money";
+import { amountOf, formatAmount } from "$/lib/utils/money";
 import { defaultAccountId } from "./account-service";
 import { defaultBookId } from "./book-service";
 
@@ -41,7 +41,7 @@ type ShareResult =
     }
   | { ok: false; message: string };
 
-/** Spreads leftover paise (from rounding) one by one over the first rows. */
+/** Spreads the leftover (from rounding) one by one over the first rows. */
 function spreadRemainder(amounts: number[], total: number) {
   let diff = total - amounts.reduce((a, b) => a + b, 0);
   for (let i = 0; diff !== 0 && amounts.length; i = (i + 1) % amounts.length) {
@@ -52,7 +52,7 @@ function spreadRemainder(amounts: number[], total: number) {
   return amounts;
 }
 
-/** Splits `total` paise between participants. Shares always add up exactly to the total. */
+/** Splits `total` between participants. Shares always add up exactly to the total. */
 export function computeShares(
   total: number,
   method: SplitMethod,
@@ -71,14 +71,14 @@ export function computeShares(
       amounts = spreadRemainder(Array(n).fill(Math.floor(total / n)), total);
       break;
     case "exact": {
-      amounts = values.map(toPaise);
+      amounts = values.map(Math.round);
       if (amounts.some((a) => a < 0))
         return { ok: false, message: "Amounts can't be negative" };
       const sum = amounts.reduce((a, b) => a + b, 0);
       if (sum !== total)
         return {
           ok: false,
-          message: `Amounts add up to ₹${toRupees(sum)} but the total is ₹${toRupees(total)}`,
+          message: `Amounts add up to ${formatAmount(sum)} but the total is ${formatAmount(total)}`,
         };
       break;
     }
@@ -123,7 +123,7 @@ export type Balance = {
   iOwe: number;
   received: number;
   paid: number;
-  /** > 0: they owe the user. < 0: the user owes them. (paise) */
+  /** > 0: they owe the user. < 0: the user owes them. */
   net: number;
 };
 
@@ -212,11 +212,11 @@ export async function personBalances(userId: number, groupId?: number) {
 export const balanceInRupees = (b: Balance | undefined) => {
   const x = b ?? empty();
   return {
-    owedToMe: toRupees(x.owedToMe),
-    iOwe: toRupees(x.iOwe),
-    received: toRupees(x.received),
-    paid: toRupees(x.paid),
-    net: toRupees(x.net),
+    owedToMe: amountOf(x.owedToMe),
+    iOwe: amountOf(x.iOwe),
+    received: amountOf(x.received),
+    paid: amountOf(x.paid),
+    net: amountOf(x.net),
   };
 };
 

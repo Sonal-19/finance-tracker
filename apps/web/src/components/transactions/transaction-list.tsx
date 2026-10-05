@@ -2,7 +2,13 @@ import { ChevronRight, Repeat, Users } from "lucide-react";
 import { CategoryIcon } from "@/components/common/category-icon";
 import { useActiveBooks } from "@/hooks/use-books";
 import type { Txn } from "@/hooks/use-finance";
-import { dayLabel, money, signedMoney, ymd } from "@/lib/format";
+import {
+  dayLabel,
+  formatAmount,
+  formatSignedAmount,
+  fromAmount,
+  ymd,
+} from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useTxnSheet } from "@/stores/txn-sheet-store";
 
@@ -64,7 +70,7 @@ export function TransactionRow({
           {[
             showDate ? dayLabel(t.date) : null,
             t.originalCurrency === "USD" && t.originalAmount !== null
-              ? `$${t.originalAmount.toFixed(2)} @ ₹${Number(t.fxRate).toFixed(2)}`
+              ? `$${fromAmount(t.originalAmount).toFixed(2)} @ ₹${Number(t.fxRate).toFixed(2)}`
               : null,
             t.account.name,
             t.note,
@@ -79,7 +85,7 @@ export function TransactionRow({
           t.type === "credit" ? "text-income" : "text-foreground",
         )}
       >
-        {signedMoney(t.amount, t.type)}
+        {formatSignedAmount(t.amount, t.type)}
       </span>
       <ChevronRight className="hidden size-4 shrink-0 text-muted-foreground md:block" />
     </button>
@@ -115,10 +121,14 @@ export function GroupedTransactions({
               {tot && (
                 <span className="tabular flex gap-3 text-muted-foreground">
                   {tot.income > 0 && (
-                    <span className="text-income">+{money(tot.income)}</span>
+                    <span className="text-income">
+                      +{formatAmount(tot.income)}
+                    </span>
                   )}
                   {tot.expense > 0 && (
-                    <span className="text-expense">−{money(tot.expense)}</span>
+                    <span className="text-expense">
+                      −{formatAmount(tot.expense)}
+                    </span>
                   )}
                 </span>
               )}

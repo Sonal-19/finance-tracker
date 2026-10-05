@@ -4,7 +4,7 @@ import { db } from "$/db";
 import { budgetsTable, categoriesTable, transactionsTable } from "$/db/schema";
 import { countedBookCond } from "$/lib/services/book-service";
 import { fail, ok } from "$/lib/utils";
-import { toPaise, toRupees } from "$/lib/utils/money";
+import { amountOf } from "$/lib/utils/money";
 import { rangeFor, today } from "$/lib/utils/period";
 import { protectedUser } from "$/pre-processor";
 
@@ -56,19 +56,19 @@ export const budgetsController = new Elysia({
           .orderBy(categoriesTable.name),
       ]);
       const spentBy = new Map(
-        spentRows.map((s) => [s.categoryId, toRupees(s.spent)]),
+        spentRows.map((s) => [s.categoryId, amountOf(s.spent)]),
       );
       const totalSpent = [...spentBy.values()].reduce((a, b) => a + b, 0);
 
       const overall =
-        user.monthlyBudget === null ? null : toRupees(user.monthlyBudget);
+        user.monthlyBudget === null ? null : amountOf(user.monthlyBudget);
       return ok({
         month,
         range: r,
         overall: { budget: overall, spent: totalSpent },
         categories: rows.map((b) => ({
           ...b,
-          amount: toRupees(b.amount),
+          amount: amountOf(b.amount),
           spent: spentBy.get(b.category.id) ?? 0,
         })),
       });
@@ -102,19 +102,19 @@ export const budgetsController = new Elysia({
         .values({
           userId: user.id,
           categoryId: cat.id,
-          amount: toPaise(body.amount),
+          amount: body.amount,
         })
         .onConflictDoUpdate({
           target: [budgetsTable.userId, budgetsTable.categoryId],
-          set: { amount: toPaise(body.amount) },
+          set: { amount: body.amount },
         })
         .returning();
-      return ok({ ...row!, amount: toRupees(row!.amount) }, "Budget saved");
+      return ok({ ...row!, amount: amountOf(row!.amount) }, "Budget saved");
     },
     {
       body: t.Object({
         categoryId: t.Integer({ minimum: 1 }),
-        amount: t.Number({ exclusiveMinimum: 0 }),
+        amount: t.Integer({ exclusiveMinimum: 0 }),
       }),
     },
   )
