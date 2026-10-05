@@ -35,7 +35,7 @@ async function postDue(rule: SelectRecurringRule, upTo: string) {
       .from(recurringRulesTable)
       .where(eq(recurringRulesTable.id, rule.id))
       .for("update");
-    if (!fresh?.isActive) return 0;
+    if (fresh?.status !== "active") return 0;
 
     let next = fresh.nextRunDate;
     let posted = 0;
@@ -63,7 +63,10 @@ async function postDue(rule: SelectRecurringRule, upTo: string) {
     const finished = !!fresh.endDate && next > fresh.endDate;
     await tx
       .update(recurringRulesTable)
-      .set({ nextRunDate: next, ...(finished && { isActive: false }) })
+      .set({
+        nextRunDate: next,
+        ...(finished && { status: "completed", completedAt: new Date() }),
+      })
       .where(eq(recurringRulesTable.id, fresh.id));
     return posted;
   });
@@ -79,7 +82,7 @@ class RecurringService {
       .from(recurringRulesTable)
       .where(
         and(
-          eq(recurringRulesTable.isActive, true),
+          eq(recurringRulesTable.status, "active"),
           lte(recurringRulesTable.nextRunDate, now),
           userId ? eq(recurringRulesTable.userId, userId) : undefined,
         ),

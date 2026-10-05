@@ -11,6 +11,7 @@ import {
 import { db, type TX } from "$/db";
 import {
   categoriesTable,
+  type OwnShareMode,
   type PaymentMethod,
   peopleTable,
   type SplitMethod,
@@ -270,7 +271,7 @@ export async function syncShareTransaction(
     description: string;
     date: string;
     categoryId: number | null;
-    recordExpense: boolean;
+    ownShare: OwnShareMode;
     accountId: number | null;
     eventId: number | null;
   },
@@ -284,7 +285,8 @@ export async function syncShareTransaction(
     .from(transactionsTable)
     .where(eq(transactionsTable.splitId, split.id))
     .limit(1);
-  const want = split.recordExpense && myShare > 0 && split.categoryId !== null;
+  const want =
+    split.ownShare === "recorded" && myShare > 0 && split.categoryId !== null;
   if (!want) {
     if (existing)
       await tx
@@ -366,7 +368,7 @@ export async function usersBlocking(ownerId: number, linkedIds: number[]) {
 /**
  * Keeps each tagged user's own copy of the split in step: one debit
  * transaction (`shared_split_id`) for their share when they want it (their
- * per-split choice, else their `add_tagged_expenses` setting), none otherwise.
+ * per-split decision, else their `tagged_expenses` setting), none otherwise.
  * An existing copy only has amount/date/note refreshed, so a category or
  * account the tagged user changed sticks. Pass `onlyUserId` to refresh one user.
  */
@@ -378,9 +380,9 @@ export async function syncSharedTransactions(
   const tagged = await tx
     .select({
       userId: usersTable.id,
-      addByDefault: usersTable.addTaggedExpenses,
+      mode: usersTable.taggedExpenses,
       amount: splitSharesTable.amount,
-      pref: sharedSplitPrefsTable.added,
+      decision: sharedSplitPrefsTable.decision,
     })
     .from(splitSharesTable)
     .innerJoin(peopleTable, eq(peopleTable.id, splitSharesTable.personId))
@@ -419,7 +421,8 @@ export async function syncSharedTransactions(
         ),
       )
       .limit(1);
-    const want = (t.pref ?? t.addByDefault) && t.amount > 0;
+    const add = t.decision ? t.decision === "added" : t.mode === "auto";
+    const want = add && t.amount > 0;
     if (!want) {
       if (existing)
         await tx

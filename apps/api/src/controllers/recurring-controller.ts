@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import Elysia, { t } from "elysia";
 import { db } from "$/db";
 import {
@@ -46,7 +46,7 @@ async function listRules(userId: number) {
     .from(R)
     .innerJoin(categoriesTable, eq(categoriesTable.id, R.categoryId))
     .where(eq(R.userId, userId))
-    .orderBy(desc(R.isActive), asc(R.nextRunDate));
+    .orderBy(sql`${R.status} <> 'active'`, asc(R.nextRunDate));
   return rows.map(({ rule, category }) => ({
     ...rule,
     amount: toRupees(rule.amount),
@@ -119,13 +119,18 @@ export const recurringController = new Elysia({
           ...(body.note !== undefined && { note: body.note?.trim() || null }),
           ...(body.frequency && { frequency: body.frequency }),
           ...(body.endDate !== undefined && { endDate: body.endDate }),
-          ...(body.isActive !== undefined && { isActive: body.isActive }),
+          ...(body.status &&
+            body.status !== rule.status && {
+              status: body.status,
+              pausedAt: body.status === "paused" ? new Date() : null,
+              completedAt: null,
+            }),
           ...(restart && {
             startDate: body.startDate,
             nextRunDate: body.startDate,
           }),
         })
-        .where(eq(R.id, rule.id));
+        .where(and(eq(R.id, rule.id), eq(R.userId, user.id)));
       await recurringService.runDue(user.id);
       return ok(null, "Recurring rule updated");
     },
@@ -133,7 +138,8 @@ export const recurringController = new Elysia({
       params: t.Object({ id: t.Numeric() }),
       body: t.Composite([
         t.Partial(ruleBody),
-        t.Object({ isActive: t.Optional(t.Boolean()) }),
+        /** Pause or resume; `completed` is set by the scheduler only. */
+        t.Object({ status: t.Optional(tEnum(["active", "paused"] as const)) }),
       ]),
     },
   )

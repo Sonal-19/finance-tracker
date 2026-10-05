@@ -18,44 +18,45 @@ export const budgetsController = new Elysia({
       const month = query.month ?? today().slice(0, 7);
       const r = rangeFor("month", `${month}-01`);
       const T = transactionsTable;
-      const spentRows = await db
-        .select({
-          categoryId: T.categoryId,
-          spent: sql<string>`sum(${T.amount})`,
-        })
-        .from(T)
-        .where(
-          and(
-            eq(T.userId, user.id),
-            eq(T.type, "debit"),
-            gte(T.date, r.from),
-            lte(T.date, r.to),
-          ),
-        )
-        .groupBy(T.categoryId);
+      const [spentRows, rows] = await Promise.all([
+        db
+          .select({
+            categoryId: T.categoryId,
+            spent: sql<string>`sum(${T.amount})`,
+          })
+          .from(T)
+          .where(
+            and(
+              eq(T.userId, user.id),
+              eq(T.type, "debit"),
+              gte(T.date, r.from),
+              lte(T.date, r.to),
+            ),
+          )
+          .groupBy(T.categoryId),
+        db
+          .select({
+            id: budgetsTable.id,
+            amount: budgetsTable.amount,
+            category: {
+              id: categoriesTable.id,
+              name: categoriesTable.name,
+              icon: categoriesTable.icon,
+              color: categoriesTable.color,
+            },
+          })
+          .from(budgetsTable)
+          .innerJoin(
+            categoriesTable,
+            eq(categoriesTable.id, budgetsTable.categoryId),
+          )
+          .where(eq(budgetsTable.userId, user.id))
+          .orderBy(categoriesTable.name),
+      ]);
       const spentBy = new Map(
         spentRows.map((s) => [s.categoryId, toRupees(s.spent)]),
       );
       const totalSpent = [...spentBy.values()].reduce((a, b) => a + b, 0);
-
-      const rows = await db
-        .select({
-          id: budgetsTable.id,
-          amount: budgetsTable.amount,
-          category: {
-            id: categoriesTable.id,
-            name: categoriesTable.name,
-            icon: categoriesTable.icon,
-            color: categoriesTable.color,
-          },
-        })
-        .from(budgetsTable)
-        .innerJoin(
-          categoriesTable,
-          eq(categoriesTable.id, budgetsTable.categoryId),
-        )
-        .where(eq(budgetsTable.userId, user.id))
-        .orderBy(categoriesTable.name);
 
       const overall =
         user.monthlyBudget === null ? null : toRupees(user.monthlyBudget);

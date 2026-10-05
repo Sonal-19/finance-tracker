@@ -195,20 +195,24 @@ export const transactionsController = new Elysia({
   .post(
     "/",
     async ({ user, body, status }) => {
-      const cat = await ownedCategory(user.id, body.categoryId, body.type);
-      if (!cat.ok) return status(400, fail(cat.message));
-      const account = await resolveAccountId(user.id, body.accountId);
-      if (!account.ok) return status(400, fail(account.message));
-      const event = await ownedEventId(user.id, body.eventId);
-      if (!event.ok) return status(400, fail(event.message));
       const { currency = "INR", fxRate, ...rest } = body;
+      // Independent lookups: one round of queries instead of four in a row.
+      const [cat, account, event, money] = await Promise.all([
+        ownedCategory(user.id, body.categoryId, body.type),
+        resolveAccountId(user.id, body.accountId),
+        ownedEventId(user.id, body.eventId),
+        convert(body.amount, currency, body.date, fxRate),
+      ]);
+      if (!cat.ok) return status(400, fail(cat.message));
+      if (!account.ok) return status(400, fail(account.message));
+      if (!event.ok) return status(400, fail(event.message));
       const [row] = await db
         .insert(transactionsTable)
         .values({
           ...rest,
           accountId: account.id,
           eventId: event.id,
-          ...(await convert(body.amount, currency, body.date, fxRate)),
+          ...money,
           note: body.note?.trim() || null,
           userId: user.id,
         })
@@ -308,14 +312,14 @@ export const transactionsController = new Elysia({
           .values({
             splitId: row.sharedSplitId,
             userId: user.id,
-            added: false,
+            decision: "skipped",
           })
           .onConflictDoUpdate({
             target: [
               sharedSplitPrefsTable.splitId,
               sharedSplitPrefsTable.userId,
             ],
-            set: { added: false },
+            set: { decision: "skipped", decidedAt: new Date() },
           });
       return ok(
         {

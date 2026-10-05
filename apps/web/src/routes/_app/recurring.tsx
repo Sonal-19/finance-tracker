@@ -52,7 +52,7 @@ function RecurringPage() {
   const [editing, setEditing] = useState<RecurringRule | "new" | null>(null);
 
   const monthlyOut = (data ?? [])
-    .filter((r) => r.isActive && r.type === "debit")
+    .filter((r) => r.status === "active" && r.type === "debit")
     .reduce(
       (a, r) =>
         a +
@@ -96,7 +96,7 @@ function RecurringPage() {
               key={r.id}
               className={cn(
                 "flex flex-wrap items-center gap-x-3 gap-y-1 p-4",
-                !r.isActive && "opacity-60",
+                r.status !== "active" && "opacity-60",
               )}
             >
               <CategoryIcon icon={r.category.icon} color={r.category.color} />
@@ -108,7 +108,11 @@ function RecurringPage() {
                   {FREQ_LABEL[r.frequency]} ·{" "}
                   {accountName(r.accountId) && `${accountName(r.accountId)} · `}
                   {paymentLabel(r.paymentMethod)} ·{" "}
-                  {r.isActive ? `next ${shortDate(r.nextRunDate)}` : "paused"}
+                  {r.status === "active"
+                    ? `next ${shortDate(r.nextRunDate)}`
+                    : r.status === "completed"
+                      ? "ended"
+                      : "paused"}
                   {r.endDate ? ` · until ${shortDate(r.endDate)}` : ""}
                 </p>
               </div>
@@ -125,12 +129,15 @@ function RecurringPage() {
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  aria-label={r.isActive ? "Pause" : "Resume"}
+                  aria-label={r.status === "active" ? "Pause" : "Resume"}
                   onClick={() =>
-                    save.mutate({ id: r.id, isActive: !r.isActive })
+                    save.mutate({
+                      id: r.id,
+                      status: r.status === "active" ? "paused" : "active",
+                    })
                   }
                 >
-                  {r.isActive ? <Pause /> : <Play />}
+                  {r.status === "active" ? <Pause /> : <Play />}
                 </Button>
                 <Button
                   variant="ghost"

@@ -25,6 +25,9 @@ export function useAuth() {
     user,
     isLoading: isLoading && !cached,
     isAuthenticated: !!user,
+    /** True once `/auth/me` has answered; before that `user` may be the
+     * locally cached copy (e.g. with an out-of-date role). */
+    isConfirmed: !!data,
   };
 }
 

@@ -82,7 +82,7 @@ async function mainSeed() {
           icon: "landmark",
           color: "#2563eb",
           openingBalance: toPaise(45_000),
-          isDefault: true,
+          defaultSince: new Date(),
         },
         {
           userId: user.id,

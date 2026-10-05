@@ -1,10 +1,19 @@
-import { pgEnum, pgTable, primaryKey } from "drizzle-orm/pg-core";
+import { index, pgEnum, pgTable, primaryKey } from "drizzle-orm/pg-core";
 
 /** `admin` unlocks the system-config page (see `protectedAdmin`). Promote
  * a user with `bun run --cwd apps/api db:make-admin <email>`. */
 export const userRoles = ["user", "admin"] as const;
 export type UserRole = (typeof userRoles)[number];
 export const userRoleEnum = pgEnum("user_role", userRoles);
+
+/** What happens when someone tags this user on a split: `manual` = it waits
+ * under "Shared with me", `auto` = their share is booked as an expense. */
+export const taggedExpenseModes = ["manual", "auto"] as const;
+export type TaggedExpenseMode = (typeof taggedExpenseModes)[number];
+export const taggedExpenseModeEnum = pgEnum(
+  "tagged_expense_mode",
+  taggedExpenseModes,
+);
 
 export const usersTable = pgTable("users", (pg) => ({
   id: pg.serial().primaryKey(),
@@ -16,8 +25,9 @@ export const usersTable = pgTable("users", (pg) => ({
   usernameChangedAt: pg.timestamp("username_changed_at", {
     withTimezone: true,
   }),
-  /** Book a share of splits others tag this user on as an expense by default. */
-  addTaggedExpenses: pg.boolean("add_tagged_expenses").notNull().default(false),
+  taggedExpenses: taggedExpenseModeEnum("tagged_expenses")
+    .notNull()
+    .default("manual"),
   passwordHash: pg.text("password_hash").notNull(),
   role: userRoleEnum("role").notNull().default("user"),
   /** Overall monthly spending budget in paise; null = not set. */
@@ -53,5 +63,8 @@ export const userBlocksTable = pgTable(
       .defaultNow()
       .notNull(),
   }),
-  (t) => [primaryKey({ columns: [t.userId, t.blockedUserId] })],
+  (t) => [
+    primaryKey({ columns: [t.userId, t.blockedUserId] }),
+    index("user_blocks_blocked_idx").on(t.blockedUserId),
+  ],
 );

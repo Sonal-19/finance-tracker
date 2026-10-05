@@ -1,6 +1,9 @@
 export const DATABASE_URL =
   process.env.DATABASE_URL || "postgres://localhost/finance_tracker";
 
+/** Postgres connections kept by the API process. */
+export const DB_POOL_MAX = Number(process.env.DB_POOL_MAX ?? 10);
+
 export const IS_PROD = process.env.NODE_ENV === "production";
 
 export const PORT = Number(process.env.PORT ?? 4300);

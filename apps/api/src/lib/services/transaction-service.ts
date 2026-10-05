@@ -118,41 +118,42 @@ export async function listTransactions(
   page: { limit: number; offset: number },
 ) {
   const where = txnWhere(userId, f);
-  const rows = await selectTxns()
-    .where(where)
-    .orderBy(desc(transactionsTable.date), desc(transactionsTable.id))
-    .limit(page.limit + 1)
-    .offset(page.offset);
+  // Only the text search looks at the category name; without it the
+  // aggregates skip the join entirely.
+  const aggregate = <T extends Record<string, SQL>>(columns: T) => {
+    const q = db.select(columns).from(transactionsTable).$dynamic();
+    return f.q?.trim()
+      ? q.innerJoin(
+          categoriesTable,
+          eq(categoriesTable.id, transactionsTable.categoryId),
+        )
+      : q;
+  };
+  const income = sql<string>`coalesce(sum(${transactionsTable.amount}) filter (where ${transactionsTable.type} = 'credit'), 0)`;
+  const expense = sql<string>`coalesce(sum(${transactionsTable.amount}) filter (where ${transactionsTable.type} = 'debit'), 0)`;
+
+  // The page and the filter-wide totals don't depend on each other.
+  const [rows, [totals]] = await Promise.all([
+    selectTxns()
+      .where(where)
+      .orderBy(desc(transactionsTable.date), desc(transactionsTable.id))
+      .limit(page.limit + 1)
+      .offset(page.offset),
+    aggregate({ count: sql<number>`count(*)::int`, income, expense }).where(
+      where,
+    ),
+  ]);
   const hasMore = rows.length > page.limit;
   const items = rows.slice(0, page.limit);
-
-  const [totals] = await db
-    .select({
-      count: sql<number>`count(*)::int`,
-      income: sql<string>`coalesce(sum(${transactionsTable.amount}) filter (where ${transactionsTable.type} = 'credit'), 0)`,
-      expense: sql<string>`coalesce(sum(${transactionsTable.amount}) filter (where ${transactionsTable.type} = 'debit'), 0)`,
-    })
-    .from(transactionsTable)
-    .innerJoin(
-      categoriesTable,
-      eq(categoriesTable.id, transactionsTable.categoryId),
-    )
-    .where(where);
 
   // Per-day totals for the days on this page (whole day, not just this page's rows).
   const dates = [...new Set(items.map((i) => i.date))];
   const dayRows = dates.length
-    ? await db
-        .select({
-          date: transactionsTable.date,
-          income: sql<string>`coalesce(sum(${transactionsTable.amount}) filter (where ${transactionsTable.type} = 'credit'), 0)`,
-          expense: sql<string>`coalesce(sum(${transactionsTable.amount}) filter (where ${transactionsTable.type} = 'debit'), 0)`,
-        })
-        .from(transactionsTable)
-        .innerJoin(
-          categoriesTable,
-          eq(categoriesTable.id, transactionsTable.categoryId),
-        )
+    ? await aggregate({
+        date: sql<string>`to_char(${transactionsTable.date}, 'YYYY-MM-DD')`,
+        income,
+        expense,
+      })
         .where(and(where, inArray(transactionsTable.date, dates)))
         .groupBy(transactionsTable.date)
     : [];
@@ -183,22 +184,25 @@ export async function getTransaction(userId: number, id: number) {
   return row ? serializeTxn(row) : null;
 }
 
+const ownedCategoryQuery = db
+  .select()
+  .from(categoriesTable)
+  .where(
+    and(
+      eq(categoriesTable.id, sql.placeholder("id")),
+      eq(categoriesTable.userId, sql.placeholder("userId")),
+    ),
+  )
+  .limit(1)
+  .prepare("owned_category");
+
 /** Ensures the category belongs to the user and matches the txn type. */
 export async function ownedCategory(
   userId: number,
   categoryId: number,
   type: TxnType,
 ) {
-  const [cat] = await db
-    .select()
-    .from(categoriesTable)
-    .where(
-      and(
-        eq(categoriesTable.id, categoryId),
-        eq(categoriesTable.userId, userId),
-      ),
-    )
-    .limit(1);
+  const [cat] = await ownedCategoryQuery.execute({ id: categoryId, userId });
   if (!cat) return { ok: false as const, message: "Category not found" };
   if (cat.type !== type)
     return {

@@ -153,7 +153,7 @@ export type SplitInput = {
   method: SplitMethod;
   participants: { personId: number | null; value?: number }[];
   categoryId: number | null;
-  recordExpense: boolean;
+  ownShare: "recorded" | "skipped";
   accountId?: number | null;
   eventId?: number | null;
   paymentMethod?: PaymentMethod;
@@ -252,8 +252,13 @@ export type SharedSplit = NonNullable<
 export function useSetSharedAdded() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, added }: { id: number; added: boolean }) =>
-      callMsg(api.splits.shared({ id }).added.put({ added })),
+    mutationFn: ({
+      id,
+      decision,
+    }: {
+      id: number;
+      decision: SharedSplit["decision"];
+    }) => callMsg(api.splits.shared({ id }).decision.put({ decision })),
     onSuccess: ({ message }) => {
       toast.success(message);
       qc.invalidateQueries({ queryKey: ["splits", "shared"] });

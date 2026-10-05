@@ -1,6 +1,8 @@
 import Elysia, { t } from "elysia";
+import { IS_PROD } from "$/env";
+import { mailService } from "$/lib/services/mail-service";
 import { systemConfigService } from "$/lib/services/system-config-service";
-import { ok } from "$/lib/utils";
+import { fail, ok } from "$/lib/utils";
 import { protectedAdmin } from "$/pre-processor";
 
 // NOTE TO FUTURE EDITORS: this schema is the admin page's write contract for
@@ -13,6 +15,7 @@ export const UpdateSystemConfigSchema = t.Object({
   AUTH: t.Optional(
     t.Object({
       REGISTRATION_ENABLED: t.Boolean(),
+      REGISTRATION_OTP_REQUIRED: t.Boolean(),
       PASSKEY_LOGIN_ENABLED: t.Boolean(),
       /** 0 = unlimited */
       MAX_PASSKEYS_PER_USER: t.Integer({ minimum: 0, maximum: 1000 }),
@@ -39,10 +42,21 @@ export const systemConfigController = new Elysia({
   .get("/", () => ok(systemConfigService.SYSTEM_CONFIG))
   .patch(
     "/",
-    async ({ user, body }) =>
-      ok(
+    async ({ user, body, status }) => {
+      // Without SMTP no code can be delivered, so this would lock sign-ups.
+      if (
+        body.AUTH?.REGISTRATION_OTP_REQUIRED &&
+        IS_PROD &&
+        !mailService.configured
+      )
+        return status(
+          400,
+          fail("Set up SMTP on the server before requiring an email code"),
+        );
+      return ok(
         await systemConfigService.update(body, user.id),
         "System config saved",
-      ),
+      );
+    },
     { body: UpdateSystemConfigSchema },
   );

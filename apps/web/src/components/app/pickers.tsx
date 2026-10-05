@@ -76,7 +76,7 @@ export function EventPicker({
   const rank = (e: (typeof events)[number]) =>
     e.id === value
       ? 0
-      : e.isActive
+      : e.activeSince
         ? 1
         : covers(e)
           ? 2
@@ -112,7 +112,7 @@ export function EventPicker({
           >
             <CategoryIcon icon={e.icon} color={e.color} size="sm" />
             <span className="font-medium">{e.name}</span>
-            {e.isActive && (
+            {e.activeSince && (
               <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
                 LIVE
               </span>

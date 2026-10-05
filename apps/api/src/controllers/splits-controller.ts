@@ -3,11 +3,13 @@ import Elysia, { t } from "elysia";
 import { db } from "$/db";
 import {
   categoriesTable,
+  ownShareModes,
   paymentMethods,
   peopleTable,
   relations,
   settlementDirections,
   settlementsTable,
+  sharedSplitDecisions,
   sharedSplitPrefsTable,
   splitGroupMembersTable,
   splitGroupsTable,
@@ -115,7 +117,7 @@ async function hydrateSplits(userId: number, rows: SplitRow[]) {
       total: toRupees(r.total),
       method: r.method,
       note: r.note,
-      recordExpense: r.recordExpense,
+      ownShare: r.ownShare,
       accountId: r.accountId,
       eventId: r.eventId,
       category: cat
@@ -534,7 +536,8 @@ const splitBody = t.Object({
     { minItems: 1, maxItems: 100 },
   ),
   categoryId: t.Optional(t.Nullable(t.Integer({ minimum: 1 }))),
-  recordExpense: t.Optional(t.Boolean()),
+  /** `skipped` = don't book the user's own share as an expense. */
+  ownShare: t.Optional(tEnum(ownShareModes)),
   paymentMethod: t.Optional(tEnum(paymentMethods)),
   /** Account your share is recorded against (null = default account). */
   accountId: t.Optional(t.Nullable(t.Integer({ minimum: 1 }))),
@@ -659,12 +662,13 @@ const splitsController = new Elysia({
         ...r,
         total: toRupees(total),
         myShare: toRupees(myShare),
-        added: copyId !== null,
+        /** Whether my share is booked as an expense in my own books. */
+        decision: copyId !== null ? ("added" as const) : ("skipped" as const),
       })),
     );
   })
   .put(
-    "/shared/:id/added",
+    "/shared/:id/decision",
     async ({ user, params, body, status }) => {
       const [split] = await db
         .select({
@@ -690,22 +694,28 @@ const splitsController = new Elysia({
       await db.transaction(async (tx) => {
         await tx
           .insert(sharedSplitPrefsTable)
-          .values({ splitId: split.id, userId: user.id, added: body.added })
+          .values({
+            splitId: split.id,
+            userId: user.id,
+            decision: body.decision,
+          })
           .onConflictDoUpdate({
             target: [
               sharedSplitPrefsTable.splitId,
               sharedSplitPrefsTable.userId,
             ],
-            set: { added: body.added },
+            set: { decision: body.decision, decidedAt: new Date() },
           });
         await syncSharedTransactions(tx, split, user.id);
       });
       return ok(
-        { added: body.added },
-        body.added ? "Added to your expenses" : "Removed from your expenses",
+        { decision: body.decision },
+        body.decision === "added"
+          ? "Added to your expenses"
+          : "Removed from your expenses",
       );
     },
-    { params: tId, body: t.Object({ added: t.Boolean() }) },
+    { params: tId, body: t.Object({ decision: tEnum(sharedSplitDecisions) }) },
   )
   .get("/summary", async ({ user }) => {
     const balances = await personBalances(user.id);
@@ -769,7 +779,7 @@ const splitsController = new Elysia({
             paidByPersonId: body.paidByPersonId ?? null,
             method: body.method,
             categoryId: body.categoryId ?? null,
-            recordExpense: body.recordExpense ?? true,
+            ownShare: body.ownShare ?? "recorded",
             accountId,
             eventId,
             note: body.note?.trim() || null,
@@ -808,7 +818,7 @@ const splitsController = new Elysia({
             paidByPersonId: body.paidByPersonId ?? null,
             method: body.method,
             categoryId: body.categoryId ?? null,
-            recordExpense: body.recordExpense ?? true,
+            ownShare: body.ownShare ?? "recorded",
             accountId: body.accountId ?? null,
             eventId: body.eventId ?? null,
             note: body.note?.trim() || null,

@@ -16,11 +16,11 @@ export type Account = NonNullable<
 /** Active accounts, default first — for pickers. */
 export function useActiveAccounts() {
   const q = useAccounts();
-  const list = (q.data?.accounts ?? []).filter((a) => !a.isArchived);
+  const list = (q.data?.accounts ?? []).filter((a) => a.status === "active");
   return {
     ...q,
     list,
-    defaultAccount: list.find((a) => a.isDefault) ?? list[0],
+    defaultAccount: list.find((a) => a.defaultSince) ?? list[0],
   };
 }
 
@@ -57,7 +57,7 @@ export const useEvent = (id: number) =>
 /** The event new transactions are auto-tagged to, if any. */
 export function useActiveEvent() {
   const { data } = useEvents();
-  return data?.find((e) => e.isActive) ?? null;
+  return data?.find((e) => e.activeSince) ?? null;
 }
 
 /* ---------- mutations ---------- */
@@ -94,7 +94,7 @@ export function useSaveAccount() {
     mutationFn: async ({
       id,
       ...body
-    }: Partial<AccountInput> & { id?: number; isArchived?: boolean }) => {
+    }: Partial<AccountInput> & { id?: number; status?: Account["status"] }) => {
       if (id) return callMsg(api.accounts({ id }).patch(body));
       return callMsg(api.accounts.post(body as AccountInput));
     },
@@ -170,7 +170,7 @@ export type EventInput = {
   endDate?: string | null;
   budget?: number | null;
   note?: string | null;
-  isActive?: boolean;
+  activation?: "active" | "inactive";
 };
 
 export function useSaveEvent() {

@@ -1,9 +1,10 @@
 import { and, eq } from "drizzle-orm";
 import Elysia, { t } from "elysia";
 import { db } from "$/db";
-import { userBlocksTable, usersTable } from "$/db/schema";
+import { taggedExpenseModes, userBlocksTable, usersTable } from "$/db/schema";
 import { coreAuthService } from "$/lib/services/core-auth-service";
 import { publicUser } from "$/lib/services/session-service";
+import { userCacheService } from "$/lib/services/user-cache-service";
 import {
   isUniqueViolation,
   normalizeUsername,
@@ -14,6 +15,7 @@ import {
 } from "$/lib/services/username-service";
 import { fail, ok } from "$/lib/utils";
 import { toPaise } from "$/lib/utils/money";
+import { tEnum } from "$/lib/utils/schema";
 import { protectedUser } from "$/pre-processor";
 
 export const profileController = new Elysia({
@@ -56,8 +58,8 @@ export const profileController = new Elysia({
               username,
               usernameChangedAt: new Date(),
             }),
-            ...(body.addTaggedExpenses !== undefined && {
-              addTaggedExpenses: body.addTaggedExpenses,
+            ...(body.taggedExpenses && {
+              taggedExpenses: body.taggedExpenses,
             }),
             ...(body.name !== undefined && { name: body.name.trim() }),
             ...(body.monthlyBudget !== undefined && {
@@ -74,13 +76,14 @@ export const profileController = new Elysia({
           return status(409, fail("That username is taken"));
         throw e;
       }
+      userCacheService.set(updated!);
       if (username) usernameService.set(user.id, username, user.username);
       return ok(publicUser(updated!), "Profile updated");
     },
     {
       body: t.Object({
         username: t.Optional(t.String({ pattern: USERNAME_PATTERN })),
-        addTaggedExpenses: t.Optional(t.Boolean()),
+        taggedExpenses: t.Optional(tEnum(taggedExpenseModes)),
         name: t.Optional(t.String({ minLength: 2, maxLength: 80 })),
         monthlyBudget: t.Optional(t.Nullable(t.Number({ minimum: 0 }))),
       }),
@@ -138,6 +141,7 @@ export const profileController = new Elysia({
         .update(usersTable)
         .set({ passwordHash: await Bun.password.hash(body.newPassword) })
         .where(eq(usersTable.id, user.id));
+      userCacheService.invalidate(user.id);
       await coreAuthService.revokeAllForUser(user.id, token ?? undefined);
       return ok(null, "Password changed");
     },
@@ -155,6 +159,7 @@ export const profileController = new Elysia({
       if (!valid) return status(400, fail("Password is incorrect"));
       await coreAuthService.revokeAllForUser(user.id);
       await db.delete(usersTable).where(eq(usersTable.id, user.id));
+      userCacheService.invalidate(user.id);
       cookie?.token?.remove();
       return ok(null, "Account deleted");
     },

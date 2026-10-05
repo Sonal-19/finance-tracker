@@ -55,7 +55,7 @@ export function EventSheet({
         endDate: value.endDate ?? "",
         budget: value.budget ? String(value.budget) : "",
         note: value.note ?? "",
-        isActive: !!value.isActive,
+        isActive: value.activation === "active",
       });
   }
   const badRange =
@@ -83,7 +83,7 @@ export function EventSheet({
               endDate: form.endDate || null,
               budget: form.budget ? Number(form.budget) : null,
               note: form.note.trim() || null,
-              isActive: form.isActive,
+              activation: form.isActive ? "active" : "inactive",
             },
             { onSuccess: onClose },
           );

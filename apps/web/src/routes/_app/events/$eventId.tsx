@@ -65,7 +65,7 @@ function EventPage() {
           <div className="min-w-0 flex-1">
             <h1 className="flex items-center gap-2 truncate text-xl font-bold">
               {e.name}
-              {e.isActive && (
+              {e.activeSince && (
                 <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
                   LIVE
                 </span>
@@ -89,7 +89,7 @@ function EventPage() {
                 endDate: e.endDate,
                 budget: e.budget,
                 note: e.note,
-                isActive: e.isActive,
+                activation: e.activeSince ? "active" : "inactive",
               })
             }
           >
@@ -128,10 +128,15 @@ function EventPage() {
 
         <div className="mt-4 grid grid-cols-2 gap-2">
           <Button
-            variant={e.isActive ? "secondary" : "outline"}
-            onClick={() => save.mutate({ id: e.id, isActive: !e.isActive })}
+            variant={e.activeSince ? "secondary" : "outline"}
+            onClick={() =>
+              save.mutate({
+                id: e.id,
+                activation: e.activeSince ? "inactive" : "active",
+              })
+            }
           >
-            <Power /> {e.isActive ? "End now" : "Happening now"}
+            <Power /> {e.activeSince ? "End now" : "Happening now"}
           </Button>
           <Button onClick={() => openNew("debit", { eventId: e.id })}>
             <Plus /> Add expense

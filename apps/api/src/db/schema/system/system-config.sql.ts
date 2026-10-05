@@ -17,6 +17,10 @@ export const SYSTEM_CONFIG = {
   AUTH: {
     /** when false, new sign-ups are refused (existing users still log in) */
     REGISTRATION_ENABLED: true,
+    /** when true, sign-up needs a 6-digit code emailed to the new address
+     * (requires SMTP in production). When false the account is created
+     * straight away with no email verification. */
+    REGISTRATION_OTP_REQUIRED: false,
     /** master switch for "Sign in with passkey" and for adding new
      * passkeys. Existing passkeys stay listed and removable while off. */
     PASSKEY_LOGIN_ENABLED: true,

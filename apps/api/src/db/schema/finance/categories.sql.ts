@@ -1,6 +1,11 @@
-import { pgTable, unique } from "drizzle-orm/pg-core";
+import { pgEnum, pgTable, unique } from "drizzle-orm/pg-core";
 import { usersTable } from "../users/users.sql";
 import { txnTypeEnum } from "./enums.sql";
+
+/** `system` = seeded for every new user, `custom` = added by the user. */
+export const categoryOrigins = ["system", "custom"] as const;
+export type CategoryOrigin = (typeof categoryOrigins)[number];
+export const categoryOriginEnum = pgEnum("category_origin", categoryOrigins);
 
 export const categoriesTable = pgTable(
   "categories",
@@ -15,7 +20,7 @@ export const categoriesTable = pgTable(
     /** lucide icon name, e.g. "shopping-cart" */
     icon: pg.text().notNull().default("circle"),
     color: pg.text().notNull().default("#64748b"),
-    isDefault: pg.boolean("is_default").notNull().default(false),
+    origin: categoryOriginEnum("origin").notNull().default("custom"),
     createdAt: pg
       .timestamp("created_at", { withTimezone: true })
       .defaultNow()

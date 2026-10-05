@@ -1,9 +1,7 @@
-import { eq } from "drizzle-orm";
 import Elysia from "elysia";
-import { db } from "$/db";
-import { usersTable } from "$/db/schema";
 import { IS_PROD, SESSION_DAYS } from "$/env";
 import { coreAuthService } from "$/lib/services/core-auth-service";
+import { userCacheService } from "$/lib/services/user-cache-service";
 
 export const authProcessor = new Elysia({ name: "auth_processor" }).derive(
   { as: "global" },
@@ -24,23 +22,22 @@ export const authProcessor = new Elysia({ name: "auth_processor" }).derive(
       const userId = coreAuthService.validateToken(tokenValue);
       if (!userId) return { auth: { user: null, token: null } };
 
-      const [user] = await db
-        .select()
-        .from(usersTable)
-        .where(eq(usersTable.id, userId))
-        .limit(1);
+      const user = await userCacheService.get(userId);
       if (!user) return { auth: { user: null, token: null } };
 
+      // Rolling expiry, at most once an hour per session: no DB write and
+      // no Set-Cookie on the requests in between.
       const newExpiry = coreAuthService.extendToken(tokenValue);
-      token?.set({
-        value: tokenValue,
-        path: "/",
-        secure: IS_PROD,
-        httpOnly: true,
-        sameSite: "lax",
-        expires: newExpiry ?? undefined,
-        maxAge: SESSION_DAYS * 24 * 60 * 60,
-      });
+      if (newExpiry)
+        token?.set({
+          value: tokenValue,
+          path: "/",
+          secure: IS_PROD,
+          httpOnly: true,
+          sameSite: "lax",
+          expires: newExpiry,
+          maxAge: SESSION_DAYS * 24 * 60 * 60,
+        });
 
       return { auth: { user, token: tokenValue } };
     } catch (error) {

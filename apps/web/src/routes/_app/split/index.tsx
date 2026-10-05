@@ -311,10 +311,13 @@ function SharedTab() {
             <label className="mt-1 flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
               Add to expenses
               <Switch
-                checked={s.added}
+                checked={s.decision === "added"}
                 disabled={setAdded.isPending}
-                onCheckedChange={(added) =>
-                  setAdded.mutate({ id: s.id, added })
+                onCheckedChange={(on) =>
+                  setAdded.mutate({
+                    id: s.id,
+                    decision: on ? "added" : "skipped",
+                  })
                 }
               />
             </label>

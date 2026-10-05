@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { index, pgTable } from "drizzle-orm/pg-core";
 import { usersTable } from "../users/users.sql";
 import { accountsTable } from "./accounts.sql";
@@ -61,10 +62,27 @@ export const transactionsTable = pgTable(
       .$onUpdate(() => new Date()),
   }),
   (t) => [
-    index("transactions_user_date_idx").on(t.userId, t.date),
-    index("transactions_user_category_idx").on(t.userId, t.categoryId),
-    index("transactions_account_idx").on(t.accountId),
-    index("transactions_event_idx").on(t.eventId),
+    // The ledger's main path: a user's rows newest first. `id` breaks ties so
+    // `order by date desc, id desc limit n` is one backward index scan.
+    index("transactions_user_date_idx").on(t.userId, t.date, t.id),
+    // `type` + `amount` are in the key so an account's balance is answered
+    // from the index alone (index-only scan).
+    index("transactions_account_idx").on(t.accountId, t.type, t.amount),
+    index("transactions_category_idx").on(t.categoryId, t.date),
+    // The rest are sparse, so they only index the rows that have a value.
+    // They also keep deletes/cascades on the parent off a full table scan.
+    index("transactions_event_idx")
+      .on(t.eventId, t.date)
+      .where(sql`${t.eventId} is not null`),
+    index("transactions_split_idx")
+      .on(t.splitId)
+      .where(sql`${t.splitId} is not null`),
+    index("transactions_shared_split_idx")
+      .on(t.sharedSplitId, t.userId)
+      .where(sql`${t.sharedSplitId} is not null`),
+    index("transactions_recurring_idx")
+      .on(t.recurringId)
+      .where(sql`${t.recurringId} is not null`),
   ],
 );
 

@@ -80,7 +80,9 @@ function Dashboard() {
     .filter((a) => a.spent / a.budget >= 0.8)
     .sort((x, y) => y.spent / y.budget - x.spent / x.budget);
   const recentItems = recent.data?.pages[0]?.items.slice(0, 6) ?? [];
-  const upcoming = (recurring.data ?? []).filter((r) => r.isActive).slice(0, 4);
+  const upcoming = (recurring.data ?? [])
+    .filter((r) => r.status === "active")
+    .slice(0, 4);
 
   return (
     <div className="space-y-5">

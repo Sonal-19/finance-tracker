@@ -1,4 +1,4 @@
-import { and, eq, lte } from "drizzle-orm";
+import { and, eq, gt, inArray, lte } from "drizzle-orm";
 import { db } from "$/db";
 import { authsTable } from "$/db/schema";
 import { SESSION_DAYS } from "$/env";
@@ -7,7 +7,12 @@ type CacheEntry = {
   token: string;
   userId: number;
   expiresAt: Date;
+  /** Last time the rolling expiry was pushed out (ms); 0 = not since boot. */
+  extendedAt?: number;
 };
+
+/** A session's expiry is pushed out at most this often. */
+const EXTEND_EVERY_MS = 60 * 60 * 1000;
 
 /**
  * Token cache backing all auth in this codebase — no JWTs. Tokens are
@@ -34,12 +39,13 @@ class CoreAuthService {
         expiresAt: authsTable.expiresAt,
       })
       .from(authsTable)
-      .where(eq(authsTable.state, "active"));
-
-    const now = new Date();
-    for (const row of rows) {
-      if (row.expiresAt > now) this.#add(row);
-    }
+      .where(
+        and(
+          eq(authsTable.state, "active"),
+          gt(authsTable.expiresAt, new Date()),
+        ),
+      );
+    for (const row of rows) this.#add(row);
     const timer = setInterval(() => this.#cleanup(), 60 * 60 * 1000);
     if (typeof timer === "object" && "unref" in timer) {
       timer.unref();
@@ -62,7 +68,12 @@ class CoreAuthService {
       details: opts?.userAgent ? { userAgent: opts.userAgent } : null,
       expiresAt,
     });
-    const entry: CacheEntry = { token, userId, expiresAt };
+    const entry: CacheEntry = {
+      token,
+      userId,
+      expiresAt,
+      extendedAt: Date.now(),
+    };
     this.#add(entry);
     return entry;
   }
@@ -82,10 +93,15 @@ class CoreAuthService {
     return e.userId;
   }
 
+  /** Rolls the expiry forward. Returns the new expiry, or null when the
+   * session was extended recently enough that nothing changed. */
   extendToken(token: string): Date | null {
     const e = this.#cache.get(token);
     if (!e) return null;
-    e.expiresAt = new Date(Date.now() + SESSION_DAYS * 86_400_000);
+    const now = Date.now();
+    if (now - (e.extendedAt ?? 0) < EXTEND_EVERY_MS) return null;
+    e.extendedAt = now;
+    e.expiresAt = new Date(now + SESSION_DAYS * 86_400_000);
     db.update(authsTable)
       .set({ expiresAt: e.expiresAt })
       .where(eq(authsTable.token, token))
@@ -107,7 +123,12 @@ class CoreAuthService {
     const tokens = [...(this.#userTokens.get(userId) ?? [])].filter(
       (t) => t !== keepToken,
     );
-    for (const t of tokens) await this.revokeToken(t);
+    if (!tokens.length) return;
+    for (const t of tokens) this.#del(t);
+    await db
+      .update(authsTable)
+      .set({ state: "revoked" })
+      .where(inArray(authsTable.token, tokens));
   }
 
   #generate(): string {

@@ -27,14 +27,14 @@ function AccountRow({ a }: { a: Account }) {
       params={{ accountId: String(a.id) }}
       className={cn(
         "flex items-center gap-3 px-4 py-3 active:bg-muted md:hover:bg-muted/60",
-        a.isArchived && "opacity-60",
+        a.status === "archived" && "opacity-60",
       )}
     >
       <CategoryIcon icon={a.icon} color={a.color} />
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-1.5 truncate font-medium">
           {a.name}
-          {a.isDefault && (
+          {a.defaultSince && (
             <Star
               className="size-3.5 fill-warning text-warning"
               aria-label="Default account"
@@ -43,7 +43,7 @@ function AccountRow({ a }: { a: Account }) {
         </p>
         <p className="truncate text-xs text-muted-foreground">
           {accountTypeLabel(a.type)}
-          {a.isArchived && " · archived"}
+          {a.status === "archived" && " · archived"}
         </p>
       </div>
       <div className="text-right">
@@ -71,8 +71,8 @@ function AccountsPage() {
   const [showArchived, setShowArchived] = useState(false);
 
   const accounts = data?.accounts ?? [];
-  const active = accounts.filter((a) => !a.isArchived);
-  const archived = accounts.filter((a) => a.isArchived);
+  const active = accounts.filter((a) => a.status === "active");
+  const archived = accounts.filter((a) => a.status === "archived");
 
   return (
     <div className="space-y-5">

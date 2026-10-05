@@ -42,7 +42,7 @@ export function defaultCategoryRows(userId: number): InsertCategory[] {
       ...c,
       type,
       userId,
-      isDefault: true,
+      origin: "system" as const,
     })),
   );
 }

@@ -288,7 +288,7 @@ export function useUpdateProfile() {
     mutationFn: (b: {
       name?: string;
       username?: string;
-      addTaggedExpenses?: boolean;
+      taggedExpenses?: "manual" | "auto";
       monthlyBudget?: number | null;
     }) => callMsg(api.profile.patch(b)),
     onSuccess: ({ message, data }) => {
@@ -318,7 +318,10 @@ export function useSaveRecurring() {
     mutationFn: async ({
       id,
       ...body
-    }: Partial<RecurringInput> & { id?: number; isActive?: boolean }) => {
+    }: Partial<RecurringInput> & {
+      id?: number;
+      status?: "active" | "paused";
+    }) => {
       if (id) return callMsg(api.recurring({ id }).patch(body));
       return callMsg(api.recurring.post(body as RecurringInput));
     },

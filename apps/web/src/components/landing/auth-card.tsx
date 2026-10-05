@@ -226,16 +226,40 @@ function RegisterForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
+  // Only used when the server requires an emailed code to sign up.
+  const [step, setStep] = useState<"details" | "verify">("details");
+  const [otp, setOtp] = useState("");
+  const [cooldown, setCooldown] = useCountdown();
   const onAuthed = useOnAuthed();
+
+  const { data: config } = usePublicConfig();
+  const otpRequired = !!config?.registrationOtpRequired;
 
   const register = useMutation({
     mutationFn: () =>
-      callMsg(api.auth.register.post({ name, username, email, password })),
+      callMsg(
+        api.auth.register.post({
+          name,
+          username,
+          email,
+          password,
+          ...(otpRequired && { otp }),
+        }),
+      ),
     onSuccess: ({ data, message }) => onAuthed(data, message),
     onError: (e) => toast.error(e.message),
   });
 
-  const { data: config } = usePublicConfig();
+  const sendOtp = useMutation({
+    mutationFn: () =>
+      callMsg(api.auth.register["send-otp"].post({ email, username })),
+    onSuccess: ({ message }) => {
+      toast.success(message);
+      setStep("verify");
+      setCooldown(60);
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   const passwordLengthOk = password.length >= 8;
   const passwordsMatch = confirmPw.length > 0 && confirmPw === password;
@@ -264,13 +288,94 @@ function RegisterForm() {
     );
   }
 
+  if (otpRequired && step === "verify") {
+    return (
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          register.mutate();
+        }}
+      >
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setStep("details")}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="size-3.5" /> Edit details
+          </button>
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-primary">
+            Step 2 of 2
+          </span>
+        </div>
+
+        <div className="flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs dark:bg-primary/10">
+          <MailCheck className="mt-0.5 size-4 shrink-0 text-primary" />
+          <p className="leading-relaxed">
+            6-digit code sent to{" "}
+            <b className="break-all font-semibold text-foreground">{email}</b>
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-foreground">
+              Verification code
+            </span>
+            {cooldown > 0 ? (
+              <span className="text-xs text-muted-foreground">
+                Resend code in {cooldown}s
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="text-xs font-semibold text-primary hover:underline"
+                disabled={sendOtp.isPending}
+                onClick={() => sendOtp.mutate()}
+              >
+                Resend code
+              </button>
+            )}
+          </div>
+          <div className="flex justify-center py-1">
+            <OtpInput value={otp} onChange={setOtp} autoFocus />
+          </div>
+        </div>
+
+        <DevOtpHint onFill={() => setOtp("123456")} />
+
+        <Button
+          type="submit"
+          size="lg"
+          className="h-11 w-full bg-primary font-semibold text-primary-foreground"
+          disabled={otp.length !== 6 || register.isPending}
+        >
+          {register.isPending ? (
+            <span className="flex items-center gap-2">
+              <Loader2 className="size-4 animate-spin" /> Creating account…
+            </span>
+          ) : (
+            <span className="flex items-center gap-2">
+              <Check className="size-4" />
+              <span>Verify & create account</span>
+            </span>
+          )}
+        </Button>
+      </form>
+    );
+  }
+
+  const submitting = register.isPending || sendOtp.isPending;
+
   return (
     <form
       className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault();
         if (password !== confirmPw) return toast.error("Passwords don't match");
-        register.mutate();
+        if (otpRequired) sendOtp.mutate();
+        else register.mutate();
       }}
     >
       <Field label="Full name" htmlFor="reg-name">
@@ -394,13 +499,17 @@ function RegisterForm() {
         type="submit"
         size="lg"
         className="group relative h-11 w-full overflow-hidden bg-primary font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:bg-primary/95 hover:shadow-xl active:scale-[0.99]"
-        disabled={
-          password.length < 8 || password !== confirmPw || register.isPending
-        }
+        disabled={password.length < 8 || password !== confirmPw || submitting}
       >
-        {register.isPending ? (
+        {submitting ? (
           <span className="flex items-center gap-2">
-            <Loader2 className="size-4 animate-spin" /> Creating account…
+            <Loader2 className="size-4 animate-spin" />{" "}
+            {otpRequired ? "Sending code…" : "Creating account…"}
+          </span>
+        ) : otpRequired ? (
+          <span className="flex items-center gap-2">
+            <span>Continue to verification</span>
+            <ArrowRight className="size-4" />
           </span>
         ) : (
           <span className="flex items-center gap-2">

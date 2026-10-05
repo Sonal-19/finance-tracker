@@ -22,7 +22,7 @@ for (const u of users) {
     .from(accountsTable)
     .where(eq(accountsTable.userId, u.id));
   if (!accounts.length) accounts = await seedDefaultAccounts(db, u.id);
-  const main = accounts.find((a) => a.isDefault) ?? accounts[0]!;
+  const main = accounts.find((a) => a.defaultSince) ?? accounts[0]!;
   const cash = accounts.find((a) => a.type === "cash") ?? main;
 
   for (const table of [transactionsTable, recurringRulesTable]) {

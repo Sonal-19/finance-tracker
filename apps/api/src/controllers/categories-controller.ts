@@ -38,7 +38,7 @@ export const categoriesController = new Elysia({
         type: categoriesTable.type,
         icon: categoriesTable.icon,
         color: categoriesTable.color,
-        isDefault: categoriesTable.isDefault,
+        origin: categoriesTable.origin,
         txnCount: sql<number>`count(${transactionsTable.id})::int`,
       })
       .from(categoriesTable)

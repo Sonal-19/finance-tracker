@@ -111,7 +111,7 @@ function AccountPage() {
           <div className="min-w-0 flex-1">
             <h1 className="flex items-center gap-1.5 truncate text-xl font-bold">
               {a.name}
-              {a.isDefault && (
+              {a.defaultSince && (
                 <Star
                   className="size-4 fill-warning text-warning"
                   aria-label="Default account"
@@ -120,7 +120,7 @@ function AccountPage() {
             </h1>
             <p className="text-sm text-muted-foreground">
               {accountTypeLabel(a.type)}
-              {a.isArchived && " · archived"}
+              {a.status === "archived" && " · archived"}
             </p>
           </div>
           <Button
@@ -179,7 +179,7 @@ function AccountPage() {
             </p>
           </div>
         </div>
-        {!a.isArchived && (
+        {a.status === "active" && (
           <div className="mt-4 grid grid-cols-2 gap-2">
             <Button variant="outline" onClick={() => setTransferOpen(true)}>
               <ArrowLeftRight /> Transfer
@@ -275,21 +275,26 @@ function AccountPage() {
       )}
 
       <div className="flex flex-wrap justify-center gap-2 pt-2">
-        {!a.isDefault && !a.isArchived && (
+        {!a.defaultSince && a.status === "active" && (
           <Button variant="ghost" onClick={() => makeDefault.mutate(a.id)}>
             <Star /> Make default
           </Button>
         )}
-        {!a.isDefault && (
+        {!a.defaultSince && (
           <Button
             variant="ghost"
-            onClick={() => save.mutate({ id: a.id, isArchived: !a.isArchived })}
+            onClick={() =>
+              save.mutate({
+                id: a.id,
+                status: a.status === "archived" ? "active" : "archived",
+              })
+            }
           >
-            {a.isArchived ? <ArchiveRestore /> : <Archive />}{" "}
-            {a.isArchived ? "Restore" : "Archive"}
+            {a.status === "archived" ? <ArchiveRestore /> : <Archive />}{" "}
+            {a.status === "archived" ? "Restore" : "Archive"}
           </Button>
         )}
-        {!a.isDefault && a.usage === 0 && (
+        {!a.defaultSince && a.usage === 0 && (
           <Button
             variant="ghost"
             className="text-destructive"

@@ -38,7 +38,7 @@ export function EventCard({ e }: { e: AppEvent }) {
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-2 font-semibold">
             <span className="truncate">{e.name}</span>
-            {e.isActive && (
+            {e.activeSince && (
               <span className="shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
                 LIVE
               </span>
@@ -47,7 +47,7 @@ export function EventCard({ e }: { e: AppEvent }) {
           <p className="truncate text-xs text-muted-foreground">
             {[
               range,
-              e.isActive ? null : STATUS_LABEL[e.status],
+              e.activeSince ? null : STATUS_LABEL[e.status],
               `${e.count} entries`,
             ]
               .filter(Boolean)

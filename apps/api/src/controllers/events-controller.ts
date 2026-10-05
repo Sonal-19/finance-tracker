@@ -1,10 +1,11 @@
-import { and, desc, eq, lt, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import Elysia, { t } from "elysia";
 import { db } from "$/db";
 import { categoriesTable, eventsTable, transactionsTable } from "$/db/schema";
 import { fail, ok } from "$/lib/utils";
 import { toPaise, toRupees } from "$/lib/utils/money";
 import { today } from "$/lib/utils/period";
+import { tEnum } from "$/lib/utils/schema";
 import { protectedUser } from "$/pre-processor";
 
 const E = eventsTable;
@@ -21,31 +22,32 @@ const eventBody = t.Object({
   /** Rupees; null = no budget. */
   budget: t.Optional(t.Nullable(t.Number({ exclusiveMinimum: 0 }))),
   note: t.Optional(t.Nullable(t.String({ maxLength: 300 }))),
-  /** Make this the active event (new transactions default to it). */
-  isActive: t.Optional(t.Boolean()),
+  /** `active` makes this the event new transactions default to. */
+  activation: t.Optional(tEnum(["active", "inactive"] as const)),
 });
 
 const spent = sql<string>`coalesce(sum(${T.amount}) filter (where ${T.type} = 'debit'), 0)`;
 const received = sql<string>`coalesce(sum(${T.amount}) filter (where ${T.type} = 'credit'), 0)`;
 
-/** An active event whose end date has passed stops auto-tagging. */
-async function expireActive(userId: number) {
-  await db
+const deactivate = (userId: number) =>
+  db
     .update(E)
-    .set({ isActive: false })
-    .where(
-      and(eq(E.userId, userId), eq(E.isActive, true), lt(E.endDate, today())),
-    );
-}
+    .set({ activeSince: null })
+    .where(and(eq(E.userId, userId), isNotNull(E.activeSince)));
 
 async function setActive(userId: number, id: number) {
+  const now = new Date();
   await db.transaction(async (tx) => {
-    await tx.update(E).set({ isActive: false }).where(eq(E.userId, userId));
     await tx
       .update(E)
-      .set({ isActive: true })
+      .set({ activeSince: null })
+      .where(and(eq(E.userId, userId), isNotNull(E.activeSince)));
+    await tx
+      .update(E)
+      .set({ activeSince: now })
       .where(and(eq(E.id, id), eq(E.userId, userId)));
   });
+  return now;
 }
 
 type EventRow = typeof E.$inferSelect;
@@ -84,35 +86,40 @@ export const eventsController = new Elysia({
 })
   .use(protectedUser)
   .get("/", async ({ user }) => {
-    await expireActive(user.id);
     const [events, totals] = await Promise.all([
       db
         .select()
         .from(E)
         .where(eq(E.userId, user.id))
         .orderBy(
-          desc(E.isActive),
+          sql`${E.activeSince} is null`,
           desc(sql`coalesce(${E.startDate}, ${E.createdAt}::date)`),
         ),
+      // Driven from the user's events so each one is a short index range.
       db
         .select({
-          eventId: T.eventId,
+          eventId: E.id,
           spent,
           received,
           count: sql<number>`count(*)::int`,
         })
-        .from(T)
-        .where(and(eq(T.userId, user.id), sql`${T.eventId} is not null`))
-        .groupBy(T.eventId),
+        .from(E)
+        .innerJoin(T, and(eq(T.eventId, E.id), eq(T.userId, user.id)))
+        .where(eq(E.userId, user.id))
+        .groupBy(E.id),
     ]);
-    return ok(
-      events.map((e) =>
-        serializeEvent(
-          e,
-          totals.find((x) => x.eventId === e.id),
-        ),
-      ),
+    // An active event whose end date has passed stops auto-tagging. Only
+    // that one case writes; a plain list read never does.
+    const now = today();
+    const expired = events.find(
+      (e) => e.activeSince && e.endDate && e.endDate < now,
     );
+    if (expired) {
+      await deactivate(user.id);
+      expired.activeSince = null;
+    }
+    const byEvent = new Map(totals.map((x) => [x.eventId, x]));
+    return ok(events.map((e) => serializeEvent(e, byEvent.get(e.id))));
   })
   .get(
     "/:id",
@@ -159,7 +166,7 @@ export const eventsController = new Elysia({
     async ({ user, body, status }) => {
       if (body.startDate && body.endDate && body.endDate < body.startDate)
         return status(400, fail("End date must be after the start date"));
-      const { isActive, budget, ...rest } = body;
+      const { activation, budget, ...rest } = body;
       const [row] = await db
         .insert(E)
         .values({
@@ -170,10 +177,11 @@ export const eventsController = new Elysia({
           userId: user.id,
         })
         .returning();
-      if (isActive) await setActive(user.id, row!.id);
+      const active = activation === "active";
+      const activeSince = active ? await setActive(user.id, row!.id) : null;
       return ok(
-        { ...row!, isActive: !!isActive },
-        isActive ? `${row!.name} created and active` : `${row!.name} created`,
+        { ...row!, activeSince },
+        active ? `${row!.name} created and active` : `${row!.name} created`,
       );
     },
     { body: eventBody },
@@ -188,7 +196,7 @@ export const eventsController = new Elysia({
       const endDate = body.endDate !== undefined ? body.endDate : event.endDate;
       if (startDate && endDate && endDate < startDate)
         return status(400, fail("End date must be after the start date"));
-      const { isActive, budget, ...rest } = body;
+      const { activation, budget, ...rest } = body;
       if (Object.keys(rest).length || budget !== undefined)
         await db
           .update(E)
@@ -200,15 +208,16 @@ export const eventsController = new Elysia({
               budget: budget ? toPaise(budget) : null,
             }),
           })
-          .where(eq(E.id, event.id));
-      if (isActive === true) await setActive(user.id, event.id);
-      if (isActive === false)
-        await db.update(E).set({ isActive: false }).where(eq(E.id, event.id));
+          .where(and(eq(E.id, event.id), eq(E.userId, user.id)));
+      if (activation === "active" && !event.activeSince)
+        await setActive(user.id, event.id);
+      if (activation === "inactive" && event.activeSince)
+        await deactivate(user.id);
       return ok(
         null,
-        isActive === true
+        activation === "active"
           ? `${event.name} is active — new transactions will be tagged to it`
-          : isActive === false
+          : activation === "inactive"
             ? `${event.name} is no longer active`
             : "Event updated",
       );

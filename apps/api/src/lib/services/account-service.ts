@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { type DB, db, type TX } from "$/db";
 import {
   accountsTable,
@@ -28,23 +28,28 @@ export const DEFAULT_ACCOUNTS = [
 
 /** Every new user starts with a bank account (default) and a cash wallet. */
 export async function seedDefaultAccounts(tx: DB | TX, userId: number) {
+  const now = new Date();
   return tx
     .insert(accountsTable)
-    .values(DEFAULT_ACCOUNTS.map((a) => ({ ...a, userId })))
+    .values(
+      DEFAULT_ACCOUNTS.map(({ isDefault, ...a }) => ({
+        ...a,
+        userId,
+        defaultSince: isDefault ? now : null,
+      })),
+    )
     .returning();
 }
 
+/** The user's default account, else their oldest active one. */
 export async function defaultAccountId(userId: number, tx: DB | TX = db) {
   const [row] = await tx
     .select({ id: accountsTable.id })
     .from(accountsTable)
     .where(
-      and(
-        eq(accountsTable.userId, userId),
-        eq(accountsTable.isArchived, false),
-      ),
+      and(eq(accountsTable.userId, userId), eq(accountsTable.status, "active")),
     )
-    .orderBy(desc(accountsTable.isDefault), asc(accountsTable.id))
+    .orderBy(sql`${accountsTable.defaultSince} nulls last`, accountsTable.id)
     .limit(1);
   if (row) return row.id;
   // Safety net: a user with no accounts gets the defaults.
@@ -52,12 +57,20 @@ export async function defaultAccountId(userId: number, tx: DB | TX = db) {
   return created[0]!.id;
 }
 
+const ownedAccountQuery = db
+  .select()
+  .from(accountsTable)
+  .where(
+    and(
+      eq(accountsTable.id, sql.placeholder("id")),
+      eq(accountsTable.userId, sql.placeholder("userId")),
+    ),
+  )
+  .limit(1)
+  .prepare("owned_account");
+
 export async function ownedAccount(userId: number, id: number) {
-  const [a] = await db
-    .select()
-    .from(accountsTable)
-    .where(and(eq(accountsTable.id, id), eq(accountsTable.userId, userId)))
-    .limit(1);
+  const [a] = await ownedAccountQuery.execute({ id, userId });
   return a;
 }
 
@@ -70,86 +83,82 @@ export async function resolveAccountId(
     return { ok: true as const, id: await defaultAccountId(userId) };
   const a = await ownedAccount(userId, requested);
   if (!a) return { ok: false as const, message: "Account not found" };
-  if (a.isArchived)
+  if (a.status === "archived")
     return { ok: false as const, message: `"${a.name}" is archived` };
   return { ok: true as const, id: a.id };
 }
 
-/** Balance per account (paise): opening + credits − debits − transfers out + transfers in. */
-export async function accountBalances(userId: number) {
-  const T = transactionsTable;
-  const TR = transfersTable;
-  const R = recurringRulesTable;
-  const [accounts, txns, outs, ins, rules] = await Promise.all([
-    db
-      .select()
-      .from(accountsTable)
-      .where(eq(accountsTable.userId, userId))
-      .orderBy(desc(accountsTable.isDefault), asc(accountsTable.id)),
-    db
-      .select({
-        accountId: T.accountId,
-        income: sql<string>`coalesce(sum(${T.amount}) filter (where ${T.type} = 'credit'), 0)`,
-        expense: sql<string>`coalesce(sum(${T.amount}) filter (where ${T.type} = 'debit'), 0)`,
-        count: sql<number>`count(*)::int`,
-      })
-      .from(T)
-      .where(eq(T.userId, userId))
-      .groupBy(T.accountId),
-    db
-      .select({
-        id: TR.fromAccountId,
-        total: sql<string>`sum(${TR.amount})`,
-        count: sql<number>`count(*)::int`,
-      })
-      .from(TR)
-      .where(eq(TR.userId, userId))
-      .groupBy(TR.fromAccountId),
-    db
-      .select({
-        id: TR.toAccountId,
-        total: sql<string>`sum(${TR.amount})`,
-        count: sql<number>`count(*)::int`,
-      })
-      .from(TR)
-      .where(eq(TR.userId, userId))
-      .groupBy(TR.toAccountId),
-    db
-      .select({ id: R.accountId, count: sql<number>`count(*)::int` })
-      .from(R)
-      .where(eq(R.userId, userId))
-      .groupBy(R.accountId),
-  ]);
-  return accounts.map((a) => {
-    const t = txns.find((x) => x.accountId === a.id);
-    const o = outs.find((x) => x.id === a.id);
-    const i = ins.find((x) => x.id === a.id);
-    const r = rules.find((x) => x.id === a.id);
+const A = accountsTable;
+const T = transactionsTable;
+const TR = transfersTable;
+const R = recurringRulesTable;
+
+// Each sum is a correlated subquery on an index that leads with the account
+// id and carries the amount, so one round trip reads the accounts and
+// answers every total from indexes alone. Names are spelled out because
+// drizzle drops the table prefix from columns in a single-table select,
+// which would turn `account_id = accounts.id` into `account_id = id`.
+const ofAccount = (column: string) => sql.raw(`${column} = "accounts"."id"`);
+const txnSum = (type: "credit" | "debit") =>
+  sql<string>`(select coalesce(sum(t.amount), 0) from ${T} t where ${ofAccount("t.account_id")} and t.type = ${sql.raw(`'${type}'`)})`;
+const transferSum = (column: "from_account_id" | "to_account_id") =>
+  sql<string>`(select coalesce(sum(tr.amount), 0) from ${TR} tr where ${ofAccount(`tr.${column}`)})`;
+
+const balanceColumns = {
+  income: txnSum("credit"),
+  expense: txnSum("debit"),
+  transfersOut: transferSum("from_account_id"),
+  transfersIn: transferSum("to_account_id"),
+};
+
+const usageColumn = sql<number>`(
+  (select count(*) from ${T} t where ${ofAccount("t.account_id")})
+  + (select count(*) from ${TR} tr where ${ofAccount("tr.from_account_id")} or ${ofAccount("tr.to_account_id")})
+  + (select count(*) from ${R} r where ${ofAccount("r.account_id")})
+)::int`;
+
+/** Balance per account (rupees): opening + credits − debits − transfers out + transfers in. */
+export async function accountBalances(userId: number, accountId?: number) {
+  const rows = await db
+    .select({ account: A, ...balanceColumns, usage: usageColumn })
+    .from(A)
+    .where(
+      and(eq(A.userId, userId), accountId ? eq(A.id, accountId) : undefined),
+    )
+    .orderBy(sql`${A.defaultSince} nulls last`, A.id);
+  return rows.map(({ account: a, ...r }) => {
     const balance =
       a.openingBalance +
-      Number(t?.income ?? 0) -
-      Number(t?.expense ?? 0) -
-      Number(o?.total ?? 0) +
-      Number(i?.total ?? 0);
+      Number(r.income) -
+      Number(r.expense) -
+      Number(r.transfersOut) +
+      Number(r.transfersIn);
     return {
       ...a,
       openingBalance: toRupees(a.openingBalance),
       balance: toRupees(balance),
-      income: toRupees(t?.income),
-      expense: toRupees(t?.expense),
-      transfersOut: toRupees(o?.total),
-      transfersIn: toRupees(i?.total),
+      income: toRupees(r.income),
+      expense: toRupees(r.expense),
+      transfersOut: toRupees(r.transfersOut),
+      transfersIn: toRupees(r.transfersIn),
       /** Transactions, transfers and recurring rules referencing this account. */
-      usage:
-        (t?.count ?? 0) + (o?.count ?? 0) + (i?.count ?? 0) + (r?.count ?? 0),
+      usage: r.usage,
     };
   });
 }
 
+const totalBalanceQuery = db
+  .select({
+    total: sql<string>`coalesce(sum("accounts"."opening_balance" + ${balanceColumns.income} - ${balanceColumns.expense} - ${balanceColumns.transfersOut} + ${balanceColumns.transfersIn}), 0)`,
+  })
+  .from(A)
+  .where(and(eq(A.userId, sql.placeholder("userId")), eq(A.status, "active")))
+  .prepare("total_balance");
+
 /** Sum of active accounts' balances (rupees). */
 export async function totalBalance(userId: number) {
-  const list = await accountBalances(userId);
-  return list.filter((a) => !a.isArchived).reduce((s, a) => s + a.balance, 0);
+  const [row] = await totalBalanceQuery.execute({ userId });
+  return toRupees(row?.total);
 }
 
 /** Fills `accountId` on rows that don't have one (used by recurring posts, seeds). */

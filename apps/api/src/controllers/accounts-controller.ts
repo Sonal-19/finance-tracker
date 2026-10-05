@@ -1,8 +1,13 @@
-import { and, desc, eq, or } from "drizzle-orm";
+import { and, desc, eq, isNotNull, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import Elysia, { t } from "elysia";
 import { db } from "$/db";
-import { accountsTable, accountTypes, transfersTable } from "$/db/schema";
+import {
+  accountStatuses,
+  accountsTable,
+  accountTypes,
+  transfersTable,
+} from "$/db/schema";
 import { accountBalances, ownedAccount } from "$/lib/services/account-service";
 import { fail, ok } from "$/lib/utils";
 import { toPaise, toRupees } from "$/lib/utils/money";
@@ -37,11 +42,16 @@ async function makeDefault(userId: number, id: number) {
   await db.transaction(async (tx) => {
     await tx
       .update(accountsTable)
-      .set({ isDefault: false })
-      .where(eq(accountsTable.userId, userId));
+      .set({ defaultSince: null })
+      .where(
+        and(
+          eq(accountsTable.userId, userId),
+          isNotNull(accountsTable.defaultSince),
+        ),
+      );
     await tx
       .update(accountsTable)
-      .set({ isDefault: true })
+      .set({ defaultSince: new Date() })
       .where(and(eq(accountsTable.id, id), eq(accountsTable.userId, userId)));
   });
 }
@@ -53,7 +63,7 @@ const accountsController = new Elysia({
   .use(protectedUser)
   .get("/", async ({ user }) => {
     const accounts = await accountBalances(user.id);
-    const active = accounts.filter((a) => !a.isArchived);
+    const active = accounts.filter((a) => a.status === "active");
     return ok({
       accounts,
       total: active.reduce((s, a) => s + a.balance, 0),
@@ -69,9 +79,7 @@ const accountsController = new Elysia({
   .get(
     "/:id",
     async ({ user, params, status }) => {
-      const account = (await accountBalances(user.id)).find(
-        (a) => a.id === params.id,
-      );
+      const [account] = await accountBalances(user.id, params.id);
       return account ? ok(account) : status(404, fail("Account not found"));
     },
     { params: tId },
@@ -89,7 +97,10 @@ const accountsController = new Elysia({
             userId: user.id,
           })
           .returning();
-        return ok(row!, `${row!.name} added`);
+        return ok(
+          { ...row!, openingBalance: toRupees(row!.openingBalance) },
+          `${row!.name} added`,
+        );
       } catch (e) {
         if (isUniqueViolation(e))
           return status(
@@ -106,7 +117,7 @@ const accountsController = new Elysia({
     async ({ user, params, body, status }) => {
       const account = await ownedAccount(user.id, params.id);
       if (!account) return status(404, fail("Account not found"));
-      if (body.isArchived && account.isDefault)
+      if (body.status === "archived" && account.defaultSince)
         return status(
           400,
           fail("Make another account the default before archiving this one"),
@@ -120,8 +131,17 @@ const accountsController = new Elysia({
             ...(body.openingBalance !== undefined && {
               openingBalance: toPaise(body.openingBalance),
             }),
+            ...(body.status &&
+              body.status !== account.status && {
+                archivedAt: body.status === "archived" ? new Date() : null,
+              }),
           })
-          .where(eq(accountsTable.id, account.id));
+          .where(
+            and(
+              eq(accountsTable.id, account.id),
+              eq(accountsTable.userId, user.id),
+            ),
+          );
       } catch (e) {
         if (isUniqueViolation(e))
           return status(
@@ -132,9 +152,9 @@ const accountsController = new Elysia({
       }
       return ok(
         null,
-        body.isArchived === true
+        body.status === "archived"
           ? `${account.name} archived`
-          : body.isArchived === false
+          : body.status === "active" && account.status === "archived"
             ? `${account.name} restored`
             : "Account updated",
       );
@@ -143,7 +163,7 @@ const accountsController = new Elysia({
       params: tId,
       body: t.Composite([
         t.Partial(accountBody),
-        t.Object({ isArchived: t.Optional(t.Boolean()) }),
+        t.Object({ status: t.Optional(tEnum(accountStatuses)) }),
       ]),
     },
   )
@@ -152,7 +172,7 @@ const accountsController = new Elysia({
     async ({ user, params, status }) => {
       const account = await ownedAccount(user.id, params.id);
       if (!account) return status(404, fail("Account not found"));
-      if (account.isArchived)
+      if (account.status === "archived")
         return status(400, fail("Restore the account first"));
       await makeDefault(user.id, account.id);
       return ok(null, `${account.name} is now your default account`);
@@ -162,11 +182,9 @@ const accountsController = new Elysia({
   .delete(
     "/:id",
     async ({ user, params, status }) => {
-      const account = (await accountBalances(user.id)).find(
-        (a) => a.id === params.id,
-      );
+      const [account] = await accountBalances(user.id, params.id);
       if (!account) return status(404, fail("Account not found"));
-      if (account.isDefault)
+      if (account.defaultSince)
         return status(400, fail("You can't delete your default account"));
       if (account.usage > 0)
         return status(
@@ -175,7 +193,14 @@ const accountsController = new Elysia({
             `${account.name} has ${account.usage} ${account.usage === 1 ? "record" : "records"}. Archive it instead to keep your history.`,
           ),
         );
-      await db.delete(accountsTable).where(eq(accountsTable.id, account.id));
+      await db
+        .delete(accountsTable)
+        .where(
+          and(
+            eq(accountsTable.id, account.id),
+            eq(accountsTable.userId, user.id),
+          ),
+        );
       return ok(null, `${account.name} deleted`);
     },
     { params: tId },
@@ -249,7 +274,7 @@ const transfersController = new Elysia({
         ownedAccount(user.id, body.toAccountId),
       ]);
       if (!from || !to) return status(404, fail("Account not found"));
-      if (from.isArchived || to.isArchived)
+      if (from.status === "archived" || to.status === "archived")
         return status(400, fail("Archived accounts can't be used"));
       await db.insert(transfersTable).values({
         userId: user.id,

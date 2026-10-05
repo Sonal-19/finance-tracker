@@ -10,6 +10,7 @@ import { PasskeyError, passkeyService } from "$/lib/services/passkey-service";
 import { clientIp, rateLimitService } from "$/lib/services/rate-limit-service";
 import { publicUser, startSession } from "$/lib/services/session-service";
 import { systemConfigService } from "$/lib/services/system-config-service";
+import { userCacheService } from "$/lib/services/user-cache-service";
 import {
   isUniqueViolation,
   normalizeUsername,
@@ -32,6 +33,8 @@ const tOtp = t.String({ pattern: "^[0-9]{6}$" });
 const SIGNUPS_CLOSED = "New sign-ups are closed right now";
 const registrationOpen = () =>
   systemConfigService.SYSTEM_CONFIG.AUTH.REGISTRATION_ENABLED;
+const registrationOtpRequired = () =>
+  systemConfigService.SYSTEM_CONFIG.AUTH.REGISTRATION_OTP_REQUIRED;
 
 /** `@` means email; otherwise the username cache resolves the user id. */
 async function findUserByLogin(login: string) {
@@ -82,6 +85,7 @@ export const authController = new Elysia({
     const { AUTH, NOTICE } = systemConfigService.SYSTEM_CONFIG;
     return ok({
       registrationEnabled: AUTH.REGISTRATION_ENABLED,
+      registrationOtpRequired: AUTH.REGISTRATION_OTP_REQUIRED,
       passkeyLoginEnabled: AUTH.PASSKEY_LOGIN_ENABLED,
       notice: NOTICE.ENABLED && NOTICE.MESSAGE.trim() ? NOTICE.MESSAGE : null,
     });
@@ -106,11 +110,39 @@ export const authController = new Elysia({
     },
     { query: t.Object({ username: t.String({ maxLength: 40 }) }) },
   )
+  /** Step 1 of sign-up when REGISTRATION_OTP_REQUIRED is on. */
+  .post(
+    "/register/send-otp",
+    async ({ body, status, request, server }) => {
+      if (!registrationOpen()) return status(403, fail(SIGNUPS_CLOSED));
+      if (!registrationOtpRequired())
+        return status(400, fail("Email verification isn't required"));
+      if (
+        !rateLimitService.hit(`otp:${clientIp(request, server)}`, 10, 3_600_000)
+      )
+        return status(429, fail("Too many requests. Try again later."));
+      const email = normalizeEmail(body.email);
+      const username = normalizeUsername(body.username);
+      const invalid = validateUsername(username);
+      if (invalid) return status(400, fail(invalid));
+      if (usernameService.isTaken(username))
+        return status(409, fail("That username is taken"));
+      if (await findUserByEmail(email))
+        return status(409, fail("An account with this email already exists"));
+      const res = await otpService.send(email, "register");
+      if (!res.ok)
+        return res.reason === "cooldown"
+          ? status(429, fail(`Please wait ${res.retryInSec}s before resending`))
+          : status(502, fail("Could not send the email, try again"));
+      return ok({ email }, "Verification code sent to your email");
+    },
+    { body: t.Object({ email: tEmail, username: tUsername }) },
+  )
   .post(
     "/register",
     async ({ body, status, cookie, headers, request, server }) => {
       if (!registrationOpen()) return status(403, fail(SIGNUPS_CLOSED));
-      // No email verification while SMTP isn't set up, so cap sign-ups per IP.
+      // Caps sign-ups per IP whether or not an email code is required.
       if (
         !rateLimitService.hit(
           `register:${clientIp(request, server)}`,
@@ -127,6 +159,13 @@ export const authController = new Elysia({
         return status(409, fail("That username is taken"));
       if (await findUserByEmail(email))
         return status(409, fail("An account with this email already exists"));
+
+      if (registrationOtpRequired()) {
+        if (!body.otp)
+          return status(400, fail("Enter the code sent to your email"));
+        const check = await otpService.verify(email, "register", body.otp);
+        if (!check.ok) return status(400, fail(check.message));
+      }
 
       const passwordHash = await Bun.password.hash(body.password);
       let user: Awaited<ReturnType<typeof insertUser>>;
@@ -156,6 +195,8 @@ export const authController = new Elysia({
         username: tUsername,
         email: tEmail,
         password: tPassword,
+        /** Required only while REGISTRATION_OTP_REQUIRED is on. */
+        otp: t.Optional(tOtp),
       }),
     },
   )
@@ -277,6 +318,7 @@ export const authController = new Elysia({
         .update(usersTable)
         .set({ passwordHash: await Bun.password.hash(body.password) })
         .where(eq(usersTable.id, user.id));
+      userCacheService.invalidate(user.id);
       await coreAuthService.revokeAllForUser(user.id);
       return ok(null, "Password updated. Please log in");
     },

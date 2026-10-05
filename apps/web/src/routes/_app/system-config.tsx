@@ -26,10 +26,11 @@ export const Route = createFileRoute("/_app/system-config")({
 // here still round-trips untouched.
 
 function SystemConfigPage() {
-  const { user } = useAuth();
+  const { user, isConfirmed } = useAuth();
   const { data, isLoading, error } = useSystemConfig();
 
-  if (user && user.role !== "admin")
+  // Wait for the server's answer: the cached profile can predate a promotion.
+  if (isConfirmed && user?.role !== "admin")
     return <Navigate to="/dashboard" replace />;
 
   return (
@@ -127,6 +128,13 @@ function SystemConfigForm({ config }: { config: SystemConfigData }) {
             hint="When off, nobody can create an account. Existing users can still log in."
             checked={form.AUTH.REGISTRATION_ENABLED}
             onChange={(v) => setAuth({ REGISTRATION_ENABLED: v })}
+          />
+          <ToggleRow
+            id="cfg-registration-otp"
+            label="Verify email on sign-up"
+            hint="When on, new users must enter a 6-digit code emailed to them. Needs SMTP set up on the server. When off, accounts are created without verification."
+            checked={form.AUTH.REGISTRATION_OTP_REQUIRED}
+            onChange={(v) => setAuth({ REGISTRATION_OTP_REQUIRED: v })}
           />
           <ToggleRow
             id="cfg-passkey-login"

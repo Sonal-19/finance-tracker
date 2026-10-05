@@ -125,10 +125,10 @@ function SettingsPage() {
             </span>
           </span>
           <Switch
-            checked={user?.addTaggedExpenses ?? false}
+            checked={user?.taggedExpenses === "auto"}
             disabled={update.isPending}
-            onCheckedChange={(addTaggedExpenses) =>
-              update.mutate({ addTaggedExpenses })
+            onCheckedChange={(on) =>
+              update.mutate({ taggedExpenses: on ? "auto" : "manual" })
             }
           />
         </label>
