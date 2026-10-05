@@ -1,4 +1,10 @@
-import { index, pgEnum, pgTable, primaryKey } from "drizzle-orm/pg-core";
+import {
+  index,
+  pgEnum,
+  pgTable,
+  primaryKey,
+  unique,
+} from "drizzle-orm/pg-core";
 import { usersTable } from "../users/users.sql";
 import { accountsTable } from "./accounts.sql";
 import { categoriesTable } from "./categories.sql";
@@ -22,12 +28,20 @@ export const peopleTable = pgTable(
     phone: pg.text(),
     email: pg.text(),
     relation: relationEnum("relation").notNull().default("friend"),
+    /** Set when this person was tagged by @username: the real account whose
+     * books mirror their share. */
+    linkedUserId: pg
+      .integer("linked_user_id")
+      .references(() => usersTable.id, { onDelete: "set null" }),
     createdAt: pg
       .timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
   }),
-  (t) => [index("people_user_idx").on(t.userId)],
+  (t) => [
+    index("people_user_idx").on(t.userId),
+    unique("people_user_linked_unique").on(t.userId, t.linkedUserId),
+  ],
 );
 
 export const splitGroupsTable = pgTable("split_groups", (pg) => ({
@@ -157,3 +171,21 @@ export const settlementsTable = pgTable("settlements", (pg) => ({
 
 export type SelectPerson = typeof peopleTable.$inferSelect;
 export type SelectSplit = typeof splitsTable.$inferSelect;
+
+/** A tagged user's choice for one split: `added` = keep my share as an
+ * expense. No row = follow their `add_tagged_expenses` setting. */
+export const sharedSplitPrefsTable = pgTable(
+  "shared_split_prefs",
+  (pg) => ({
+    splitId: pg
+      .integer("split_id")
+      .notNull()
+      .references(() => splitsTable.id, { onDelete: "cascade" }),
+    userId: pg
+      .integer("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    added: pg.boolean().notNull(),
+  }),
+  (t) => [primaryKey({ columns: [t.splitId, t.userId] })],
+);

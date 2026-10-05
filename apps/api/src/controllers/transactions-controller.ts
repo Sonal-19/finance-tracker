@@ -2,7 +2,12 @@ import { and, desc, eq } from "drizzle-orm";
 
 import Elysia, { t } from "elysia";
 import { db } from "$/db";
-import { paymentMethods, transactionsTable, txnTypes } from "$/db/schema";
+import {
+  paymentMethods,
+  sharedSplitPrefsTable,
+  transactionsTable,
+  txnTypes,
+} from "$/db/schema";
 import { resolveAccountId } from "$/lib/services/account-service";
 import { foreignCurrencies, fxService } from "$/lib/services/fx-service";
 import {
@@ -295,6 +300,23 @@ export const transactionsController = new Elysia({
         )
         .returning();
       if (!row) return status(404, fail("Transaction not found"));
+      // Deleting your copy of a tagged split means "don't add it": remember that
+      // so the owner's later edits don't bring it back.
+      if (row.sharedSplitId)
+        await db
+          .insert(sharedSplitPrefsTable)
+          .values({
+            splitId: row.sharedSplitId,
+            userId: user.id,
+            added: false,
+          })
+          .onConflictDoUpdate({
+            target: [
+              sharedSplitPrefsTable.splitId,
+              sharedSplitPrefsTable.userId,
+            ],
+            set: { added: false },
+          });
       return ok(
         {
           ...row,

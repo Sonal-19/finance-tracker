@@ -8,14 +8,17 @@ import {
   relations,
   settlementDirections,
   settlementsTable,
+  sharedSplitPrefsTable,
   splitGroupMembersTable,
   splitGroupsTable,
   splitMethods,
   splitSharesTable,
   splitsTable,
   transactionsTable,
+  usersTable,
 } from "$/db/schema";
 import { resolveAccountId } from "$/lib/services/account-service";
+import { rateLimitService } from "$/lib/services/rate-limit-service";
 import {
   balanceInRupees,
   computeShares,
@@ -23,9 +26,15 @@ import {
   ownedGroup,
   ownedPeople,
   personBalances,
+  syncSharedTransactions,
   syncShareTransaction,
+  usersBlocking,
 } from "$/lib/services/split-service";
 import { ownedEventId } from "$/lib/services/transaction-service";
+import {
+  normalizeUsername,
+  usernameService,
+} from "$/lib/services/username-service";
 import { fail, ok } from "$/lib/utils";
 import { toPaise, toRupees } from "$/lib/utils/money";
 import { today } from "$/lib/utils/period";
@@ -151,14 +160,19 @@ const peopleController = new Elysia({
   .get("/", async ({ user }) => {
     const [rows, balances] = await Promise.all([
       db
-        .select()
+        .select({ person: peopleTable, username: usersTable.username })
         .from(peopleTable)
+        .leftJoin(usersTable, eq(usersTable.id, peopleTable.linkedUserId))
         .where(eq(peopleTable.userId, user.id))
         .orderBy(peopleTable.name),
       personBalances(user.id),
     ]);
     return ok(
-      rows.map((p) => ({ ...p, balance: balanceInRupees(balances.get(p.id)) })),
+      rows.map(({ person: p, username }) => ({
+        ...p,
+        username,
+        balance: balanceInRupees(balances.get(p.id)),
+      })),
     );
   })
   .get(
@@ -249,6 +263,58 @@ const peopleController = new Elysia({
       );
     },
     { body: personBody },
+  )
+  /** Tag a platform user by exact @username: creates (or returns) the person linked to them. */
+  .post(
+    "/link",
+    async ({ user, body, status }) => {
+      if (!rateLimitService.hit(`tag:${user.id}`, 30, 60_000))
+        return status(429, fail("Too many lookups. Try again shortly."));
+      const targetId = usernameService.findUserId(
+        normalizeUsername(body.username),
+      );
+      // Same message for unknown and blocked: don't reveal who blocked whom.
+      const notFound = fail("No user found with that username");
+      if (targetId === null) return status(404, notFound);
+      if (targetId === user.id)
+        return status(400, fail("You can't tag yourself"));
+      if ((await usersBlocking(user.id, [targetId])).length)
+        return status(404, notFound);
+      const [target] = await db
+        .select({ name: usersTable.name, username: usersTable.username })
+        .from(usersTable)
+        .where(eq(usersTable.id, targetId))
+        .limit(1);
+      if (!target) return status(404, notFound);
+      await db
+        .insert(peopleTable)
+        .values({
+          userId: user.id,
+          linkedUserId: targetId,
+          name: target.name,
+          relation: "friend",
+        })
+        .onConflictDoNothing();
+      const [row] = await db
+        .select()
+        .from(peopleTable)
+        .where(
+          and(
+            eq(peopleTable.userId, user.id),
+            eq(peopleTable.linkedUserId, targetId),
+          ),
+        )
+        .limit(1);
+      return ok(
+        {
+          ...row!,
+          username: target.username,
+          balance: balanceInRupees(undefined),
+        },
+        `@${target.username} added`,
+      );
+    },
+    { body: t.Object({ username: t.String({ maxLength: 40 }) }) },
   )
   .patch(
     "/:id",
@@ -491,6 +557,9 @@ async function prepareSplit(userId: number, body: SplitBody) {
   const owned = await ownedPeople(userId, unique);
   if (owned.length !== unique.length)
     return { error: "Unknown person in this split" };
+  const linked = owned.flatMap((p) => (p.linkedUserId ? [p.linkedUserId] : []));
+  if ((await usersBlocking(userId, linked)).length)
+    return { error: "Someone in this split has blocked you from tagging them" };
   if (body.groupId && !(await ownedGroup(userId, body.groupId)))
     return { error: "Group not found" };
   if (body.categoryId && !(await ownedDebitCategory(userId, body.categoryId)))
@@ -558,6 +627,85 @@ const splitsController = new Elysia({
         limit: t.Optional(t.Numeric({ minimum: 1, maximum: 200 })),
       }),
     },
+  )
+  /** Splits other users tagged me on (read-only), with whether my copy is booked. */
+  .get("/shared", async ({ user }) => {
+    const rows = await db
+      .select({
+        id: splitsTable.id,
+        description: splitsTable.description,
+        date: splitsTable.date,
+        total: splitsTable.total,
+        myShare: splitSharesTable.amount,
+        ownerName: usersTable.name,
+        ownerUsername: usersTable.username,
+        copyId: transactionsTable.id,
+      })
+      .from(splitSharesTable)
+      .innerJoin(peopleTable, eq(peopleTable.id, splitSharesTable.personId))
+      .innerJoin(splitsTable, eq(splitsTable.id, splitSharesTable.splitId))
+      .innerJoin(usersTable, eq(usersTable.id, splitsTable.userId))
+      .leftJoin(
+        transactionsTable,
+        and(
+          eq(transactionsTable.sharedSplitId, splitsTable.id),
+          eq(transactionsTable.userId, user.id),
+        ),
+      )
+      .where(eq(peopleTable.linkedUserId, user.id))
+      .orderBy(desc(splitsTable.date), desc(splitsTable.id));
+    return ok(
+      rows.map(({ copyId, total, myShare, ...r }) => ({
+        ...r,
+        total: toRupees(total),
+        myShare: toRupees(myShare),
+        added: copyId !== null,
+      })),
+    );
+  })
+  .put(
+    "/shared/:id/added",
+    async ({ user, params, body, status }) => {
+      const [split] = await db
+        .select({
+          id: splitsTable.id,
+          userId: splitsTable.userId,
+          description: splitsTable.description,
+          date: splitsTable.date,
+        })
+        .from(splitsTable)
+        .innerJoin(
+          splitSharesTable,
+          eq(splitSharesTable.splitId, splitsTable.id),
+        )
+        .innerJoin(peopleTable, eq(peopleTable.id, splitSharesTable.personId))
+        .where(
+          and(
+            eq(splitsTable.id, params.id),
+            eq(peopleTable.linkedUserId, user.id),
+          ),
+        )
+        .limit(1);
+      if (!split) return status(404, fail("Split not found"));
+      await db.transaction(async (tx) => {
+        await tx
+          .insert(sharedSplitPrefsTable)
+          .values({ splitId: split.id, userId: user.id, added: body.added })
+          .onConflictDoUpdate({
+            target: [
+              sharedSplitPrefsTable.splitId,
+              sharedSplitPrefsTable.userId,
+            ],
+            set: { added: body.added },
+          });
+        await syncSharedTransactions(tx, split, user.id);
+      });
+      return ok(
+        { added: body.added },
+        body.added ? "Added to your expenses" : "Removed from your expenses",
+      );
+    },
+    { params: tId, body: t.Object({ added: t.Boolean() }) },
   )
   .get("/summary", async ({ user }) => {
     const balances = await personBalances(user.id);
@@ -635,6 +783,7 @@ const splitsController = new Elysia({
             .delete(transactionsTable)
             .where(eq(transactionsTable.id, body.fromTransactionId));
         await syncShareTransaction(tx, split!, prep.myShare, paymentMethod);
+        await syncSharedTransactions(tx, split!);
         return split!.id;
       });
       return ok(await getSplit(user.id, id), "Expense split");
@@ -678,6 +827,7 @@ const splitsController = new Elysia({
           prep.myShare,
           body.paymentMethod,
         );
+        await syncSharedTransactions(tx, split!);
       });
       return ok(await getSplit(user.id, params.id), "Split updated");
     },

@@ -13,9 +13,12 @@ import {
 import { BalanceLabel, PersonAvatar } from "@/components/split/split-common";
 import { SplitRow } from "@/components/split/split-row";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import {
   type GroupInput,
   usePeople,
+  useSetSharedAdded,
+  useSharedSplits,
   useSplitGroups,
   useSplitSummary,
   useSplits,
@@ -25,11 +28,14 @@ import { RELATIONS, type Relation, relationLabel } from "@/lib/split";
 import { cn } from "@/lib/utils";
 import { useSplitSheet } from "@/stores/split-sheet-store";
 
-type Tab = "people" | "groups" | "activity";
+type Tab = "people" | "groups" | "activity" | "shared";
 
 export const Route = createFileRoute("/_app/split/")({
   validateSearch: (s: Record<string, unknown>): { tab?: Tab } => ({
-    tab: s.tab === "groups" || s.tab === "activity" ? s.tab : undefined,
+    tab:
+      s.tab === "groups" || s.tab === "activity" || s.tab === "shared"
+        ? s.tab
+        : undefined,
   }),
   component: SplitPage,
 });
@@ -91,6 +97,7 @@ function SplitPage() {
             { value: "people", label: "People" },
             { value: "groups", label: "Groups" },
             { value: "activity", label: "Activity" },
+            { value: "shared", label: "Shared with me" },
           ]}
         />
         {tab === "people" && (
@@ -134,6 +141,7 @@ function SplitPage() {
         />
       )}
       {tab === "activity" && <ActivityTab />}
+      {tab === "shared" && <SharedTab />}
 
       <PersonSheet value={person} onClose={() => setPerson(null)} />
       <GroupSheet value={group} onClose={() => setGroup(null)} />
@@ -190,6 +198,7 @@ function PeopleTab({ onAdd }: { onAdd: () => void }) {
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium">{p.name}</p>
               <p className="truncate text-xs text-muted-foreground">
+                {p.username ? `@${p.username} · ` : ""}
                 {relationLabel(p.relation)}
               </p>
             </div>
@@ -265,6 +274,52 @@ function ActivityTab() {
     <div className="divide-y overflow-hidden rounded-2xl border bg-card">
       {data.map((s) => (
         <SplitRow key={s.id} split={s} />
+      ))}
+    </div>
+  );
+}
+
+/** Splits other people tagged me on. Read-only, but I choose whether my share counts as an expense. */
+function SharedTab() {
+  const { data = [], isLoading } = useSharedSplits();
+  const setAdded = useSetSharedAdded();
+  if (isLoading) return <PageLoader />;
+  if (!data.length)
+    return (
+      <EmptyState
+        icon={<Users className="size-8" />}
+        title="Nothing shared yet"
+      >
+        When a friend tags your @username on a split, it shows up here.
+      </EmptyState>
+    );
+  return (
+    <div className="divide-y overflow-hidden rounded-2xl border bg-card">
+      {data.map((s) => (
+        <div key={s.id} className="flex items-center gap-3 px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-medium">{s.description}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {s.date} · from {s.ownerName} (@{s.ownerUsername}) · bill{" "}
+              {money(s.total)}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="tabular font-semibold text-expense">
+              −{money(s.myShare)}
+            </p>
+            <label className="mt-1 flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
+              Add to expenses
+              <Switch
+                checked={s.added}
+                disabled={setAdded.isPending}
+                onCheckedChange={(added) =>
+                  setAdded.mutate({ id: s.id, added })
+                }
+              />
+            </label>
+          </div>
+        </div>
       ))}
     </div>
   );

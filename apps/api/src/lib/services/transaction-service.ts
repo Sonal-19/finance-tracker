@@ -69,6 +69,7 @@ export const txnSelect = {
   fxRate: transactionsTable.fxRate,
   recurringId: transactionsTable.recurringId,
   splitId: transactionsTable.splitId,
+  sharedSplitId: transactionsTable.sharedSplitId,
   createdAt: transactionsTable.createdAt,
   category: {
     id: categoriesTable.id,

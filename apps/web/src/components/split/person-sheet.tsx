@@ -4,7 +4,11 @@ import { ResponsiveSheet } from "@/components/common/responsive-sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { type PersonInput, useSavePerson } from "@/hooks/use-splits";
+import {
+  type PersonInput,
+  useLinkPerson,
+  useSavePerson,
+} from "@/hooks/use-splits";
 import { RELATIONS } from "@/lib/split";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +25,8 @@ export function PersonSheet({
   onSaved?: (person: { id: number; name: string }) => void;
 }) {
   const save = useSavePerson();
+  const link = useLinkPerson();
+  const [tag, setTag] = useState("");
   const [form, setForm] = useState<PersonInput>({
     name: "",
     phone: "",
@@ -46,6 +52,49 @@ export function PersonSheet({
       title={value?.id ? "Edit person" : "Add person"}
       description="Friends, office colleagues, cousins and relatives — anyone you share costs with."
     >
+      {!value?.id && (
+        <form
+          className="mb-5 space-y-2 rounded-xl border bg-muted/40 p-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            link.mutate(tag.trim().replace(/^@/, "").toLowerCase(), {
+              onSuccess: ({ data }) => {
+                if (data) onSaved?.({ id: data.id, name: data.name });
+                setTag("");
+                onClose();
+              },
+            });
+          }}
+        >
+          <Label htmlFor="person-tag">
+            Already on the app? Tag by username
+          </Label>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <span className="pointer-events-none absolute top-2 left-3 text-muted-foreground">
+                @
+              </span>
+              <Input
+                id="person-tag"
+                autoCapitalize="none"
+                spellCheck={false}
+                maxLength={20}
+                value={tag}
+                onChange={(e) => setTag(e.target.value)}
+                placeholder="username"
+                className="pl-8"
+              />
+            </div>
+            <Button type="submit" disabled={!tag.trim() || link.isPending}>
+              Tag
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            They'll see the split under “Shared with me”. Or add someone without
+            an account below.
+          </p>
+        </form>
+      )}
       <form
         className="space-y-4"
         onSubmit={(e) => {

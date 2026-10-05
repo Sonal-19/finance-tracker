@@ -225,3 +225,43 @@ export function useDeleteSettlement() {
     onError,
   });
 }
+
+/** Tag a platform user by exact @username (creates the linked person). */
+export function useLinkPerson() {
+  const invalidate = useInvalidateSplits();
+  return useMutation({
+    mutationFn: (username: string) =>
+      callMsg(api.people.link.post({ username })),
+    onSuccess: ({ message }) => {
+      toast.success(message);
+      invalidate();
+    },
+    onError,
+  });
+}
+
+export const useSharedSplits = () =>
+  useQuery({
+    queryKey: ["splits", "shared"],
+    queryFn: () => call(api.splits.shared.get()),
+  });
+export type SharedSplit = NonNullable<
+  ReturnType<typeof useSharedSplits>["data"]
+>[number];
+
+export function useSetSharedAdded() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, added }: { id: number; added: boolean }) =>
+      callMsg(api.splits.shared({ id }).added.put({ added })),
+    onSuccess: ({ message }) => {
+      toast.success(message);
+      qc.invalidateQueries({ queryKey: ["splits", "shared"] });
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["reports"] });
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      qc.invalidateQueries({ queryKey: ["budgets"] });
+    },
+    onError,
+  });
+}

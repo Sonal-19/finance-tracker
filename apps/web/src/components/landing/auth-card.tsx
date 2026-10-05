@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { Field } from "@/components/common/field";
 import { OtpInput } from "@/components/common/otp-input";
 import { PasswordInput } from "@/components/common/password-input";
+import { UsernameField } from "@/components/common/username-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -87,7 +88,13 @@ function LoginForm() {
   const onAuthed = useOnAuthed();
 
   const login = useMutation({
-    mutationFn: () => callMsg(api.auth.login.post({ email, password })),
+    mutationFn: () =>
+      callMsg(
+        api.auth.login.post({
+          email: email.trim().replace(/^@/, ""),
+          password,
+        }),
+      ),
     onSuccess: ({ data, message }) => onAuthed(data, message),
     onError: (e) => toast.error(e.message),
   });
@@ -110,16 +117,17 @@ function LoginForm() {
         login.mutate();
       }}
     >
-      <Field label="Email address" htmlFor="login-email">
+      <Field label="Email or username" htmlFor="login-email">
         <div className="relative">
           <Input
             id="login-email"
-            type="email"
-            autoComplete="email"
+            type="text"
+            autoComplete="username"
+            autoCapitalize="none"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
+            placeholder="you@example.com or username"
             className="h-11 pl-9 transition-all focus-visible:ring-primary/40"
           />
           <Mail className="pointer-events-none absolute top-3 left-3 size-4 text-muted-foreground" />
@@ -214,6 +222,7 @@ function LoginForm() {
 
 function RegisterForm() {
   const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
@@ -221,7 +230,7 @@ function RegisterForm() {
 
   const register = useMutation({
     mutationFn: () =>
-      callMsg(api.auth.register.post({ name, email, password })),
+      callMsg(api.auth.register.post({ name, username, email, password })),
     onSuccess: ({ data, message }) => onAuthed(data, message),
     onError: (e) => toast.error(e.message),
   });
@@ -280,6 +289,12 @@ function RegisterForm() {
           <User className="pointer-events-none absolute top-3 left-3 size-4 text-muted-foreground" />
         </div>
       </Field>
+
+      <UsernameField
+        id="reg-username"
+        value={username}
+        onChange={setUsername}
+      />
 
       <Field label="Email address" htmlFor="reg-email">
         <div className="relative">

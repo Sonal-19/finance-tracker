@@ -55,6 +55,7 @@ async function mainSeed() {
       .values({
         name: "Demo User",
         email: DEMO_EMAIL,
+        username: "demo",
         passwordHash: await Bun.password.hash(DEMO_PASSWORD),
         monthlyBudget: toPaise(75_000),
       })

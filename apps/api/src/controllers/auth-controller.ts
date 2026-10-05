@@ -10,6 +10,13 @@ import { PasskeyError, passkeyService } from "$/lib/services/passkey-service";
 import { clientIp, rateLimitService } from "$/lib/services/rate-limit-service";
 import { publicUser, startSession } from "$/lib/services/session-service";
 import { systemConfigService } from "$/lib/services/system-config-service";
+import {
+  isUniqueViolation,
+  normalizeUsername,
+  USERNAME_PATTERN,
+  usernameService,
+  validateUsername,
+} from "$/lib/services/username-service";
 import { fail, normalizeEmail, ok } from "$/lib/utils";
 import { authProcessor } from "$/pre-processor";
 
@@ -19,11 +26,25 @@ const PASSKEY_LIMIT = 30;
 
 const tEmail = t.String({ format: "email", maxLength: 254 });
 const tPassword = t.String({ minLength: 8, maxLength: 128 });
+const tUsername = t.String({ pattern: USERNAME_PATTERN });
 const tOtp = t.String({ pattern: "^[0-9]{6}$" });
 
 const SIGNUPS_CLOSED = "New sign-ups are closed right now";
 const registrationOpen = () =>
   systemConfigService.SYSTEM_CONFIG.AUTH.REGISTRATION_ENABLED;
+
+/** `@` means email; otherwise the username cache resolves the user id. */
+async function findUserByLogin(login: string) {
+  if (login.includes("@")) return findUserByEmail(normalizeEmail(login));
+  const id = usernameService.findUserId(normalizeUsername(login));
+  if (id === null) return undefined;
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, id))
+    .limit(1);
+  return user;
+}
 
 async function findUserByEmail(email: string) {
   const [user] = await db
@@ -32,6 +53,24 @@ async function findUserByEmail(email: string) {
     .where(eq(usersTable.email, email))
     .limit(1);
   return user;
+}
+
+function insertUser(
+  name: string,
+  email: string,
+  username: string,
+  passwordHash: string,
+) {
+  return db.transaction(async (tx) => {
+    const [u] = await tx
+      .insert(usersTable)
+      .values({ name, email, username, passwordHash })
+      .returning();
+    if (!u) throw new Error("user insert failed");
+    await seedDefaultCategories(tx, u.id);
+    await seedDefaultAccounts(tx, u.id);
+    return u;
+  });
 }
 
 export const authController = new Elysia({
@@ -47,6 +86,26 @@ export const authController = new Elysia({
       notice: NOTICE.ENABLED && NOTICE.MESSAGE.trim() ? NOTICE.MESSAGE : null,
     });
   })
+  .get(
+    "/username-available",
+    ({ query, status, request, server }) => {
+      if (
+        !rateLimitService.hit(
+          `username:${clientIp(request, server)}`,
+          60,
+          60_000,
+        )
+      )
+        return status(429, fail("Too many requests. Try again shortly."));
+      const username = normalizeUsername(query.username);
+      const invalid = validateUsername(username);
+      if (invalid) return ok({ available: false, reason: invalid });
+      return usernameService.isTaken(username)
+        ? ok({ available: false, reason: "That username is taken" })
+        : ok({ available: true, reason: null });
+    },
+    { query: t.Object({ username: t.String({ maxLength: 40 }) }) },
+  )
   .post(
     "/register",
     async ({ body, status, cookie, headers, request, server }) => {
@@ -61,20 +120,30 @@ export const authController = new Elysia({
       )
         return status(429, fail("Too many requests. Try again later."));
       const email = normalizeEmail(body.email);
+      const username = normalizeUsername(body.username);
+      const invalid = validateUsername(username);
+      if (invalid) return status(400, fail(invalid));
+      if (usernameService.isTaken(username))
+        return status(409, fail("That username is taken"));
       if (await findUserByEmail(email))
         return status(409, fail("An account with this email already exists"));
 
       const passwordHash = await Bun.password.hash(body.password);
-      const user = await db.transaction(async (tx) => {
-        const [u] = await tx
-          .insert(usersTable)
-          .values({ name: body.name.trim(), email, passwordHash })
-          .returning();
-        if (!u) throw new Error("user insert failed");
-        await seedDefaultCategories(tx, u.id);
-        await seedDefaultAccounts(tx, u.id);
-        return u;
-      });
+      let user: Awaited<ReturnType<typeof insertUser>>;
+      try {
+        user = await insertUser(
+          body.name.trim(),
+          email,
+          username,
+          passwordHash,
+        );
+      } catch (e) {
+        // Lost a race the cache couldn't see: the unique index decides.
+        if (isUniqueViolation(e))
+          return status(409, fail("That username or email is already taken"));
+        throw e;
+      }
+      usernameService.set(user.id, username);
       await startSession(cookie, user.id, {
         ip: clientIp(request, server),
         userAgent: headers["user-agent"],
@@ -84,6 +153,7 @@ export const authController = new Elysia({
     {
       body: t.Object({
         name: t.String({ minLength: 2, maxLength: 80 }),
+        username: tUsername,
         email: tEmail,
         password: tPassword,
       }),
@@ -100,11 +170,11 @@ export const authController = new Elysia({
           fail("Too many login attempts. Try again in 15 minutes."),
         );
       }
-      const user = await findUserByEmail(normalizeEmail(body.email));
+      const user = await findUserByLogin(body.email.trim());
       const valid =
         user && (await Bun.password.verify(body.password, user.passwordHash));
       if (!user || !valid)
-        return status(403, fail("Invalid email or password"));
+        return status(403, fail("Invalid email/username or password"));
       rateLimitService.reset(key);
 
       await startSession(cookie, user.id, {

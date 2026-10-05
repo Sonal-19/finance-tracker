@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { LogOut, Monitor, Moon, Sun } from "lucide-react";
 import { useState } from "react";
@@ -11,11 +11,13 @@ import { PageHeader } from "@/components/common/page-header";
 import { PasswordInput } from "@/components/common/password-input";
 import { ResponsiveSheet } from "@/components/common/responsive-sheet";
 import { Segmented } from "@/components/common/segmented";
+import { UsernameField } from "@/components/common/username-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/use-auth";
 import { useUpdateProfile } from "@/hooks/use-finance";
-import { api, callMsg } from "@/lib/api";
+import { api, call, callMsg } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { useThemeStore } from "@/stores/theme-store";
 
@@ -27,6 +29,7 @@ function SettingsPage() {
   const { user } = useAuth();
   const update = useUpdateProfile();
   const [name, setName] = useState(user?.name ?? "");
+  const [username, setUsername] = useState(user?.username ?? "");
   const { theme, setTheme } = useThemeStore();
   const signOut = useSignOut();
   const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
@@ -85,6 +88,51 @@ function SettingsPage() {
             Save profile
           </Button>
         </form>
+      </SectionCard>
+
+      <SectionCard title="Username & tagging">
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            update.mutate({ username });
+          }}
+        >
+          <UsernameField
+            id="set-username"
+            value={username}
+            onChange={setUsername}
+            current={user?.username}
+          />
+          <p className="text-xs text-muted-foreground">
+            You can change it once every 30 days; your old username is released.
+          </p>
+          <Button
+            type="submit"
+            disabled={update.isPending || username === user?.username}
+          >
+            Save username
+          </Button>
+        </form>
+        <label className="mt-5 flex items-start justify-between gap-4 border-t pt-4">
+          <span className="text-sm">
+            <span className="font-medium">
+              Add tagged expenses automatically
+            </span>
+            <span className="block text-muted-foreground">
+              When someone tags you on a split, add your share to your expenses.
+              Off: it only appears under Split &amp; share → Shared with me.
+            </span>
+          </span>
+          <Switch
+            checked={user?.addTaggedExpenses ?? false}
+            disabled={update.isPending}
+            onCheckedChange={(addTaggedExpenses) =>
+              update.mutate({ addTaggedExpenses })
+            }
+          />
+        </label>
+        <BlockedUsers />
       </SectionCard>
 
       <SectionCard title="Appearance">
@@ -255,5 +303,81 @@ function DeleteAccountSheet({
         </Button>
       </form>
     </ResponsiveSheet>
+  );
+}
+
+function BlockedUsers() {
+  const qc = useQueryClient();
+  const [name, setName] = useState("");
+  const { data: blocked = [] } = useQuery({
+    queryKey: ["profile", "blocks"],
+    queryFn: () => call(api.profile.blocks.get()),
+  });
+  const refresh = () =>
+    qc.invalidateQueries({ queryKey: ["profile", "blocks"] });
+  const block = useMutation({
+    mutationFn: () =>
+      callMsg(
+        api.profile.blocks.post({
+          username: name.trim().replace(/^@/, "").toLowerCase(),
+        }),
+      ),
+    onSuccess: ({ message }) => {
+      toast.success(message);
+      setName("");
+      refresh();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const unblock = useMutation({
+    mutationFn: (username: string) =>
+      callMsg(api.profile.blocks({ username }).delete()),
+    onSuccess: refresh,
+    onError: (e) => toast.error(e.message),
+  });
+  return (
+    <div className="mt-5 space-y-3 border-t pt-4">
+      <p className="text-sm font-medium">Blocked from tagging you</p>
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          block.mutate();
+        }}
+      >
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="@username"
+          autoCapitalize="none"
+          maxLength={21}
+        />
+        <Button
+          type="submit"
+          variant="outline"
+          disabled={!name.trim() || block.isPending}
+        >
+          Block
+        </Button>
+      </form>
+      {blocked.map((b) => (
+        <div
+          key={b.username}
+          className="flex items-center justify-between text-sm"
+        >
+          <span>
+            @{b.username}{" "}
+            <span className="text-muted-foreground">· {b.name}</span>
+          </span>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => unblock.mutate(b.username)}
+          >
+            Unblock
+          </Button>
+        </div>
+      ))}
+    </div>
   );
 }

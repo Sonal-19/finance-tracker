@@ -43,6 +43,10 @@ export const transactionsTable = pgTable(
     splitId: pg
       .integer("split_id")
       .references(() => splitsTable.id, { onDelete: "cascade" }),
+    /** Set when this row is the tagged user's copy of someone else's split. */
+    sharedSplitId: pg
+      .integer("shared_split_id")
+      .references(() => splitsTable.id, { onDelete: "cascade" }),
     recurringId: pg
       .integer("recurring_id")
       .references(() => recurringRulesTable.id, { onDelete: "set null" }),

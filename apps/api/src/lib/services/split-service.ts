@@ -4,6 +4,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  notInArray,
   type SQL,
   sql,
 } from "drizzle-orm";
@@ -14,10 +15,13 @@ import {
   peopleTable,
   type SplitMethod,
   settlementsTable,
+  sharedSplitPrefsTable,
   splitGroupsTable,
   splitSharesTable,
   splitsTable,
   transactionsTable,
+  userBlocksTable,
+  usersTable,
 } from "$/db/schema";
 import { toPaise, toRupees } from "$/lib/utils/money";
 import { defaultAccountId } from "./account-service";
@@ -310,5 +314,139 @@ export async function syncShareTransaction(
       splitId: split.id,
       paymentMethod: paymentMethod ?? "upi",
     });
+  }
+}
+
+/* ---------------- tagged users' copies of a split ---------------- */
+
+const SHARED_CATEGORY = {
+  name: "Shared expenses",
+  icon: "users",
+  color: "#0d9488",
+} as const;
+
+/** The tagged user's "Shared expenses" debit category, created on first use. */
+async function sharedCategoryId(tx: TX, userId: number) {
+  const find = () =>
+    tx
+      .select({ id: categoriesTable.id })
+      .from(categoriesTable)
+      .where(
+        and(
+          eq(categoriesTable.userId, userId),
+          eq(categoriesTable.type, "debit"),
+          eq(categoriesTable.name, SHARED_CATEGORY.name),
+        ),
+      )
+      .limit(1);
+  const [existing] = await find();
+  if (existing) return existing.id;
+  await tx
+    .insert(categoriesTable)
+    .values({ ...SHARED_CATEGORY, userId, type: "debit" })
+    .onConflictDoNothing();
+  return (await find())[0]!.id;
+}
+
+/** Which of `linkedIds` have blocked `ownerId` from tagging them. */
+export async function usersBlocking(ownerId: number, linkedIds: number[]) {
+  if (!linkedIds.length) return [];
+  const rows = await db
+    .select({ id: userBlocksTable.userId })
+    .from(userBlocksTable)
+    .where(
+      and(
+        eq(userBlocksTable.blockedUserId, ownerId),
+        inArray(userBlocksTable.userId, linkedIds),
+      ),
+    );
+  return rows.map((r) => r.id);
+}
+
+/**
+ * Keeps each tagged user's own copy of the split in step: one debit
+ * transaction (`shared_split_id`) for their share when they want it (their
+ * per-split choice, else their `add_tagged_expenses` setting), none otherwise.
+ * An existing copy only has amount/date/note refreshed, so a category or
+ * account the tagged user changed sticks. Pass `onlyUserId` to refresh one user.
+ */
+export async function syncSharedTransactions(
+  tx: TX,
+  split: { id: number; userId: number; description: string; date: string },
+  onlyUserId?: number,
+) {
+  const tagged = await tx
+    .select({
+      userId: usersTable.id,
+      addByDefault: usersTable.addTaggedExpenses,
+      amount: splitSharesTable.amount,
+      pref: sharedSplitPrefsTable.added,
+    })
+    .from(splitSharesTable)
+    .innerJoin(peopleTable, eq(peopleTable.id, splitSharesTable.personId))
+    .innerJoin(usersTable, eq(usersTable.id, peopleTable.linkedUserId))
+    .leftJoin(
+      sharedSplitPrefsTable,
+      and(
+        eq(sharedSplitPrefsTable.splitId, split.id),
+        eq(sharedSplitPrefsTable.userId, usersTable.id),
+      ),
+    )
+    .where(eq(splitSharesTable.splitId, split.id));
+
+  // People removed from the split lose their copy.
+  if (!onlyUserId) {
+    const ids = tagged.map((t) => t.userId);
+    await tx
+      .delete(transactionsTable)
+      .where(
+        and(
+          eq(transactionsTable.sharedSplitId, split.id),
+          ids.length ? notInArray(transactionsTable.userId, ids) : undefined,
+        ),
+      );
+  }
+
+  for (const t of tagged) {
+    if (onlyUserId && t.userId !== onlyUserId) continue;
+    const [existing] = await tx
+      .select({ id: transactionsTable.id })
+      .from(transactionsTable)
+      .where(
+        and(
+          eq(transactionsTable.sharedSplitId, split.id),
+          eq(transactionsTable.userId, t.userId),
+        ),
+      )
+      .limit(1);
+    const want = (t.pref ?? t.addByDefault) && t.amount > 0;
+    if (!want) {
+      if (existing)
+        await tx
+          .delete(transactionsTable)
+          .where(eq(transactionsTable.id, existing.id));
+      continue;
+    }
+    const values = {
+      amount: t.amount,
+      date: split.date,
+      note: `Split: ${split.description}`,
+    };
+    if (existing) {
+      await tx
+        .update(transactionsTable)
+        .set(values)
+        .where(eq(transactionsTable.id, existing.id));
+    } else {
+      await tx.insert(transactionsTable).values({
+        ...values,
+        userId: t.userId,
+        type: "debit",
+        categoryId: await sharedCategoryId(tx, t.userId),
+        accountId: await defaultAccountId(t.userId, tx),
+        sharedSplitId: split.id,
+        paymentMethod: "upi",
+      });
+    }
   }
 }

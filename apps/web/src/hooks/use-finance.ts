@@ -285,8 +285,12 @@ export function useDeleteBudget() {
 export function useUpdateProfile() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (b: { name?: string; monthlyBudget?: number | null }) =>
-      callMsg(api.profile.patch(b)),
+    mutationFn: (b: {
+      name?: string;
+      username?: string;
+      addTaggedExpenses?: boolean;
+      monthlyBudget?: number | null;
+    }) => callMsg(api.profile.patch(b)),
     onSuccess: ({ message, data }) => {
       toast.success(message);
       qc.setQueryData(["auth", "me"], data);
