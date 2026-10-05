@@ -13,9 +13,9 @@ import {
 import { db } from "$/db";
 import {
   accountsTable,
+  booksTable,
   categoriesTable,
   eventsTable,
-  type PaymentMethod,
   type TxnType,
   transactionsTable,
 } from "$/db/schema";
@@ -24,8 +24,8 @@ import { toRupees } from "$/lib/utils/money";
 export type TxnFilters = {
   type?: TxnType;
   categoryIds?: number[];
-  paymentMethod?: PaymentMethod;
   accountId?: number;
+  bookId?: number;
   /** A positive id filters to that event; `0` means "not in any event". */
   eventId?: number;
   from?: string;
@@ -40,8 +40,8 @@ export function txnWhere(userId: number, f: TxnFilters) {
   const conds: SQL[] = [eq(T.userId, userId)];
   if (f.type) conds.push(eq(T.type, f.type));
   if (f.categoryIds?.length) conds.push(inArray(T.categoryId, f.categoryIds));
-  if (f.paymentMethod) conds.push(eq(T.paymentMethod, f.paymentMethod));
   if (f.accountId) conds.push(eq(T.accountId, f.accountId));
+  if (f.bookId) conds.push(eq(T.bookId, f.bookId));
   if (f.eventId !== undefined)
     conds.push(f.eventId === 0 ? isNull(T.eventId) : eq(T.eventId, f.eventId));
   if (f.from) conds.push(gte(T.date, f.from));
@@ -62,7 +62,6 @@ export const txnSelect = {
   type: transactionsTable.type,
   amount: transactionsTable.amount,
   date: transactionsTable.date,
-  paymentMethod: transactionsTable.paymentMethod,
   note: transactionsTable.note,
   originalAmount: transactionsTable.originalAmount,
   originalCurrency: transactionsTable.originalCurrency,
@@ -83,6 +82,13 @@ export const txnSelect = {
     icon: accountsTable.icon,
     color: accountsTable.color,
   },
+  book: {
+    id: booksTable.id,
+    name: booksTable.name,
+    icon: booksTable.icon,
+    color: booksTable.color,
+    totals: booksTable.totals,
+  },
   event: {
     id: eventsTable.id,
     name: eventsTable.name,
@@ -91,7 +97,7 @@ export const txnSelect = {
   },
 };
 
-/** Transactions with their category, account and (optional) event. */
+/** Transactions with their category, account, book and (optional) event. */
 export function selectTxns() {
   return db
     .select(txnSelect)
@@ -101,6 +107,7 @@ export function selectTxns() {
       eq(categoriesTable.id, transactionsTable.categoryId),
     )
     .innerJoin(accountsTable, eq(accountsTable.id, transactionsTable.accountId))
+    .innerJoin(booksTable, eq(booksTable.id, transactionsTable.bookId))
     .leftJoin(eventsTable, eq(eventsTable.id, transactionsTable.eventId));
 }
 

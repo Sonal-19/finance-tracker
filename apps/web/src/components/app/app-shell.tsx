@@ -17,6 +17,7 @@ import { usePublicConfig } from "@/hooks/use-passkeys";
 import { cn } from "@/lib/utils";
 import type { AppUser } from "@/stores/auth-store";
 import { useTxnSheet } from "@/stores/txn-sheet-store";
+import { BookSwitcher } from "./book-switcher";
 import { navFor } from "./nav-items";
 import { Avatar, UserMenu, useSignOut } from "./user-menu";
 
@@ -31,6 +32,7 @@ const TABS = [
 const MORE_PATHS = [
   "/more",
   "/accounts",
+  "/books",
   "/events",
   "/split",
   "/budgets",
@@ -124,7 +126,10 @@ export function AppShell({
               </span>{" "}
               👋
             </p>
-            <UserMenu user={user} />
+            <div className="flex min-w-0 items-center gap-2">
+              <BookSwitcher />
+              <UserMenu user={user} />
+            </div>
           </div>
         </header>
 

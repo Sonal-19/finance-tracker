@@ -37,7 +37,7 @@ function AccountRow({ a }: { a: Account }) {
           {a.defaultSince && (
             <Star
               className="size-3.5 fill-warning text-warning"
-              aria-label="Default account"
+              aria-label="Default payment method"
             />
           )}
         </p>
@@ -77,8 +77,8 @@ function AccountsPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Accounts"
-        description="Bank accounts, cash, cards and wallets — see what's in each."
+        title="Payment methods"
+        description="Your bank accounts, UPI, cash, cards and wallets — what you pay with and what's in each."
         actions={
           <>
             <Button
@@ -99,7 +99,7 @@ function AccountsPage() {
                 })
               }
             >
-              <Plus /> Add account
+              <Plus /> Add payment method
             </Button>
           </>
         }
@@ -111,7 +111,7 @@ function AccountsPage() {
         <>
           <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-teal-600 to-teal-800 p-5 text-white shadow-lg shadow-teal-900/20 dark:from-teal-700 dark:to-teal-950">
             <p className="text-sm text-white/80">
-              Total balance · {active.length} accounts
+              Total balance · {active.length} payment methods
             </p>
             <p className="tabular mt-1 text-3xl font-bold">
               {money(data.total)}

@@ -4,11 +4,11 @@ import { db } from "$/db";
 import {
   categoriesTable,
   frequencies,
-  paymentMethods,
   recurringRulesTable,
   txnTypes,
 } from "$/db/schema";
 import { resolveAccountId } from "$/lib/services/account-service";
+import { resolveBookId } from "$/lib/services/book-service";
 import { recurringService } from "$/lib/services/recurring-service";
 import { ownedCategory } from "$/lib/services/transaction-service";
 import { fail, ok } from "$/lib/utils";
@@ -23,9 +23,10 @@ const ruleBody = t.Object({
   type: tEnum(txnTypes),
   amount: t.Number({ exclusiveMinimum: 0 }),
   categoryId: t.Integer({ minimum: 1 }),
-  paymentMethod: tEnum(paymentMethods),
   /** Omitted = the user's default account. */
   accountId: t.Optional(t.Integer({ minimum: 1 })),
+  /** Omitted = the user's default book. */
+  bookId: t.Optional(t.Integer({ minimum: 1 })),
   note: t.Optional(t.Nullable(t.String({ maxLength: 500 }))),
   frequency: tEnum(frequencies),
   startDate: tDate,
@@ -69,9 +70,12 @@ export const recurringController = new Elysia({
         return status(400, fail("End date must be after start date"));
       const account = await resolveAccountId(user.id, body.accountId);
       if (!account.ok) return status(400, fail(account.message));
+      const book = await resolveBookId(user.id, body.bookId);
+      if (!book.ok) return status(400, fail(book.message));
       await db.insert(R).values({
         ...body,
         accountId: account.id,
+        bookId: book.id,
         note: body.note?.trim() || null,
         amount: toPaise(body.amount),
         userId: user.id,
@@ -106,6 +110,12 @@ export const recurringController = new Elysia({
         if (!account.ok) return status(400, fail(account.message));
         accountId = account.id;
       }
+      let bookId: number | undefined;
+      if (body.bookId !== undefined) {
+        const book = await resolveBookId(user.id, body.bookId);
+        if (!book.ok) return status(400, fail(book.message));
+        bookId = book.id;
+      }
       // Changing the start date restarts the schedule from there (future only).
       const restart = body.startDate && body.startDate !== rule.startDate;
       await db
@@ -114,8 +124,8 @@ export const recurringController = new Elysia({
           type,
           categoryId,
           ...(accountId !== undefined && { accountId }),
+          ...(bookId !== undefined && { bookId }),
           ...(body.amount !== undefined && { amount: toPaise(body.amount) }),
-          ...(body.paymentMethod && { paymentMethod: body.paymentMethod }),
           ...(body.note !== undefined && { note: body.note?.trim() || null }),
           ...(body.frequency && { frequency: body.frequency }),
           ...(body.endDate !== undefined && { endDate: body.endDate }),

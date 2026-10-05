@@ -12,7 +12,6 @@ import { db, type TX } from "$/db";
 import {
   categoriesTable,
   type OwnShareMode,
-  type PaymentMethod,
   peopleTable,
   type SplitMethod,
   settlementsTable,
@@ -26,6 +25,7 @@ import {
 } from "$/db/schema";
 import { toPaise, toRupees } from "$/lib/utils/money";
 import { defaultAccountId } from "./account-service";
+import { defaultBookId } from "./book-service";
 
 /** `personId: null` = the user themself. `value` meaning depends on the method. */
 export type Participant = { personId: number | null; value?: number };
@@ -274,12 +274,13 @@ export async function syncShareTransaction(
     ownShare: OwnShareMode;
     accountId: number | null;
     eventId: number | null;
+    bookId: number | null;
   },
   myShare: number,
-  paymentMethod?: PaymentMethod,
 ) {
   const accountId =
     split.accountId ?? (await defaultAccountId(split.userId, tx));
+  const bookId = split.bookId ?? (await defaultBookId(split.userId, tx));
   const [existing] = await tx
     .select()
     .from(transactionsTable)
@@ -300,8 +301,8 @@ export async function syncShareTransaction(
     date: split.date,
     note: `Split: ${split.description}`,
     accountId,
+    bookId,
     eventId: split.eventId,
-    ...(paymentMethod && { paymentMethod }),
   };
   if (existing) {
     await tx
@@ -314,7 +315,6 @@ export async function syncShareTransaction(
       userId: split.userId,
       type: "debit",
       splitId: split.id,
-      paymentMethod: paymentMethod ?? "upi",
     });
   }
 }
@@ -447,8 +447,8 @@ export async function syncSharedTransactions(
         type: "debit",
         categoryId: await sharedCategoryId(tx, t.userId),
         accountId: await defaultAccountId(t.userId, tx),
+        bookId: await defaultBookId(t.userId, tx),
         sharedSplitId: split.id,
-        paymentMethod: "upi",
       });
     }
   }

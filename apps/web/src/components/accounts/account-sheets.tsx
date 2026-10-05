@@ -30,7 +30,7 @@ const ICONS = [
   "home",
 ];
 
-/** Add / edit an account (bank, cash, card, wallet…). */
+/** Add / edit a payment method (bank, cash, card, wallet…). */
 export function AccountSheet({
   value,
   onClose,
@@ -62,8 +62,8 @@ export function AccountSheet({
     <ResponsiveSheet
       open={!!value}
       onOpenChange={(o) => !o && onClose()}
-      title={value?.id ? "Edit account" : "Add account"}
-      description="Bank accounts, cash, credit cards, UPI wallets — wherever your money is."
+      title={value?.id ? "Edit payment method" : "Add payment method"}
+      description="Bank accounts, UPI apps, cash, credit cards, wallets — whatever you pay with."
     >
       <form
         className="space-y-4"
@@ -114,7 +114,7 @@ export function AccountSheet({
         </div>
         <div className="flex items-end gap-3">
           <CategoryIcon icon={form.icon} color={form.color} size="lg" />
-          <Field label="Account name" htmlFor="acc-name" className="flex-1">
+          <Field label="Name" htmlFor="acc-name" className="flex-1">
             <Input
               id="acc-name"
               required
@@ -194,7 +194,7 @@ export function AccountSheet({
           className="w-full"
           disabled={!form.name.trim() || save.isPending}
         >
-          {value?.id ? "Save" : "Add account"}
+          {value?.id ? "Save" : "Add payment method"}
         </Button>
       </form>
     </ResponsiveSheet>
@@ -236,7 +236,7 @@ export function TransferSheet({
     <ResponsiveSheet
       open={open}
       onOpenChange={(o) => !o && onClose()}
-      title="Transfer between accounts"
+      title="Transfer between payment methods"
       description="Not income or expense — just moves money, e.g. ATM withdrawal or paying the card bill."
     >
       <form

@@ -4,7 +4,6 @@ import { db } from "$/db";
 import {
   categoriesTable,
   ownShareModes,
-  paymentMethods,
   peopleTable,
   relations,
   settlementDirections,
@@ -20,6 +19,7 @@ import {
   usersTable,
 } from "$/db/schema";
 import { resolveAccountId } from "$/lib/services/account-service";
+import { resolveBookId } from "$/lib/services/book-service";
 import { rateLimitService } from "$/lib/services/rate-limit-service";
 import {
   balanceInRupees,
@@ -120,6 +120,7 @@ async function hydrateSplits(userId: number, rows: SplitRow[]) {
       ownShare: r.ownShare,
       accountId: r.accountId,
       eventId: r.eventId,
+      bookId: r.bookId,
       category: cat
         ? { id: cat.id, name: cat.name, icon: cat.icon, color: cat.color }
         : null,
@@ -538,10 +539,11 @@ const splitBody = t.Object({
   categoryId: t.Optional(t.Nullable(t.Integer({ minimum: 1 }))),
   /** `skipped` = don't book the user's own share as an expense. */
   ownShare: t.Optional(tEnum(ownShareModes)),
-  paymentMethod: t.Optional(tEnum(paymentMethods)),
   /** Account your share is recorded against (null = default account). */
   accountId: t.Optional(t.Nullable(t.Integer({ minimum: 1 }))),
   eventId: t.Optional(t.Nullable(t.Integer({ minimum: 1 }))),
+  /** Book your share is recorded in (null = default book). */
+  bookId: t.Optional(t.Nullable(t.Integer({ minimum: 1 }))),
   note: t.Optional(t.Nullable(t.String({ maxLength: 500 }))),
   /** Turn an existing plain transaction into this split (it's replaced by the user's share). */
   fromTransactionId: t.Optional(t.Integer({ minimum: 1 })),
@@ -570,6 +572,10 @@ async function prepareSplit(userId: number, body: SplitBody) {
   if (body.accountId) {
     const account = await resolveAccountId(userId, body.accountId);
     if (!account.ok) return { error: account.message };
+  }
+  if (body.bookId) {
+    const book = await resolveBookId(userId, body.bookId);
+    if (!book.ok) return { error: book.message };
   }
   const event = await ownedEventId(userId, body.eventId);
   if (!event.ok) return { error: event.message };
@@ -745,9 +751,9 @@ const splitsController = new Elysia({
       const prep = await prepareSplit(user.id, body);
       if ("error" in prep) return status(400, fail(prep.error!));
 
-      let paymentMethod = body.paymentMethod;
       let accountId = body.accountId ?? null;
       let eventId = body.eventId ?? null;
+      let bookId = body.bookId ?? null;
       if (body.fromTransactionId) {
         const [src] = await db
           .select()
@@ -761,10 +767,10 @@ const splitsController = new Elysia({
           .limit(1);
         if (src?.type !== "debit" || src.splitId)
           return status(400, fail("That transaction can't be split"));
-        paymentMethod ??= src.paymentMethod;
-        // Keep the original transaction's account and event unless changed.
+        // Keep the original transaction's account, event and book unless changed.
         if (body.accountId === undefined) accountId = src.accountId;
         if (body.eventId === undefined) eventId = src.eventId;
+        if (body.bookId === undefined) bookId = src.bookId;
       }
 
       const id = await db.transaction(async (tx) => {
@@ -782,6 +788,7 @@ const splitsController = new Elysia({
             ownShare: body.ownShare ?? "recorded",
             accountId,
             eventId,
+            bookId,
             note: body.note?.trim() || null,
           })
           .returning();
@@ -792,7 +799,7 @@ const splitsController = new Elysia({
           await tx
             .delete(transactionsTable)
             .where(eq(transactionsTable.id, body.fromTransactionId));
-        await syncShareTransaction(tx, split!, prep.myShare, paymentMethod);
+        await syncShareTransaction(tx, split!, prep.myShare);
         await syncSharedTransactions(tx, split!);
         return split!.id;
       });
@@ -821,6 +828,7 @@ const splitsController = new Elysia({
             ownShare: body.ownShare ?? "recorded",
             accountId: body.accountId ?? null,
             eventId: body.eventId ?? null,
+            bookId: body.bookId ?? null,
             note: body.note?.trim() || null,
           })
           .where(eq(splitsTable.id, params.id))
@@ -831,12 +839,7 @@ const splitsController = new Elysia({
         await tx
           .insert(splitSharesTable)
           .values(prep.shares.map((s) => ({ ...s, splitId: params.id })));
-        await syncShareTransaction(
-          tx,
-          split!,
-          prep.myShare,
-          body.paymentMethod,
-        );
+        await syncShareTransaction(tx, split!, prep.myShare);
         await syncSharedTransactions(tx, split!);
       });
       return ok(await getSplit(user.id, params.id), "Split updated");
@@ -881,7 +884,6 @@ const settlementsController = new Elysia({
         direction: body.direction,
         amount: toPaise(body.amount),
         date: body.date ?? today(),
-        paymentMethod: body.paymentMethod ?? "upi",
         note: body.note?.trim() || null,
       });
       return ok(
@@ -898,7 +900,6 @@ const settlementsController = new Elysia({
         direction: tEnum(settlementDirections),
         amount: t.Number({ exclusiveMinimum: 0, maximum: 1_000_000_000 }),
         date: t.Optional(tDate),
-        paymentMethod: t.Optional(tEnum(paymentMethods)),
         note: t.Optional(t.Nullable(t.String({ maxLength: 200 }))),
       }),
     },

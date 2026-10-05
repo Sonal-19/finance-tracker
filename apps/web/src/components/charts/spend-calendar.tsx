@@ -18,12 +18,14 @@ import { cn } from "@/lib/utils";
 export function SpendCalendar({
   onDayClick,
   accountId,
+  bookId,
 }: {
   onDayClick?: (date: string) => void;
   accountId?: number;
+  bookId?: number;
 }) {
   const [month, setMonth] = useState(() => format(new Date(), "yyyy-MM"));
-  const { data } = useCalendar(month, accountId);
+  const { data } = useCalendar(month, accountId, bookId);
   const first = parseISO(`${month}-01`);
   const days = eachDayOfInterval({
     start: startOfMonth(first),

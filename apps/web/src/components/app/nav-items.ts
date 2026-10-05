@@ -1,5 +1,6 @@
 import {
   ArrowLeftRight,
+  BookOpen,
   Landmark,
   LayoutDashboard,
   PartyPopper,
@@ -16,7 +17,8 @@ import {
 export const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/transactions", label: "Transactions", icon: ArrowLeftRight },
-  { to: "/accounts", label: "Accounts", icon: Landmark },
+  { to: "/accounts", label: "Payment methods", icon: Landmark },
+  { to: "/books", label: "Books", icon: BookOpen },
   { to: "/reports", label: "Reports", icon: PieChart },
   { to: "/events", label: "Events", icon: PartyPopper },
   { to: "/split", label: "Split & share", icon: Users },

@@ -24,6 +24,8 @@ import { Route as AppSystemConfigRouteImport } from './routes/_app/system-config
 import { Route as AppTransactionsRouteImport } from './routes/_app/transactions'
 import { Route as AppAccountsIndexRouteImport } from './routes/_app/accounts/index'
 import { Route as AppAccountsAccountIdRouteImport } from './routes/_app/accounts/$accountId'
+import { Route as AppBooksIndexRouteImport } from './routes/_app/books/index'
+import { Route as AppBooksBookIdRouteImport } from './routes/_app/books/$bookId'
 import { Route as AppEventsIndexRouteImport } from './routes/_app/events/index'
 import { Route as AppEventsEventIdRouteImport } from './routes/_app/events/$eventId'
 import { Route as AppSplitIndexRouteImport } from './routes/_app/split/index'
@@ -104,6 +106,16 @@ const AppAccountsAccountIdRoute = AppAccountsAccountIdRouteImport.update({
   path: '/accounts/$accountId',
   getParentRoute: () => AppRoute,
 } as any)
+const AppBooksIndexRoute = AppBooksIndexRouteImport.update({
+  id: '/books/',
+  path: '/books/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppBooksBookIdRoute = AppBooksBookIdRouteImport.update({
+  id: '/books/$bookId',
+  path: '/books/$bookId',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppEventsIndexRoute = AppEventsIndexRouteImport.update({
   id: '/events/',
   path: '/events/',
@@ -144,8 +156,10 @@ export interface FileRoutesByFullPath {
   '/system-config': typeof AppSystemConfigRoute
   '/transactions': typeof AppTransactionsRoute
   '/accounts/$accountId': typeof AppAccountsAccountIdRoute
+  '/books/$bookId': typeof AppBooksBookIdRoute
   '/events/$eventId': typeof AppEventsEventIdRoute
   '/accounts/': typeof AppAccountsIndexRoute
+  '/books/': typeof AppBooksIndexRoute
   '/events/': typeof AppEventsIndexRoute
   '/split/': typeof AppSplitIndexRoute
   '/split/groups/$groupId': typeof AppSplitGroupsGroupIdRoute
@@ -165,8 +179,10 @@ export interface FileRoutesByTo {
   '/system-config': typeof AppSystemConfigRoute
   '/transactions': typeof AppTransactionsRoute
   '/accounts/$accountId': typeof AppAccountsAccountIdRoute
+  '/books/$bookId': typeof AppBooksBookIdRoute
   '/events/$eventId': typeof AppEventsEventIdRoute
   '/accounts': typeof AppAccountsIndexRoute
+  '/books': typeof AppBooksIndexRoute
   '/events': typeof AppEventsIndexRoute
   '/split': typeof AppSplitIndexRoute
   '/split/groups/$groupId': typeof AppSplitGroupsGroupIdRoute
@@ -188,8 +204,10 @@ export interface FileRoutesById {
   '/_app/system-config': typeof AppSystemConfigRoute
   '/_app/transactions': typeof AppTransactionsRoute
   '/_app/accounts/$accountId': typeof AppAccountsAccountIdRoute
+  '/_app/books/$bookId': typeof AppBooksBookIdRoute
   '/_app/events/$eventId': typeof AppEventsEventIdRoute
   '/_app/accounts/': typeof AppAccountsIndexRoute
+  '/_app/books/': typeof AppBooksIndexRoute
   '/_app/events/': typeof AppEventsIndexRoute
   '/_app/split/': typeof AppSplitIndexRoute
   '/_app/split/groups/$groupId': typeof AppSplitGroupsGroupIdRoute
@@ -211,8 +229,10 @@ export interface FileRouteTypes {
     | '/system-config'
     | '/transactions'
     | '/accounts/$accountId'
+    | '/books/$bookId'
     | '/events/$eventId'
     | '/accounts/'
+    | '/books/'
     | '/events/'
     | '/split/'
     | '/split/groups/$groupId'
@@ -232,8 +252,10 @@ export interface FileRouteTypes {
     | '/system-config'
     | '/transactions'
     | '/accounts/$accountId'
+    | '/books/$bookId'
     | '/events/$eventId'
     | '/accounts'
+    | '/books'
     | '/events'
     | '/split'
     | '/split/groups/$groupId'
@@ -254,8 +276,10 @@ export interface FileRouteTypes {
     | '/_app/system-config'
     | '/_app/transactions'
     | '/_app/accounts/$accountId'
+    | '/_app/books/$bookId'
     | '/_app/events/$eventId'
     | '/_app/accounts/'
+    | '/_app/books/'
     | '/_app/events/'
     | '/_app/split/'
     | '/_app/split/groups/$groupId'
@@ -375,6 +399,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAccountsAccountIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/books/': {
+      id: '/_app/books/'
+      path: '/books'
+      fullPath: '/books/'
+      preLoaderRoute: typeof AppBooksIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/books/$bookId': {
+      id: '/_app/books/$bookId'
+      path: '/books/$bookId'
+      fullPath: '/books/$bookId'
+      preLoaderRoute: typeof AppBooksBookIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/events/': {
       id: '/_app/events/'
       path: '/events'
@@ -425,8 +463,10 @@ interface AppRouteChildren {
   AppSystemConfigRoute: typeof AppSystemConfigRoute
   AppTransactionsRoute: typeof AppTransactionsRoute
   AppAccountsAccountIdRoute: typeof AppAccountsAccountIdRoute
+  AppBooksBookIdRoute: typeof AppBooksBookIdRoute
   AppEventsEventIdRoute: typeof AppEventsEventIdRoute
   AppAccountsIndexRoute: typeof AppAccountsIndexRoute
+  AppBooksIndexRoute: typeof AppBooksIndexRoute
   AppEventsIndexRoute: typeof AppEventsIndexRoute
   AppSplitIndexRoute: typeof AppSplitIndexRoute
   AppSplitGroupsGroupIdRoute: typeof AppSplitGroupsGroupIdRoute
@@ -445,8 +485,10 @@ const AppRouteChildren: AppRouteChildren = {
   AppSystemConfigRoute: AppSystemConfigRoute,
   AppTransactionsRoute: AppTransactionsRoute,
   AppAccountsAccountIdRoute: AppAccountsAccountIdRoute,
+  AppBooksBookIdRoute: AppBooksBookIdRoute,
   AppEventsEventIdRoute: AppEventsEventIdRoute,
   AppAccountsIndexRoute: AppAccountsIndexRoute,
+  AppBooksIndexRoute: AppBooksIndexRoute,
   AppEventsIndexRoute: AppEventsIndexRoute,
   AppSplitIndexRoute: AppSplitIndexRoute,
   AppSplitGroupsGroupIdRoute: AppSplitGroupsGroupIdRoute,

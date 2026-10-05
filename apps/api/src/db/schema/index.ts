@@ -1,4 +1,5 @@
 export * from "./finance/accounts.sql";
+export * from "./finance/books.sql";
 export * from "./finance/budgets.sql";
 export * from "./finance/categories.sql";
 export * from "./finance/enums.sql";

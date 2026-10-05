@@ -3,6 +3,7 @@ import Elysia, { t } from "elysia";
 import { db } from "$/db";
 import { usersTable } from "$/db/schema";
 import { seedDefaultAccounts } from "$/lib/services/account-service";
+import { seedDefaultBooks } from "$/lib/services/book-service";
 import { coreAuthService } from "$/lib/services/core-auth-service";
 import { seedDefaultCategories } from "$/lib/services/default-categories";
 import { otpService } from "$/lib/services/otp-service";
@@ -72,6 +73,7 @@ function insertUser(
     if (!u) throw new Error("user insert failed");
     await seedDefaultCategories(tx, u.id);
     await seedDefaultAccounts(tx, u.id);
+    await seedDefaultBooks(tx, u.id);
     return u;
   });
 }

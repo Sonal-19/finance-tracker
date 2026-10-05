@@ -137,7 +137,7 @@ export async function seedSplits(
       .insert(splitSharesTable)
       .values(result.shares.map((s) => ({ ...s, splitId: split!.id })));
     const mine = result.shares.find((s) => s.personId === null)?.amount ?? 0;
-    await syncShareTransaction(tx, split!, mine, "upi");
+    await syncShareTransaction(tx, split!, mine);
   }
 
   await tx.insert(settlementsTable).values({
@@ -147,7 +147,6 @@ export async function seedSplits(
     direction: "received",
     amount: toPaise(1000),
     date: addDays(end, -1),
-    paymentMethod: "upi",
     note: "GPay",
   });
 }

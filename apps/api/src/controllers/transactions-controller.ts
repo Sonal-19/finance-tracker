@@ -3,12 +3,12 @@ import { and, desc, eq } from "drizzle-orm";
 import Elysia, { t } from "elysia";
 import { db } from "$/db";
 import {
-  paymentMethods,
   sharedSplitPrefsTable,
   transactionsTable,
   txnTypes,
 } from "$/db/schema";
 import { resolveAccountId } from "$/lib/services/account-service";
+import { resolveBookId } from "$/lib/services/book-service";
 import { foreignCurrencies, fxService } from "$/lib/services/fx-service";
 import {
   getTransaction,
@@ -30,8 +30,8 @@ const tAmount = t.Number({ exclusiveMinimum: 0, maximum: 1_000_000_000 });
 const filterQuery = t.Object({
   type: t.Optional(tEnum(txnTypes)),
   categoryIds: t.Optional(t.String()),
-  paymentMethod: t.Optional(tEnum(paymentMethods)),
   accountId: t.Optional(t.Numeric({ minimum: 1 })),
+  bookId: t.Optional(t.Numeric({ minimum: 1 })),
   /** 0 = transactions not in any event */
   eventId: t.Optional(t.Numeric({ minimum: 0 })),
   from: t.Optional(tDate),
@@ -46,8 +46,8 @@ type FilterQuery = typeof filterQuery.static;
 function toFilters(q: FilterQuery): TxnFilters {
   return {
     type: q.type,
-    paymentMethod: q.paymentMethod,
     accountId: q.accountId,
+    bookId: q.bookId,
     eventId: q.eventId,
     from: q.from,
     to: q.to,
@@ -96,24 +96,16 @@ const txnBody = t.Object({
   fxRate: t.Optional(t.Number({ exclusiveMinimum: 0, maximum: 100_000 })),
   categoryId: t.Integer({ minimum: 1 }),
   date: tDate,
-  paymentMethod: tEnum(paymentMethods),
   /** Omitted = the user's default account. */
   accountId: t.Optional(t.Integer({ minimum: 1 })),
+  /** Omitted = the user's default book. */
+  bookId: t.Optional(t.Integer({ minimum: 1 })),
   eventId: t.Optional(t.Nullable(t.Integer({ minimum: 1 }))),
   note: t.Optional(t.Nullable(t.String({ maxLength: 500 }))),
 });
 
 const ymdOf = (d: string | Date) =>
   d instanceof Date ? d.toISOString().slice(0, 10) : d.slice(0, 10);
-
-const PAYMENT_LABEL: Record<string, string> = {
-  cash: "Cash",
-  upi: "UPI",
-  bank: "Bank transfer",
-  debit_card: "Debit card",
-  credit_card: "Credit card",
-  other: "Other",
-};
 
 export const transactionsController = new Elysia({
   name: "transactions_controller",
@@ -149,10 +141,10 @@ export const transactionsController = new Elysia({
         "Date",
         "Type",
         "Category",
-        "Account",
+        "Payment method",
+        "Book",
         "Event",
         "Amount (INR)",
-        "Payment method",
         "Note",
         "Original amount",
         "Original currency",
@@ -164,9 +156,9 @@ export const transactionsController = new Elysia({
           r.type === "credit" ? "Credit" : "Debit",
           r.category.name,
           r.account.name,
+          r.book.name,
           r.event?.name,
           toRupees(r.amount).toFixed(2),
-          PAYMENT_LABEL[r.paymentMethod],
           r.note,
           r.originalAmount === null
             ? ""
@@ -196,21 +188,24 @@ export const transactionsController = new Elysia({
     "/",
     async ({ user, body, status }) => {
       const { currency = "INR", fxRate, ...rest } = body;
-      // Independent lookups: one round of queries instead of four in a row.
-      const [cat, account, event, money] = await Promise.all([
+      // Independent lookups: one round of queries instead of five in a row.
+      const [cat, account, book, event, money] = await Promise.all([
         ownedCategory(user.id, body.categoryId, body.type),
         resolveAccountId(user.id, body.accountId),
+        resolveBookId(user.id, body.bookId),
         ownedEventId(user.id, body.eventId),
         convert(body.amount, currency, body.date, fxRate),
       ]);
       if (!cat.ok) return status(400, fail(cat.message));
       if (!account.ok) return status(400, fail(account.message));
+      if (!book.ok) return status(400, fail(book.message));
       if (!event.ok) return status(400, fail(event.message));
       const [row] = await db
         .insert(transactionsTable)
         .values({
           ...rest,
           accountId: account.id,
+          bookId: book.id,
           eventId: event.id,
           ...money,
           note: body.note?.trim() || null,
@@ -235,6 +230,12 @@ export const transactionsController = new Elysia({
         const account = await resolveAccountId(user.id, body.accountId);
         if (!account.ok) return status(400, fail(account.message));
         accountId = account.id;
+      }
+      let bookId: number | undefined;
+      if (body.bookId !== undefined) {
+        const book = await resolveBookId(user.id, body.bookId);
+        if (!book.ok) return status(400, fail(book.message));
+        bookId = book.id;
       }
       let eventId: number | null | undefined;
       if (body.eventId !== undefined) {
@@ -271,11 +272,9 @@ export const transactionsController = new Elysia({
           categoryId,
           ...money,
           ...(accountId !== undefined && { accountId }),
+          ...(bookId !== undefined && { bookId }),
           ...(eventId !== undefined && { eventId }),
           ...(body.date !== undefined && { date: body.date }),
-          ...(body.paymentMethod !== undefined && {
-            paymentMethod: body.paymentMethod,
-          }),
           ...(body.note !== undefined && { note: body.note?.trim() || null }),
         })
         .where(

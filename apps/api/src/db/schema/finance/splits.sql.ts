@@ -8,8 +8,8 @@ import {
 } from "drizzle-orm/pg-core";
 import { usersTable } from "../users/users.sql";
 import { accountsTable } from "./accounts.sql";
+import { booksTable } from "./books.sql";
 import { categoriesTable } from "./categories.sql";
-import { paymentMethodEnum } from "./enums.sql";
 import { eventsTable } from "./events.sql";
 
 /** People the user splits money with. They don't need an account. */
@@ -126,6 +126,10 @@ export const splitsTable = pgTable(
     eventId: pg
       .integer("event_id")
       .references(() => eventsTable.id, { onDelete: "set null" }),
+    /** Book your share is recorded in (null = default book). */
+    bookId: pg
+      .integer("book_id")
+      .references(() => booksTable.id, { onDelete: "set null" }),
     note: pg.text(),
     createdAt: pg
       .timestamp("created_at", { withTimezone: true })
@@ -134,6 +138,7 @@ export const splitsTable = pgTable(
   }),
   (t) => [
     index("splits_user_date_idx").on(t.userId, t.date, t.id),
+    index("splits_book_idx").on(t.bookId).where(sql`${t.bookId} is not null`),
     index("splits_group_idx")
       .on(t.groupId)
       .where(sql`${t.groupId} is not null`),
@@ -193,7 +198,6 @@ export const settlementsTable = pgTable(
     direction: settlementDirectionEnum("direction").notNull(),
     amount: pg.bigint({ mode: "number" }).notNull(),
     date: pg.date({ mode: "string" }).notNull(),
-    paymentMethod: paymentMethodEnum("payment_method").notNull().default("upi"),
     note: pg.text(),
     createdAt: pg
       .timestamp("created_at", { withTimezone: true })

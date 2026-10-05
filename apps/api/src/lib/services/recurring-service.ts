@@ -51,7 +51,7 @@ async function postDue(rule: SelectRecurringRule, upTo: string) {
         amount: fresh.amount,
         categoryId: fresh.categoryId,
         accountId: fresh.accountId,
-        paymentMethod: fresh.paymentMethod,
+        bookId: fresh.bookId,
         note: fresh.note,
         date: next,
         recurringId: fresh.id,

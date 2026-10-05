@@ -2,6 +2,7 @@ import { and, eq, gte, lte, sql } from "drizzle-orm";
 import Elysia, { t } from "elysia";
 import { db } from "$/db";
 import { budgetsTable, categoriesTable, transactionsTable } from "$/db/schema";
+import { countedBookCond } from "$/lib/services/book-service";
 import { fail, ok } from "$/lib/utils";
 import { toPaise, toRupees } from "$/lib/utils/money";
 import { rangeFor, today } from "$/lib/utils/period";
@@ -31,6 +32,7 @@ export const budgetsController = new Elysia({
               eq(T.type, "debit"),
               gte(T.date, r.from),
               lte(T.date, r.to),
+              countedBookCond(user.id, query.bookId),
             ),
           )
           .groupBy(T.categoryId),
@@ -74,6 +76,8 @@ export const budgetsController = new Elysia({
     {
       query: t.Object({
         month: t.Optional(t.String({ pattern: "^\\d{4}-\\d{2}$" })),
+        /** Spending in one book (default: books that count in totals). */
+        bookId: t.Optional(t.Numeric({ minimum: 1 })),
       }),
     },
   )

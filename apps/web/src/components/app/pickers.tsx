@@ -1,17 +1,18 @@
 import { CategoryIcon } from "@/components/common/category-icon";
 import { Label } from "@/components/ui/label";
 import { useActiveAccounts, useEvents } from "@/hooks/use-accounts";
+import { useActiveBooks } from "@/hooks/use-books";
 import { money, ymd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const chip =
   "flex shrink-0 items-center gap-2 rounded-xl border py-1.5 pr-3 pl-1.5 text-left text-sm transition-colors";
 
-/** Horizontal chips of active accounts (default first). */
+/** Horizontal chips of active payment methods (default first). */
 export function AccountPicker({
   value,
   onChange,
-  label = "Account",
+  label = "Payment method",
   exclude,
 }: {
   value: number | null;
@@ -47,6 +48,49 @@ export function AccountPicker({
               </span>
             </button>
           ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Which book an entry goes in. Hidden while the user only has one book,
+ * since there is nothing to choose.
+ */
+export function BookPicker({
+  value,
+  onChange,
+}: {
+  value: number | null;
+  onChange: (id: number) => void;
+}) {
+  const { list } = useActiveBooks();
+  if (list.length < 2) return null;
+  return (
+    <div className="space-y-2">
+      <Label>Book</Label>
+      <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5">
+        {list.map((b) => (
+          <button
+            key={b.id}
+            type="button"
+            onClick={() => onChange(b.id)}
+            className={cn(
+              chip,
+              value === b.id ? "border-primary bg-accent" : "hover:bg-muted",
+            )}
+          >
+            <CategoryIcon icon={b.icon} color={b.color} size="sm" />
+            <span>
+              <span className="block font-medium leading-tight">{b.name}</span>
+              {b.totals === "separate" && (
+                <span className="block text-[11px] text-muted-foreground">
+                  Not in my totals
+                </span>
+              )}
+            </span>
+          </button>
+        ))}
       </div>
     </div>
   );

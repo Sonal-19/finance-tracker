@@ -28,6 +28,7 @@ import {
   useSummary,
   useTransactions,
 } from "@/hooks/use-finance";
+import { useBookScope } from "@/hooks/use-books";
 import { useSplitSummary } from "@/hooks/use-splits";
 import { money, pct, shortDate, todayStr } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -45,11 +46,12 @@ function greeting() {
 function Dashboard() {
   const { user } = useAuth();
   const today = todayStr();
-  const month = useSummary({ period: "month", date: today });
-  const todaySummary = useSummary({ period: "day", date: today });
+  const { bookId } = useBookScope();
+  const month = useSummary({ period: "month", date: today, bookId });
+  const todaySummary = useSummary({ period: "day", date: today, bookId });
   const balance = useBalance();
-  const budgets = useBudgets();
-  const recent = useTransactions({});
+  const budgets = useBudgets(undefined, bookId);
+  const recent = useTransactions({ bookId });
   const recurring = useRecurring();
   const goals = useGoals();
   const splitSummary = useSplitSummary();
@@ -111,7 +113,7 @@ function Dashboard() {
           <p className="text-sm text-white/80">
             Total balance
             {accounts.list.length > 0 &&
-              ` · ${accounts.list.length} account${accounts.list.length > 1 ? "s" : ""}`}{" "}
+              ` · ${accounts.list.length} payment method${accounts.list.length > 1 ? "s" : ""}`}{" "}
             →
           </p>
           <p className="tabular mt-1 text-3xl font-bold sm:text-4xl">

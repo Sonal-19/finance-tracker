@@ -2,8 +2,9 @@ import { sql } from "drizzle-orm";
 import { index, pgTable } from "drizzle-orm/pg-core";
 import { usersTable } from "../users/users.sql";
 import { accountsTable } from "./accounts.sql";
+import { booksTable } from "./books.sql";
 import { categoriesTable } from "./categories.sql";
-import { paymentMethodEnum, txnTypeEnum } from "./enums.sql";
+import { txnTypeEnum } from "./enums.sql";
 import { eventsTable } from "./events.sql";
 import { recurringRulesTable } from "./recurring.sql";
 import { splitsTable } from "./splits.sql";
@@ -24,16 +25,20 @@ export const transactionsTable = pgTable(
       .notNull()
       .references(() => categoriesTable.id),
     date: pg.date({ mode: "string" }).notNull(),
-    /** Which account the money moved in or out of. */
+    /** Which account (payment method) the money moved in or out of. */
     accountId: pg
       .integer("account_id")
       .notNull()
       .references(() => accountsTable.id),
+    /** Who it was for: Personal, Family, Office… */
+    bookId: pg
+      .integer("book_id")
+      .notNull()
+      .references(() => booksTable.id),
     /** Optional occasion this belongs to (festival, trip, wedding…). */
     eventId: pg
       .integer("event_id")
       .references(() => eventsTable.id, { onDelete: "set null" }),
-    paymentMethod: paymentMethodEnum("payment_method").notNull().default("upi"),
     note: pg.text(),
     /** Set when entered in a foreign currency: the amount as typed (cents), its
      * currency, and the rate used. `amount` always holds the INR value. */
@@ -68,6 +73,8 @@ export const transactionsTable = pgTable(
     // `type` + `amount` are in the key so an account's balance is answered
     // from the index alone (index-only scan).
     index("transactions_account_idx").on(t.accountId, t.type, t.amount),
+    // Same shape for a book's spent / received totals.
+    index("transactions_book_idx").on(t.bookId, t.type, t.amount),
     index("transactions_category_idx").on(t.categoryId, t.date),
     // The rest are sparse, so they only index the rows that have a value.
     // They also keep deletes/cascades on the parent off a full table scan.

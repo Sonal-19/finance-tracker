@@ -69,6 +69,7 @@ function useInvalidateMoney() {
       [
         "accounts",
         "events",
+        "books",
         "transactions",
         "reports",
         "budgets",

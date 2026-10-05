@@ -1,7 +1,8 @@
 import { ChevronRight, Repeat, Users } from "lucide-react";
 import { CategoryIcon } from "@/components/common/category-icon";
+import { useActiveBooks } from "@/hooks/use-books";
 import type { Txn } from "@/hooks/use-finance";
-import { dayLabel, money, paymentLabel, signedMoney, ymd } from "@/lib/format";
+import { dayLabel, money, signedMoney, ymd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useTxnSheet } from "@/stores/txn-sheet-store";
 
@@ -13,6 +14,7 @@ export function TransactionRow({
   showDate?: boolean;
 }) {
   const openEdit = useTxnSheet((s) => s.openEdit);
+  const defaultBookId = useActiveBooks().defaultBook?.id;
   return (
     <button
       type="button"
@@ -35,6 +37,17 @@ export function TransactionRow({
               aria-label="Your share of a split"
             />
           )}
+          {!defaultBookId || t.book.id === defaultBookId ? null : (
+            <span
+              className="truncate rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+              style={{
+                backgroundColor: `${t.book.color}1f`,
+                color: t.book.color,
+              }}
+            >
+              {t.book.name}
+            </span>
+          )}
           {t.event && (
             <span
               className="truncate rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
@@ -54,10 +67,6 @@ export function TransactionRow({
               ? `$${t.originalAmount.toFixed(2)} @ ₹${Number(t.fxRate).toFixed(2)}`
               : null,
             t.account.name,
-            // Skip "Cash · Cash" when the account is named like the method.
-            paymentLabel(t.paymentMethod) === t.account.name
-              ? null
-              : paymentLabel(t.paymentMethod),
             t.note,
           ]
             .filter(Boolean)

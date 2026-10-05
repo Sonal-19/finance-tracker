@@ -114,7 +114,7 @@ function AccountPage() {
               {a.defaultSince && (
                 <Star
                   className="size-4 fill-warning text-warning"
-                  aria-label="Default account"
+                  aria-label="Default payment method"
                 />
               )}
             </h1>
@@ -126,7 +126,7 @@ function AccountPage() {
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Edit account"
+            aria-label="Edit payment method"
             onClick={() =>
               setEditing({
                 id: a.id,
@@ -180,12 +180,18 @@ function AccountPage() {
           </div>
         </div>
         {a.status === "active" && (
-          <div className="mt-4 grid grid-cols-2 gap-2">
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <Button
+              variant="outline"
+              onClick={() => openNew("credit", { accountId: a.id })}
+            >
+              <Plus /> Add money
+            </Button>
             <Button variant="outline" onClick={() => setTransferOpen(true)}>
               <ArrowLeftRight /> Transfer
             </Button>
             <Button onClick={() => openNew("debit", { accountId: a.id })}>
-              <Plus /> Add transaction
+              <Plus /> Expense
             </Button>
           </div>
         )}
@@ -213,7 +219,7 @@ function AccountPage() {
         txns.isLoading ? (
           <PageLoader />
         ) : items.length === 0 ? (
-          <EmptyState title="No transactions in this account yet" />
+          <EmptyState title="No transactions with this payment method yet" />
         ) : (
           <>
             <GroupedTransactions items={items} dayTotals={dayTotals} />
@@ -224,7 +230,7 @@ function AccountPage() {
         )
       ) : (transfers.data?.length ?? 0) === 0 ? (
         <EmptyState title="No transfers yet">
-          Move money between accounts with “Transfer”.
+          Move money between payment methods with “Transfer”.
         </EmptyState>
       ) : (
         <div className="divide-y overflow-hidden rounded-2xl border bg-card">

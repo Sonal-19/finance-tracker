@@ -22,6 +22,7 @@ import { PageHeader } from "@/components/common/page-header";
 import { Segmented } from "@/components/common/segmented";
 import { ErrorState, PageLoader } from "@/components/common/states";
 import { useActiveAccounts } from "@/hooks/use-accounts";
+import { useBookScope } from "@/hooks/use-books";
 import { useSummary } from "@/hooks/use-finance";
 import { money, pct, todayStr } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -40,7 +41,8 @@ function ReportsPage() {
   const [accountId, setAccountId] = useState<number | undefined>();
   const navigate = useNavigate();
   const { list: accounts } = useActiveAccounts();
-  const { data, isLoading, error } = useSummary({ ...p, accountId });
+  const { bookId } = useBookScope();
+  const { data, isLoading, error } = useSummary({ ...p, accountId, bookId });
 
   return (
     <div className="space-y-5">
@@ -51,21 +53,23 @@ function ReportsPage() {
       <PeriodPicker value={p} onChange={setP} />
       {accounts.length > 1 && (
         <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1">
-          {[{ id: undefined, name: "All accounts" }, ...accounts].map((a) => (
-            <button
-              key={a.id ?? "all"}
-              type="button"
-              onClick={() => setAccountId(a.id)}
-              className={cn(
-                "shrink-0 rounded-full border px-3 py-1.5 text-sm",
-                accountId === a.id
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "hover:bg-muted",
-              )}
-            >
-              {a.name}
-            </button>
-          ))}
+          {[{ id: undefined, name: "All payment methods" }, ...accounts].map(
+            (a) => (
+              <button
+                key={a.id ?? "all"}
+                type="button"
+                onClick={() => setAccountId(a.id)}
+                className={cn(
+                  "shrink-0 rounded-full border px-3 py-1.5 text-sm",
+                  accountId === a.id
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "hover:bg-muted",
+                )}
+              >
+                {a.name}
+              </button>
+            ),
+          )}
         </div>
       )}
 
@@ -201,6 +205,7 @@ function ReportsPage() {
               <SectionCard title="Spending calendar">
                 <SpendCalendar
                   accountId={accountId}
+                  bookId={bookId}
                   onDayClick={(d) =>
                     navigate({
                       to: "/transactions",

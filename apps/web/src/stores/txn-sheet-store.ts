@@ -1,8 +1,12 @@
 import { create } from "zustand";
 import type { Txn, TxnType } from "@/hooks/use-finance";
 
-/** Defaults for a new transaction opened from a specific account or event page. */
-export type TxnPrefill = { accountId?: number; eventId?: number };
+/** Defaults for a new transaction opened from a specific account, event or book page. */
+export type TxnPrefill = {
+  accountId?: number;
+  eventId?: number;
+  bookId?: number;
+};
 
 /** Global add/edit transaction sheet so the FAB, dashboard and lists share one form. */
 interface TxnSheetState {

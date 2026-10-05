@@ -53,15 +53,3 @@ export function pct(n: number | null | undefined, digits = 0) {
   if (n === null || n === undefined || !Number.isFinite(n)) return "—";
   return `${n.toFixed(digits)}%`;
 }
-
-export const PAYMENT_METHODS = [
-  { value: "upi", label: "UPI" },
-  { value: "cash", label: "Cash" },
-  { value: "bank", label: "Bank transfer" },
-  { value: "debit_card", label: "Debit card" },
-  { value: "credit_card", label: "Credit card" },
-  { value: "other", label: "Other" },
-] as const;
-export type PaymentMethod = (typeof PAYMENT_METHODS)[number]["value"];
-export const paymentLabel = (v: string) =>
-  PAYMENT_METHODS.find((p) => p.value === v)?.label ?? v;

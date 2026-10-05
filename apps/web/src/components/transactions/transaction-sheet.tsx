@@ -1,7 +1,11 @@
 import { format, subDays } from "date-fns";
 import { ArrowRightLeft, Pencil, Trash2, Users } from "lucide-react";
 import { useEffect, useState } from "react";
-import { AccountPicker, EventPicker } from "@/components/app/pickers";
+import {
+  AccountPicker,
+  BookPicker,
+  EventPicker,
+} from "@/components/app/pickers";
 import { CategoryIcon } from "@/components/common/category-icon";
 import { confirm } from "@/components/common/confirm-dialog";
 import { ResponsiveSheet } from "@/components/common/responsive-sheet";
@@ -10,16 +14,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useActiveAccounts, useActiveEvent } from "@/hooks/use-accounts";
+import { useActiveBooks, useBookScope } from "@/hooks/use-books";
 import {
   type Currency,
-  type TxnInput,
   type TxnType,
   useCategories,
   useDeleteTransaction,
   useFxRate,
   useSaveTransaction,
 } from "@/hooks/use-finance";
-import { money, PAYMENT_METHODS, shortDate, todayStr, ymd } from "@/lib/format";
+import { money, shortDate, todayStr, ymd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useSplitSheet } from "@/stores/split-sheet-store";
 import { useTxnSheet } from "@/stores/txn-sheet-store";
@@ -29,12 +33,12 @@ type Form = {
   amount: string;
   categoryId: number | null;
   date: string;
-  paymentMethod: TxnInput["paymentMethod"];
   note: string;
   currency: Currency;
   /** Manual USD→INR rate; "" = use the day's market rate. */
   fxRate: string;
   accountId: number | null;
+  bookId: number | null;
   eventId: number | null;
 };
 
@@ -47,6 +51,8 @@ export function TransactionSheet() {
   const { data: categories = [] } = useCategories();
   const { defaultAccount } = useActiveAccounts();
   const activeEvent = useActiveEvent();
+  const { defaultBook } = useActiveBooks();
+  const scope = useBookScope();
   const save = useSaveTransaction();
   const del = useDeleteTransaction();
 
@@ -55,11 +61,12 @@ export function TransactionSheet() {
     amount: "",
     categoryId: null,
     date: todayStr(),
-    paymentMethod: type === "credit" ? "bank" : "upi",
     note: "",
     currency: "INR",
     fxRate: "",
     accountId: prefill.accountId ?? defaultAccount?.id ?? null,
+    // The book being viewed in the header switcher, else the default one.
+    bookId: prefill.bookId ?? scope.bookId ?? defaultBook?.id ?? null,
     // While an event is live, new entries are tagged to it (can be removed).
     eventId: prefill.eventId ?? activeEvent?.id ?? null,
   });
@@ -74,9 +81,9 @@ export function TransactionSheet() {
             type: editing.type,
             categoryId: editing.category.id,
             date: ymd(editing.date),
-            paymentMethod: editing.paymentMethod,
             note: editing.note ?? "",
             accountId: editing.account.id,
+            bookId: editing.book.id,
             eventId: editing.event?.id ?? null,
             // Foreign entries reopen in their currency with the rate they were saved at.
             ...(editing.originalCurrency === "USD" &&
@@ -102,6 +109,11 @@ export function TransactionSheet() {
     if (open && form.accountId === null && defaultAccount)
       setForm((f) => ({ ...f, accountId: defaultAccount.id }));
   }, [open, form.accountId, defaultAccount]);
+
+  useEffect(() => {
+    if (open && form.bookId === null && defaultBook)
+      setForm((f) => ({ ...f, bookId: scope.bookId ?? defaultBook.id }));
+  }, [open, form.bookId, defaultBook, scope.bookId]);
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -131,8 +143,8 @@ export function TransactionSheet() {
         ...(isForeign && manualRate > 0 && { fxRate: manualRate }),
         categoryId: form.categoryId,
         date: form.date,
-        paymentMethod: form.paymentMethod,
         ...(form.accountId && { accountId: form.accountId }),
+        ...(form.bookId && { bookId: form.bookId }),
         eventId: form.eventId,
         note: form.note.trim() || null,
       },
@@ -221,6 +233,7 @@ export function TransactionSheet() {
                   categoryName: editing.category.name,
                   accountId: editing.account.id,
                   eventId: editing.event?.id ?? null,
+                  bookId: editing.book.id,
                 },
               });
             }}
@@ -421,37 +434,18 @@ export function TransactionSheet() {
         </div>
 
         <AccountPicker
-          label={isCredit ? "Received in account" : "Paid from account"}
+          label={isCredit ? "Received in" : "Paid via"}
           value={form.accountId}
           onChange={(id) => set("accountId", id)}
         />
+
+        <BookPicker value={form.bookId} onChange={(id) => set("bookId", id)} />
 
         <EventPicker
           value={form.eventId}
           onChange={(id) => set("eventId", id)}
           date={form.date}
         />
-
-        <div className="space-y-2">
-          <Label>Payment method</Label>
-          <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1">
-            {PAYMENT_METHODS.map((p) => (
-              <button
-                key={p.value}
-                type="button"
-                onClick={() => set("paymentMethod", p.value)}
-                className={cn(
-                  "shrink-0 rounded-full border px-3.5 py-2 text-sm transition-colors",
-                  form.paymentMethod === p.value
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "hover:bg-muted",
-                )}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
 
         <div className="space-y-2">
           <Label htmlFor="txn-note">Note (optional)</Label>

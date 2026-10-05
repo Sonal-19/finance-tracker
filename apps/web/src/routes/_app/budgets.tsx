@@ -20,6 +20,7 @@ import {
   useSaveBudget,
   useUpdateProfile,
 } from "@/hooks/use-finance";
+import { useBookScope } from "@/hooks/use-books";
 import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -29,7 +30,8 @@ export const Route = createFileRoute("/_app/budgets")({
 
 function BudgetsPage() {
   const [month, setMonth] = useState(() => format(new Date(), "yyyy-MM"));
-  const { data, isLoading } = useBudgets(month);
+  const { bookId } = useBookScope();
+  const { data, isLoading } = useBudgets(month, bookId);
   const { user } = useAuth();
   const del = useDeleteBudget();
   const [editing, setEditing] = useState<{

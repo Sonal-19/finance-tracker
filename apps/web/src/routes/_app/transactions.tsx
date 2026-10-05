@@ -16,12 +16,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAccounts, useEvents } from "@/hooks/use-accounts";
+import { useBookScope } from "@/hooks/use-books";
 import {
   type TxnFilters,
   useCategories,
   useTransactions,
 } from "@/hooks/use-finance";
-import { money, PAYMENT_METHODS, paymentLabel, shortDate } from "@/lib/format";
+import { money, shortDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useTxnSheet } from "@/stores/txn-sheet-store";
 
@@ -32,7 +33,6 @@ export const Route = createFileRoute("/_app/transactions")({
     const str = (k: string) =>
       typeof s[k] === "string" && s[k] ? (s[k] as string) : undefined;
     const type = str("type");
-    const pm = str("paymentMethod");
     const num = (k: string) => {
       const n = Number(s[k]);
       return Number.isInteger(n) && n >= 0 && s[k] !== undefined && s[k] !== ""
@@ -44,9 +44,6 @@ export const Route = createFileRoute("/_app/transactions")({
       eventId: num("eventId"),
       type: type === "credit" || type === "debit" ? type : undefined,
       categoryIds: str("categoryIds"),
-      paymentMethod: PAYMENT_METHODS.some((p) => p.value === pm)
-        ? (pm as Search["paymentMethod"])
-        : undefined,
       from: str("from"),
       to: str("to"),
       q: str("q"),
@@ -76,7 +73,9 @@ function TransactionsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
-  const query = useTransactions(filters);
+  // The header's book switcher narrows the list; it isn't part of the URL.
+  const { bookId } = useBookScope();
+  const query = useTransactions({ ...filters, bookId });
   const pages = query.data?.pages ?? [];
   const items = pages.flatMap((p) => p.items);
   const dayTotals = Object.assign({}, ...pages.map((p) => p.dayTotals));
@@ -122,15 +121,11 @@ function TransactionsPage() {
           }),
       });
   }
-  if (filters.paymentMethod)
-    chips.push({
-      label: paymentLabel(filters.paymentMethod),
-      clear: () => setFilters({ ...filters, paymentMethod: undefined }),
-    });
   if (filters.accountId)
     chips.push({
       label:
-        accounts.find((a) => a.id === filters.accountId)?.name ?? "Account",
+        accounts.find((a) => a.id === filters.accountId)?.name ??
+        "Payment method",
       clear: () => setFilters({ ...filters, accountId: undefined }),
     });
   if (filters.eventId !== undefined)
@@ -151,7 +146,7 @@ function TransactionsPage() {
     });
 
   const exportUrl = `/api/transactions/export.csv?${new URLSearchParams(
-    Object.entries(filters)
+    Object.entries({ ...filters, bookId })
       .filter(([, v]) => v !== undefined && v !== "")
       .map(([k, v]) => [k, String(v)]),
   ).toString()}`;
@@ -353,7 +348,7 @@ function FilterSheet({
           </div>
         </div>
         <div className="space-y-2">
-          <Label>Account</Label>
+          <Label>Payment method</Label>
           <div className="flex flex-wrap gap-2">
             {accounts.map((a) => (
               <button
@@ -407,31 +402,6 @@ function FilterSheet({
             </div>
           </div>
         )}
-        <div className="space-y-2">
-          <Label>Payment method</Label>
-          <div className="flex flex-wrap gap-2">
-            {PAYMENT_METHODS.map((p) => (
-              <button
-                key={p.value}
-                type="button"
-                onClick={() =>
-                  setDraft({
-                    ...draft,
-                    paymentMethod:
-                      draft.paymentMethod === p.value ? undefined : p.value,
-                  })
-                }
-                className={cn(
-                  "rounded-full border px-3 py-1.5 text-sm",
-                  draft.paymentMethod === p.value &&
-                    "border-primary bg-primary text-primary-foreground",
-                )}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
         <div className="space-y-2">
           <Label>Categories</Label>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">

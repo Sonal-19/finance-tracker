@@ -12,6 +12,8 @@ const scopeQuery = {
   accountId: t.Optional(t.Numeric({ minimum: 1 })),
   /** Limit the report to one event. */
   eventId: t.Optional(t.Numeric({ minimum: 1 })),
+  /** Limit the report to one book (default: books that count in totals). */
+  bookId: t.Optional(t.Numeric({ minimum: 1 })),
 };
 
 export const reportsController = new Elysia({
@@ -35,6 +37,7 @@ export const reportsController = new Elysia({
         await summary(user.id, period, range, {
           accountId: query.accountId,
           eventId: query.eventId,
+          bookId: query.bookId,
         }),
       );
     },
@@ -55,6 +58,7 @@ export const reportsController = new Elysia({
         await calendar(user.id, query.month ?? today().slice(0, 7), {
           accountId: query.accountId,
           eventId: query.eventId,
+          bookId: query.bookId,
         }),
       ),
     {

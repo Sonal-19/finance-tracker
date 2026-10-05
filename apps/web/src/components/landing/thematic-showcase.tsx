@@ -663,7 +663,7 @@ export function ThematicShowcase() {
                     {/* Tag highlights */}
                     <div className="mt-5 space-y-2">
                       <p className="text-xs font-bold text-foreground">
-                        Indian Payment Methods Supported:
+                        Add your own payment methods:
                       </p>
                       <div className="flex flex-wrap gap-2">
                         {[

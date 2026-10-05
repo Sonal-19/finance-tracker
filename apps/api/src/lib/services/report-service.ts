@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { db } from "$/db";
 import { categoriesTable, transactionsTable } from "$/db/schema";
+import { countedBookCond } from "$/lib/services/book-service";
 import { toRupees } from "$/lib/utils/money";
 import {
   addDays,
@@ -16,8 +17,16 @@ const T = transactionsTable;
 const income = sql<string>`coalesce(sum(${T.amount}) filter (where ${T.type} = 'credit'), 0)`;
 const expense = sql<string>`coalesce(sum(${T.amount}) filter (where ${T.type} = 'debit'), 0)`;
 
-/** Optional narrowing of every report to one account and/or event. */
-export type ReportScope = { accountId?: number; eventId?: number };
+/**
+ * Optional narrowing of every report to one account, event and/or book.
+ * With no scope at all, only books that count in the user's totals are
+ * read; an account or event report shows everything in it.
+ */
+export type ReportScope = {
+  accountId?: number;
+  eventId?: number;
+  bookId?: number;
+};
 
 const inRange = (userId: number, r: Range, scope: ReportScope = {}) =>
   and(
@@ -26,6 +35,9 @@ const inRange = (userId: number, r: Range, scope: ReportScope = {}) =>
     lte(T.date, r.to),
     scope.accountId ? eq(T.accountId, scope.accountId) : undefined,
     scope.eventId ? eq(T.eventId, scope.eventId) : undefined,
+    scope.bookId || !(scope.accountId || scope.eventId)
+      ? countedBookCond(userId, scope.bookId)
+      : undefined,
   );
 
 async function totals(userId: number, r: Range, scope: ReportScope) {

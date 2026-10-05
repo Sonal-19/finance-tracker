@@ -2,8 +2,9 @@ import { sql } from "drizzle-orm";
 import { index, pgEnum, pgTable } from "drizzle-orm/pg-core";
 import { usersTable } from "../users/users.sql";
 import { accountsTable } from "./accounts.sql";
+import { booksTable } from "./books.sql";
 import { categoriesTable } from "./categories.sql";
-import { frequencyEnum, paymentMethodEnum, txnTypeEnum } from "./enums.sql";
+import { frequencyEnum, txnTypeEnum } from "./enums.sql";
 
 /** `paused` = switched off by the user, `completed` = ran past its end date. */
 export const recurringStatuses = ["active", "paused", "completed"] as const;
@@ -32,9 +33,10 @@ export const recurringRulesTable = pgTable(
       .integer("account_id")
       .notNull()
       .references(() => accountsTable.id),
-    paymentMethod: paymentMethodEnum("payment_method")
+    bookId: pg
+      .integer("book_id")
       .notNull()
-      .default("bank"),
+      .references(() => booksTable.id),
     note: pg.text(),
     frequency: frequencyEnum("frequency").notNull(),
     startDate: pg.date("start_date", { mode: "string" }).notNull(),
@@ -61,6 +63,7 @@ export const recurringRulesTable = pgTable(
       .where(sql`${t.status} = 'active'`),
     index("recurring_category_idx").on(t.categoryId),
     index("recurring_account_idx").on(t.accountId),
+    index("recurring_book_idx").on(t.bookId),
   ],
 );
 

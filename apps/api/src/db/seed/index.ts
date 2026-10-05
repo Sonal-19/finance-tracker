@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { db } from "$/db";
 import {
   accountsTable,
+  booksTable,
   budgetsTable,
   eventsTable,
   goalContributionsTable,
@@ -9,6 +10,7 @@ import {
   type InsertTransaction,
   recurringRulesTable,
   type SelectAccount,
+  type SelectBook,
   transactionsTable,
   transfersTable,
   usersTable,
@@ -45,7 +47,8 @@ async function mainSeed() {
     await tx.execute(sql`
       truncate table goal_contributions, goals, budgets, transactions,
         transfers, split_shares, settlements, splits, split_group_members,
-        split_groups, people, events, recurring_rules, accounts, categories,
+        split_groups, people, events, recurring_rules, accounts, books,
+        categories,
         email_otps, auths, users
       restart identity cascade
     `);
@@ -116,8 +119,38 @@ async function mainSeed() {
       SelectAccount,
     ];
     /** Cash payments come from the wallet of cash, card swipes from the credit card, the rest from HDFC. */
-    const accountFor = (pm: InsertTransaction["paymentMethod"]) =>
-      pm === "cash" ? cash.id : pm === "credit_card" ? card.id : hdfc.id;
+    type Via = "cash" | "upi" | "bank" | "debit_card" | "credit_card";
+    const accountFor = (via: Via) =>
+      via === "cash" ? cash.id : via === "credit_card" ? card.id : hdfc.id;
+
+    // Personal and Family count in the user's totals; Office is money
+    // paid on the company's behalf and claimed back.
+    const [personal, family, office] = (await tx
+      .insert(booksTable)
+      .values([
+        {
+          userId: user.id,
+          name: "Personal",
+          icon: "book-open",
+          color: "#2563eb",
+          defaultSince: new Date(),
+        },
+        {
+          userId: user.id,
+          name: "Family",
+          icon: "home",
+          color: "#db2777",
+        },
+        {
+          userId: user.id,
+          name: "Office",
+          icon: "briefcase",
+          color: "#d97706",
+          totals: "separate",
+          note: "Paid for work, claimed back",
+        },
+      ])
+      .returning()) as [SelectBook, SelectBook, SelectBook];
 
     const txns: InsertTransaction[] = [];
     const add = (
@@ -125,7 +158,7 @@ async function mainSeed() {
       name: string,
       rupees: number,
       date: string,
-      paymentMethod: InsertTransaction["paymentMethod"],
+      via: Via,
       note?: string,
       extra?: Partial<InsertTransaction>,
     ) =>
@@ -135,8 +168,8 @@ async function mainSeed() {
         categoryId: cat(name),
         amount: toPaise(rupees),
         date,
-        paymentMethod,
-        accountId: accountFor(paymentMethod),
+        accountId: accountFor(via),
+        bookId: personal.id,
         note: note ?? null,
         ...extra,
       });
@@ -240,6 +273,29 @@ async function mainSeed() {
       if (rand() > 0.94)
         add("debit", "Entertainment", between(200, 1200), d, "upi");
     }
+    add("debit", "Grocery", 2400, addDays(end, -6), "upi", "Ration for home", {
+      bookId: family.id,
+    });
+    add("debit", "Medical", 1350, addDays(end, -3), "upi", "Papa's medicines", {
+      bookId: family.id,
+    });
+    add(
+      "debit",
+      "Travel",
+      3200,
+      addDays(end, -9),
+      "credit_card",
+      "Client visit cab",
+      {
+        bookId: office.id,
+      },
+    );
+    add("debit", "Food & dining", 1800, addDays(end, -8), "upi", "Team lunch", {
+      bookId: office.id,
+    });
+    add("credit", "Refund", 3200, addDays(end, -2), "bank", "Cab claim paid", {
+      bookId: office.id,
+    });
     await tx.insert(transactionsTable).values(txns);
 
     // Monthly ATM withdrawal and credit-card bill payment.
@@ -275,7 +331,7 @@ async function mainSeed() {
         amount: toPaise(85_000),
         categoryId: cat("Salary"),
         accountId: hdfc.id,
-        paymentMethod: "bank",
+        bookId: personal.id,
         note: "Monthly salary",
         frequency: "monthly",
         startDate: start,
@@ -287,7 +343,7 @@ async function mainSeed() {
         amount: toPaise(18_000),
         categoryId: cat("Room rent"),
         accountId: hdfc.id,
-        paymentMethod: "upi",
+        bookId: personal.id,
         note: "Flat rent",
         frequency: "monthly",
         startDate: start,

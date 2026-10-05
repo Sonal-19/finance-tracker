@@ -30,7 +30,7 @@ import {
   useDeleteSettlement,
   usePerson,
 } from "@/hooks/use-splits";
-import { money, paymentLabel, shortDate } from "@/lib/format";
+import { money, shortDate } from "@/lib/format";
 import { relationLabel, reminderText, waPhone } from "@/lib/split";
 import { cn } from "@/lib/utils";
 import { useSplitSheet } from "@/stores/split-sheet-store";
@@ -212,11 +212,7 @@ function PersonPage() {
                         : `You paid ${first}`}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {[
-                        shortDate(a.date),
-                        paymentLabel(a.settlement.paymentMethod),
-                        a.settlement.note,
-                      ]
+                      {[shortDate(a.date), a.settlement.note]
                         .filter(Boolean)
                         .join(" · ")}
                     </p>

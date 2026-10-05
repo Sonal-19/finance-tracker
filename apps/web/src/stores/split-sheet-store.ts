@@ -13,6 +13,7 @@ export type SplitPrefill = {
     categoryName: string;
     accountId: number;
     eventId: number | null;
+    bookId: number;
   };
 };
 

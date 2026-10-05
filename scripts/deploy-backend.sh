@@ -34,6 +34,7 @@ trap '[ -n "$TUNNEL_PID" ] && kill "$TUNNEL_PID" 2>/dev/null || true' EXIT
 # Idempotent data migrations go first: db:push drops columns that left the
 # schema, so anything they held must already be moved.
 (cd apps/api && DATABASE_URL="$PROD_DB_URL" bun run db:migrate-statuses)
+(cd apps/api && DATABASE_URL="$PROD_DB_URL" bun run db:backfill-books)
 (cd apps/api && DATABASE_URL="$PROD_DB_URL" bun run db:push)
 [ -n "$TUNNEL_PID" ] && kill "$TUNNEL_PID" 2>/dev/null || true
 log "✅ Database schema up to date"

@@ -14,14 +14,8 @@ export type Period = "day" | "week" | "month" | "year" | "custom";
 export type TxnFilters = {
   type?: TxnType;
   categoryIds?: string;
-  paymentMethod?:
-    | "cash"
-    | "upi"
-    | "bank"
-    | "debit_card"
-    | "credit_card"
-    | "other";
   accountId?: number;
+  bookId?: number;
   /** 0 = not in any event */
   eventId?: number;
   from?: string;
@@ -68,6 +62,7 @@ export const useSummary = (q: {
   to?: string;
   accountId?: number;
   eventId?: number;
+  bookId?: number;
 }) =>
   useQuery({
     queryKey: ["reports", "summary", q],
@@ -77,11 +72,15 @@ export const useSummary = (q: {
   });
 export type Summary = NonNullable<ReturnType<typeof useSummary>["data"]>;
 
-export const useCalendar = (month: string, accountId?: number) =>
+export const useCalendar = (
+  month: string,
+  accountId?: number,
+  bookId?: number,
+) =>
   useQuery({
-    queryKey: ["reports", "calendar", month, accountId],
+    queryKey: ["reports", "calendar", month, accountId, bookId],
     queryFn: () =>
-      call(api.reports.calendar.get({ query: { month, accountId } })),
+      call(api.reports.calendar.get({ query: { month, accountId, bookId } })),
     placeholderData: keepPreviousData,
   });
 
@@ -102,10 +101,10 @@ export const useBalance = () =>
     queryFn: () => call(api.reports.balance.get()),
   });
 
-export const useBudgets = (month?: string) =>
+export const useBudgets = (month?: string, bookId?: number) =>
   useQuery({
-    queryKey: ["budgets", month ?? "current"],
-    queryFn: () => call(api.budgets.get({ query: month ? { month } : {} })),
+    queryKey: ["budgets", month ?? "current", bookId],
+    queryFn: () => call(api.budgets.get({ query: { month, bookId } })),
     placeholderData: keepPreviousData,
   });
 
@@ -139,6 +138,7 @@ function useInvalidate() {
             "recurring",
             "accounts",
             "events",
+            "books",
           ]
       ).map((k) => qc.invalidateQueries({ queryKey: [k] })),
     );
@@ -159,8 +159,8 @@ export type TxnInput = {
   fxRate?: number;
   categoryId: number;
   date: string;
-  paymentMethod: NonNullable<TxnFilters["paymentMethod"]>;
   accountId?: number;
+  bookId?: number;
   eventId?: number | null;
   note?: string | null;
 };
@@ -204,8 +204,8 @@ export function useDeleteTransaction() {
                 : { amount: data.amount }),
               categoryId: data.categoryId,
               date: String(data.date).slice(0, 10),
-              paymentMethod: data.paymentMethod,
               accountId: data.accountId,
+              bookId: data.bookId,
               eventId: data.eventId,
               note: data.note,
             }),
@@ -304,8 +304,8 @@ export type RecurringInput = {
   type: TxnType;
   amount: number;
   categoryId: number;
-  paymentMethod: NonNullable<TxnFilters["paymentMethod"]>;
   accountId?: number;
+  bookId?: number;
   note?: string | null;
   frequency: "daily" | "weekly" | "monthly" | "yearly";
   startDate: string;

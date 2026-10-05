@@ -13,6 +13,7 @@
     "db:seed": "bun src/db/seed/index.ts",
     "db:backfill-accounts": "bun src/db/scripts/backfill-accounts.ts",
     "db:backfill-usernames": "bun src/db/scripts/backfill-usernames.ts",
+    "db:backfill-books": "bun src/db/scripts/backfill-books.ts",
     "db:migrate-statuses": "bun src/db/scripts/migrate-statuses.ts",
     "db:make-admin": "bun src/db/scripts/make-admin.ts",
     "db:studio": "drizzle-kit studio --port 5577"

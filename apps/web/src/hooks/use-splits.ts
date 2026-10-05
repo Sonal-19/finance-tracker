@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, call, callMsg } from "@/lib/api";
-import type { PaymentMethod } from "@/lib/format";
 import type { Relation, SplitMethod } from "@/lib/split";
 
 /* ---------- queries ---------- */
@@ -156,7 +155,7 @@ export type SplitInput = {
   ownShare: "recorded" | "skipped";
   accountId?: number | null;
   eventId?: number | null;
-  paymentMethod?: PaymentMethod;
+  bookId?: number | null;
   note?: string | null;
   fromTransactionId?: number;
 };
@@ -198,7 +197,6 @@ export type SettlementInput = {
   direction: "received" | "paid";
   amount: number;
   date?: string;
-  paymentMethod?: PaymentMethod;
   note?: string | null;
 };
 

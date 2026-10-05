@@ -4,15 +4,8 @@ import { ResponsiveSheet } from "@/components/common/responsive-sheet";
 import { Segmented } from "@/components/common/segmented";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useAddSettlement } from "@/hooks/use-splits";
-import {
-  money,
-  PAYMENT_METHODS,
-  type PaymentMethod,
-  todayStr,
-} from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { money, todayStr } from "@/lib/format";
 
 export type SettleTarget = {
   personId: number;
@@ -34,7 +27,6 @@ export function SettleSheet({
   const [direction, setDirection] = useState<"received" | "paid">("received");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(todayStr());
-  const [method, setMethod] = useState<PaymentMethod>("upi");
   const [note, setNote] = useState("");
   const [last, setLast] = useState(value);
   if (value !== last) {
@@ -47,7 +39,6 @@ export function SettleSheet({
           : "",
       );
       setDate(todayStr());
-      setMethod("upi");
       setNote("");
     }
   }
@@ -78,7 +69,6 @@ export function SettleSheet({
               direction,
               amount: Number(amount),
               date,
-              paymentMethod: method,
               note: note.trim() || null,
             },
             { onSuccess: onClose },
@@ -115,26 +105,6 @@ export function SettleSheet({
             onChange={(e) => setDate(e.target.value)}
           />
         </Field>
-        <div className="space-y-2">
-          <Label>Paid via</Label>
-          <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1">
-            {PAYMENT_METHODS.map((p) => (
-              <button
-                key={p.value}
-                type="button"
-                onClick={() => setMethod(p.value)}
-                className={cn(
-                  "shrink-0 rounded-full border px-3.5 py-2 text-sm",
-                  method === p.value
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "hover:bg-muted",
-                )}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
         <Field label="Note (optional)" htmlFor="settle-note">
           <Input
             id="settle-note"

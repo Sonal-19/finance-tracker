@@ -1,6 +1,10 @@
 import { Check, Trash2, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { AccountPicker, EventPicker } from "@/components/app/pickers";
+import {
+  AccountPicker,
+  BookPicker,
+  EventPicker,
+} from "@/components/app/pickers";
 import { CategoryIcon } from "@/components/common/category-icon";
 import { confirm } from "@/components/common/confirm-dialog";
 import { Field } from "@/components/common/field";
@@ -12,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useActiveAccounts, useActiveEvent } from "@/hooks/use-accounts";
+import { useActiveBooks, useBookScope } from "@/hooks/use-books";
 import { useCategories } from "@/hooks/use-finance";
 import {
   useDeleteSplit,
@@ -46,6 +51,7 @@ type Form = {
   recordExpense: boolean;
   accountId: number | null;
   eventId: number | null;
+  bookId: number | null;
   note: string;
 };
 
@@ -62,6 +68,7 @@ const blank = (): Form => ({
   recordExpense: true,
   accountId: null,
   eventId: null,
+  bookId: null,
   note: "",
 });
 
@@ -80,6 +87,8 @@ export function SplitSheet() {
   const debitCats = categories.filter((c) => c.type === "debit");
   const { defaultAccount } = useActiveAccounts();
   const activeEvent = useActiveEvent();
+  const { defaultBook } = useActiveBooks();
+  const scope = useBookScope();
 
   // Initialise the form once per opening (new with prefill, or from the split being edited).
   useEffect(() => {
@@ -109,6 +118,7 @@ export function SplitSheet() {
         recordExpense: s.ownShare === "recorded",
         accountId: s.accountId,
         eventId: s.eventId,
+        bookId: s.bookId,
         note: s.note ?? "",
       });
       setReady(true);
@@ -116,6 +126,7 @@ export function SplitSheet() {
     }
     const f = blank();
     f.eventId = activeEvent?.id ?? null;
+    f.bookId = scope.bookId ?? null;
     if (prefill.groupId) {
       const g = groups.find((x) => x.id === prefill.groupId);
       f.groupId = prefill.groupId;
@@ -130,6 +141,7 @@ export function SplitSheet() {
       f.description = t.note || t.categoryName;
       f.accountId = t.accountId;
       f.eventId = t.eventId;
+      f.bookId = t.bookId;
     }
     setForm(f);
     setReady(true);
@@ -210,6 +222,7 @@ export function SplitSheet() {
         ownShare: form.recordExpense ? "recorded" : "skipped",
         accountId: form.accountId,
         eventId: form.eventId,
+        bookId: form.bookId,
         note: form.note.trim() || null,
         fromTransactionId: prefill.fromTransaction?.id,
       },
@@ -515,6 +528,12 @@ export function SplitSheet() {
                 label={payer === "me" ? "You paid from" : "Your share is from"}
                 value={form.accountId ?? defaultAccount?.id ?? null}
                 onChange={(id) => set("accountId", id)}
+              />
+            )}
+            {meIn && form.recordExpense && (
+              <BookPicker
+                value={form.bookId ?? defaultBook?.id ?? null}
+                onChange={(id) => set("bookId", id)}
               />
             )}
             <EventPicker

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Pause, Pencil, Play, Plus, Repeat, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { AccountPicker } from "@/components/app/pickers";
+import { AccountPicker, BookPicker } from "@/components/app/pickers";
 import { CategoryIcon } from "@/components/common/category-icon";
 import { confirm } from "@/components/common/confirm-dialog";
 import { Field } from "@/components/common/field";
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAccounts, useActiveAccounts } from "@/hooks/use-accounts";
+import { useActiveBooks } from "@/hooks/use-books";
 import {
   type RecurringInput,
   type RecurringRule,
@@ -21,14 +22,7 @@ import {
   useRecurring,
   useSaveRecurring,
 } from "@/hooks/use-finance";
-import {
-  money,
-  PAYMENT_METHODS,
-  paymentLabel,
-  shortDate,
-  todayStr,
-  ymd,
-} from "@/lib/format";
+import { money, shortDate, todayStr, ymd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/recurring")({
@@ -107,7 +101,6 @@ function RecurringPage() {
                 <p className="truncate text-xs text-muted-foreground">
                   {FREQ_LABEL[r.frequency]} ·{" "}
                   {accountName(r.accountId) && `${accountName(r.accountId)} · `}
-                  {paymentLabel(r.paymentMethod)} ·{" "}
                   {r.status === "active"
                     ? `next ${shortDate(r.nextRunDate)}`
                     : r.status === "completed"
@@ -190,12 +183,12 @@ function RecurringSheet({
 }) {
   const { data: categories = [] } = useCategories();
   const { defaultAccount } = useActiveAccounts();
+  const { defaultBook } = useActiveBooks();
   const save = useSaveRecurring();
   const blank: Form = {
     type: "debit",
     amount: "",
     categoryId: null,
-    paymentMethod: "upi",
     note: "",
     frequency: "monthly",
     startDate: todayStr(),
@@ -212,7 +205,7 @@ function RecurringSheet({
             amount: String(value.amount),
             categoryId: value.categoryId,
             accountId: value.accountId,
-            paymentMethod: value.paymentMethod,
+            bookId: value.bookId,
             note: value.note ?? "",
             frequency: value.frequency,
             startDate: ymd(value.startDate),
@@ -338,31 +331,14 @@ function RecurringSheet({
           </Field>
         </div>
         <AccountPicker
-          label={
-            form.type === "credit" ? "Received in account" : "Paid from account"
-          }
+          label={form.type === "credit" ? "Received in" : "Paid via"}
           value={form.accountId ?? defaultAccount?.id ?? null}
           onChange={(id) => setForm({ ...form, accountId: id })}
         />
-        <Field label="Payment method" htmlFor="rec-pm">
-          <select
-            id="rec-pm"
-            className="h-11 w-full rounded-md border border-input bg-transparent px-3 md:h-9"
-            value={form.paymentMethod}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                paymentMethod: e.target.value as Form["paymentMethod"],
-              })
-            }
-          >
-            {PAYMENT_METHODS.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </Field>
+        <BookPicker
+          value={form.bookId ?? defaultBook?.id ?? null}
+          onChange={(id) => setForm({ ...form, bookId: id })}
+        />
         <Field label="Label" htmlFor="rec-note">
           <Input
             id="rec-note"

@@ -26,6 +26,21 @@ export const ACCOUNT_TYPES: {
 export const accountTypeLabel = (t: string) =>
   ACCOUNT_TYPES.find((x) => x.value === t)?.label ?? t;
 
+export const BOOK_ICONS = [
+  "book-open",
+  "home",
+  "briefcase",
+  "users",
+  "heart",
+  "store",
+  "laptop",
+  "baby",
+  "car",
+  "plane",
+  "graduation-cap",
+  "wallet",
+] as const;
+
 export const EVENT_ICONS = [
   "party-popper",
   "flame",
