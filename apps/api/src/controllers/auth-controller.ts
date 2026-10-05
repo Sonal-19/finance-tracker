@@ -48,40 +48,21 @@ export const authController = new Elysia({
     });
   })
   .post(
-    "/register/send-otp",
-    async ({ body, status, request, server }) => {
+    "/register",
+    async ({ body, status, cookie, headers, request, server }) => {
       if (!registrationOpen()) return status(403, fail(SIGNUPS_CLOSED));
+      // No email verification while SMTP isn't set up, so cap sign-ups per IP.
       if (
-        !rateLimitService.hit(`otp:${clientIp(request, server)}`, 10, 3_600_000)
+        !rateLimitService.hit(
+          `register:${clientIp(request, server)}`,
+          10,
+          3_600_000,
+        )
       )
         return status(429, fail("Too many requests. Try again later."));
       const email = normalizeEmail(body.email);
       if (await findUserByEmail(email))
         return status(409, fail("An account with this email already exists"));
-      const res = await otpService.send(email, "register");
-      if (!res.ok) {
-        return res.reason === "cooldown"
-          ? status(429, fail(`Please wait ${res.retryInSec}s before resending`))
-          : status(502, fail("Could not send the email, try again"));
-      }
-      return ok({ email }, "Verification code sent to your email");
-    },
-    {
-      body: t.Object({
-        name: t.String({ minLength: 2, maxLength: 80 }),
-        email: tEmail,
-      }),
-    },
-  )
-  .post(
-    "/register/verify",
-    async ({ body, status, cookie, headers, request, server }) => {
-      if (!registrationOpen()) return status(403, fail(SIGNUPS_CLOSED));
-      const email = normalizeEmail(body.email);
-      if (await findUserByEmail(email))
-        return status(409, fail("An account with this email already exists"));
-      const check = await otpService.verify(email, "register", body.otp);
-      if (!check.ok) return status(400, fail(check.message));
 
       const passwordHash = await Bun.password.hash(body.password);
       const user = await db.transaction(async (tx) => {
@@ -104,7 +85,6 @@ export const authController = new Elysia({
       body: t.Object({
         name: t.String({ minLength: 2, maxLength: 80 }),
         email: tEmail,
-        otp: tOtp,
         password: tPassword,
       }),
     },

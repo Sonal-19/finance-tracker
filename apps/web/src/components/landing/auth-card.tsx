@@ -213,29 +213,15 @@ function LoginForm() {
 }
 
 function RegisterForm() {
-  const [step, setStep] = useState<"details" | "verify">("details");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
-  const [cooldown, setCooldown] = useCountdown();
   const onAuthed = useOnAuthed();
 
-  const sendOtp = useMutation({
+  const register = useMutation({
     mutationFn: () =>
-      callMsg(api.auth.register["send-otp"].post({ name, email })),
-    onSuccess: ({ message }) => {
-      toast.success(message);
-      setStep("verify");
-      setCooldown(60);
-    },
-    onError: (e) => toast.error(e.message),
-  });
-
-  const verify = useMutation({
-    mutationFn: () =>
-      callMsg(api.auth.register.verify.post({ name, email, otp, password })),
+      callMsg(api.auth.register.post({ name, email, password })),
     onSuccess: ({ data, message }) => onAuthed(data, message),
     onError: (e) => toast.error(e.message),
   });
@@ -269,133 +255,47 @@ function RegisterForm() {
     );
   }
 
-  if (step === "details") {
-    return (
-      <form
-        className="space-y-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          sendOtp.mutate();
-        }}
-      >
-        <Field label="Full name" htmlFor="reg-name">
-          <div className="relative">
-            <Input
-              id="reg-name"
-              autoComplete="name"
-              required
-              minLength={2}
-              maxLength={80}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Sonal Verma"
-              className="h-11 pl-9 transition-all focus-visible:ring-primary/40"
-            />
-            <User className="pointer-events-none absolute top-3 left-3 size-4 text-muted-foreground" />
-          </div>
-        </Field>
-
-        <Field
-          label="Email address"
-          htmlFor="reg-email"
-          hint="We will send a 6-digit verification code."
-        >
-          <div className="relative">
-            <Input
-              id="reg-email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              className="h-11 pl-9 transition-all focus-visible:ring-primary/40"
-            />
-            <Mail className="pointer-events-none absolute top-3 left-3 size-4 text-muted-foreground" />
-          </div>
-        </Field>
-
-        <Button
-          type="submit"
-          size="lg"
-          className="group relative h-11 w-full overflow-hidden bg-primary font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:bg-primary/95 hover:shadow-xl hover:shadow-primary/30 active:scale-[0.99]"
-          disabled={sendOtp.isPending}
-        >
-          {sendOtp.isPending ? (
-            <span className="flex items-center gap-2">
-              <Loader2 className="size-4 animate-spin" /> Sending security code…
-            </span>
-          ) : (
-            <span className="flex items-center gap-2">
-              <span>Continue to verification</span>
-              <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
-            </span>
-          )}
-        </Button>
-
-        <p className="text-center text-xs text-muted-foreground">
-          🔒 No spam. Your email is only used for account security.
-        </p>
-      </form>
-    );
-  }
-
   return (
     <form
       className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault();
         if (password !== confirmPw) return toast.error("Passwords don't match");
-        verify.mutate();
+        register.mutate();
       }}
     >
-      <div className="flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => setStep("details")}
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-3.5" /> Edit name or email
-        </button>
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-primary">
-          Step 2 of 2
-        </span>
-      </div>
-
-      <div className="flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs dark:bg-primary/10">
-        <MailCheck className="mt-0.5 size-4 shrink-0 text-primary" />
-        <p className="leading-relaxed">
-          6-digit OTP sent to{" "}
-          <b className="font-semibold text-foreground break-all">{email}</b>
-        </p>
-      </div>
-
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between">
-          <label className="text-xs font-semibold text-foreground">
-            Verification code
-          </label>
-          {cooldown > 0 ? (
-            <span className="text-xs text-muted-foreground">
-              Resend code in {cooldown}s
-            </span>
-          ) : (
-            <button
-              type="button"
-              className="text-xs font-semibold text-primary hover:underline"
-              disabled={sendOtp.isPending}
-              onClick={() => sendOtp.mutate()}
-            >
-              Resend OTP
-            </button>
-          )}
+      <Field label="Full name" htmlFor="reg-name">
+        <div className="relative">
+          <Input
+            id="reg-name"
+            autoComplete="name"
+            required
+            minLength={2}
+            maxLength={80}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Sonal Verma"
+            className="h-11 pl-9 transition-all focus-visible:ring-primary/40"
+          />
+          <User className="pointer-events-none absolute top-3 left-3 size-4 text-muted-foreground" />
         </div>
-        <div className="flex justify-center py-1">
-          <OtpInput value={otp} onChange={setOtp} autoFocus />
-        </div>
-      </div>
+      </Field>
 
-      <DevOtpHint onFill={() => setOtp("123456")} />
+      <Field label="Email address" htmlFor="reg-email">
+        <div className="relative">
+          <Input
+            id="reg-email"
+            type="email"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            className="h-11 pl-9 transition-all focus-visible:ring-primary/40"
+          />
+          <Mail className="pointer-events-none absolute top-3 left-3 size-4 text-muted-foreground" />
+        </div>
+      </Field>
 
       <Field
         label="Create strong password"
@@ -480,20 +380,17 @@ function RegisterForm() {
         size="lg"
         className="group relative h-11 w-full overflow-hidden bg-primary font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:bg-primary/95 hover:shadow-xl active:scale-[0.99]"
         disabled={
-          otp.length !== 6 ||
-          password.length < 8 ||
-          password !== confirmPw ||
-          verify.isPending
+          password.length < 8 || password !== confirmPw || register.isPending
         }
       >
-        {verify.isPending ? (
+        {register.isPending ? (
           <span className="flex items-center gap-2">
-            <Loader2 className="size-4 animate-spin" /> Finalizing setup…
+            <Loader2 className="size-4 animate-spin" /> Creating account…
           </span>
         ) : (
           <span className="flex items-center gap-2">
             <Check className="size-4" />
-            <span>Complete registration & launch</span>
+            <span>Create account</span>
           </span>
         )}
       </Button>
@@ -598,7 +495,7 @@ export function AuthCard({
           <Lock className="size-3 text-primary" /> 100% Private
         </span>
         <span className="inline-flex items-center gap-1">
-          <ShieldCheck className="size-3 text-primary" /> Verified OTP
+          <ShieldCheck className="size-3 text-primary" /> Encrypted
         </span>
         <span className="inline-flex items-center gap-1">
           <CheckCircle2 className="size-3 text-primary" /> No Third-Party Ads
