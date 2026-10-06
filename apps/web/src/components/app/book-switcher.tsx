@@ -25,7 +25,7 @@ export function BookSwitcher() {
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="Switch book"
-        className="flex h-9 max-w-44 items-center gap-2 rounded-full border bg-card pr-2.5 pl-1.5 text-sm font-medium outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex h-9 max-w-32 items-center sm:max-w-44 gap-2 rounded-full border bg-card pr-2.5 pl-1.5 text-sm font-medium outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
       >
         {book ? (
           <CategoryIcon

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { CategoryIcon, COLORS } from "@/components/common/category-icon";
+import { CollapsibleGrid } from "@/components/common/collapsible-grid";
 import { DateInput } from "@/components/common/date-input";
 import { Field } from "@/components/common/field";
 import { ResponsiveSheet } from "@/components/common/responsive-sheet";
@@ -103,7 +104,10 @@ export function EventSheet({
             />
           </Field>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <CollapsibleGrid
+          selectedIndex={EVENT_ICONS.indexOf(form.icon)}
+          className="grid-cols-[repeat(auto-fill,2.25rem)] gap-2"
+        >
           {EVENT_ICONS.map((i) => (
             <button
               key={i}
@@ -118,7 +122,7 @@ export function EventSheet({
               <CategoryIcon icon={i} color={form.color} size="sm" />
             </button>
           ))}
-        </div>
+        </CollapsibleGrid>
         <div className="flex flex-wrap gap-2">
           {COLORS.slice(0, 14).map((c) => (
             <button

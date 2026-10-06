@@ -30,15 +30,20 @@ export function StatCard({
   const up = (change ?? 0) >= 0;
   const good = up === goodWhenUp;
   return (
-    <div className={cn("rounded-2xl border bg-card p-4", className)}>
+    <div
+      className={cn(
+        "@container rounded-2xl border bg-card p-3 sm:p-4",
+        className,
+      )}
+    >
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-muted-foreground sm:text-sm">
+        <p className="min-w-0 truncate text-xs font-medium text-muted-foreground sm:text-sm">
           {label}
         </p>
         {icon && (
           <span
             className={cn(
-              "grid size-8 place-items-center rounded-full [&_svg]:size-4",
+              "grid size-7 shrink-0 place-items-center rounded-full sm:size-8 [&_svg]:size-4",
               tone === "income" && "bg-income/12 text-income",
               tone === "expense" && "bg-expense/12 text-expense",
               (!tone || tone === "neutral") &&
@@ -49,13 +54,16 @@ export function StatCard({
           </span>
         )}
       </div>
-      <p className="tabular mt-2 truncate text-xl font-bold sm:text-2xl">
+      <p
+        className="tabular mt-2 truncate text-base font-bold @[10rem]:text-lg @[12rem]:text-xl @[15rem]:text-2xl"
+        title={display ?? formatAmount(value)}
+      >
         {display ?? formatAmount(value)}
       </p>
       {change !== null && Number.isFinite(change) && (
         <p
           className={cn(
-            "mt-1 flex items-center gap-0.5 text-xs",
+            "mt-1 flex flex-wrap items-center gap-x-0.5 text-xs",
             good ? "text-income" : "text-expense",
           )}
         >

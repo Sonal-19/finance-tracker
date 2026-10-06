@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { SectionCard } from "@/components/app/section-card";
 import { CategoryIcon } from "@/components/common/category-icon";
+import { CollapsibleGrid } from "@/components/common/collapsible-grid";
 import { confirm } from "@/components/common/confirm-dialog";
 import { Field } from "@/components/common/field";
 import { PageHeader } from "@/components/common/page-header";
@@ -260,7 +261,11 @@ function CategoryBudgetSheet({
           );
         }}
       >
-        <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
+        <CollapsibleGrid
+          variant="tile"
+          selectedIndex={options.findIndex((c) => c.id === categoryId)}
+          className="grid-cols-4 gap-2 sm:grid-cols-5"
+        >
           {options.map((c) => (
             <button
               key={c.id}
@@ -279,7 +284,7 @@ function CategoryBudgetSheet({
               </span>
             </button>
           ))}
-        </div>
+        </CollapsibleGrid>
         <Field label="Monthly limit (₹)" htmlFor="budget-amount">
           <Input
             id="budget-amount"

@@ -2,6 +2,7 @@ import { ArrowDown } from "lucide-react";
 import { useState } from "react";
 import { AccountPicker } from "@/components/app/pickers";
 import { CategoryIcon, COLORS } from "@/components/common/category-icon";
+import { CollapsibleGrid } from "@/components/common/collapsible-grid";
 import { DateInput } from "@/components/common/date-input";
 import { Field } from "@/components/common/field";
 import { ResponsiveSheet } from "@/components/common/responsive-sheet";
@@ -158,7 +159,10 @@ export function AccountSheet({
         </Field>
         <div className="space-y-2">
           <Label>Look</Label>
-          <div className="flex flex-wrap gap-2">
+          <CollapsibleGrid
+            selectedIndex={ICONS.indexOf(form.icon)}
+            className="grid-cols-[repeat(auto-fill,2.25rem)] gap-2"
+          >
             {ICONS.map((i) => (
               <button
                 key={i}
@@ -173,7 +177,7 @@ export function AccountSheet({
                 <CategoryIcon icon={i} color={form.color} size="sm" />
               </button>
             ))}
-          </div>
+          </CollapsibleGrid>
           <div className="flex flex-wrap gap-2">
             {COLORS.slice(0, 12).map((c) => (
               <button

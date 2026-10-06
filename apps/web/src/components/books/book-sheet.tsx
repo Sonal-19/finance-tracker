@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { CategoryIcon, COLORS } from "@/components/common/category-icon";
+import { CollapsibleGrid } from "@/components/common/collapsible-grid";
 import { Field } from "@/components/common/field";
 import { ResponsiveSheet } from "@/components/common/responsive-sheet";
 import { Button } from "@/components/ui/button";
@@ -83,7 +84,10 @@ export function BookSheet({
             />
           </Field>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <CollapsibleGrid
+          selectedIndex={(BOOK_ICONS as readonly string[]).indexOf(form.icon)}
+          className="grid-cols-[repeat(auto-fill,2.25rem)] gap-2"
+        >
           {BOOK_ICONS.map((i) => (
             <button
               key={i}
@@ -98,7 +102,7 @@ export function BookSheet({
               <CategoryIcon icon={i} color={form.color} size="sm" />
             </button>
           ))}
-        </div>
+        </CollapsibleGrid>
         <div className="flex flex-wrap gap-2">
           {COLORS.slice(0, 14).map((c) => (
             <button

@@ -6,6 +6,7 @@ import {
   COLORS,
   ICON_NAMES,
 } from "@/components/common/category-icon";
+import { CollapsibleGrid } from "@/components/common/collapsible-grid";
 import { Field } from "@/components/common/field";
 import { PageHeader } from "@/components/common/page-header";
 import { ResponsiveSheet } from "@/components/common/responsive-sheet";
@@ -181,7 +182,10 @@ function CategorySheet({
         )}
         <div className="space-y-2">
           <Label>Icon</Label>
-          <div className="grid grid-cols-8 gap-1.5">
+          <CollapsibleGrid
+            selectedIndex={ICON_NAMES.indexOf(form.icon)}
+            className="grid-cols-8 gap-1.5"
+          >
             {ICON_NAMES.map((i) => (
               <button
                 key={i}
@@ -196,7 +200,7 @@ function CategorySheet({
                 <CategoryIcon icon={i} color={form.color} size="sm" />
               </button>
             ))}
-          </div>
+          </CollapsibleGrid>
         </div>
         <div className="space-y-2">
           <Label>Colour</Label>

@@ -7,6 +7,7 @@ import {
   EventPicker,
 } from "@/components/app/pickers";
 import { CategoryIcon } from "@/components/common/category-icon";
+import { CollapsibleGrid } from "@/components/common/collapsible-grid";
 import { confirm } from "@/components/common/confirm-dialog";
 import { DateInput } from "@/components/common/date-input";
 import { ResponsiveSheet } from "@/components/common/responsive-sheet";
@@ -392,7 +393,11 @@ export function TransactionSheet() {
 
         <div className="space-y-2">
           <Label>Category</Label>
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
+          <CollapsibleGrid
+            variant="tile"
+            selectedIndex={cats.findIndex((c) => c.id === form.categoryId)}
+            className="grid-cols-4 gap-2 sm:grid-cols-5"
+          >
             {cats.map((c) => (
               <button
                 key={c.id}
@@ -411,7 +416,7 @@ export function TransactionSheet() {
                 </span>
               </button>
             ))}
-          </div>
+          </CollapsibleGrid>
         </div>
 
         <div className="space-y-2">

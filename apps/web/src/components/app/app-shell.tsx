@@ -54,11 +54,10 @@ export function AppShell({
   const openNew = useTxnSheet((s) => s.openNew);
   const signOut = useSignOut();
   const nav = navFor(user);
-  const current = nav.find((n) => pathname.startsWith(n.to));
   const notice = usePublicConfig().data?.notice;
 
   return (
-    <div className="min-h-dvh md:grid md:grid-cols-[250px_1fr]">
+    <div className="min-h-dvh md:grid md:grid-cols-[220px_1fr] lg:grid-cols-[250px_1fr]">
       {/* Desktop / tablet sidebar */}
       <aside className="sticky top-0 hidden h-dvh flex-col border-r bg-card md:flex">
         <div className="px-5 py-5">
@@ -112,21 +111,27 @@ export function AppShell({
       <div className="flex min-w-0 flex-col">
         {/* Top bar */}
         <header className="pt-safe sticky top-0 z-30 border-b bg-background/85 backdrop-blur-lg">
-          <div className="flex h-14 items-center justify-between gap-3 px-4 md:h-16 md:px-8">
-            <div className="flex items-center gap-2 md:hidden">
-              <img src="/favicon.svg" alt="" className="size-7 rounded-md" />
-              <span className="font-semibold">
-                {current?.label ?? (pathname === "/more" ? "More" : "Finance")}
+          <div className="flex h-14 items-center justify-between gap-3 px-4 md:h-16 md:px-6 lg:px-8">
+            <div className="flex min-w-0 flex-1 items-center gap-2 md:hidden">
+              <img
+                src="/favicon.svg"
+                alt=""
+                className="size-7 shrink-0 rounded-md"
+              />
+              <span className="min-w-0 leading-tight">
+                <span className="block truncate font-semibold">
+                  @{user.username}
+                </span>
               </span>
             </div>
-            <p className="hidden text-sm text-muted-foreground md:block">
+            <p className="hidden min-w-0 truncate text-sm text-muted-foreground md:block">
               Hello,{" "}
               <span className="font-medium text-foreground">
-                {user.name.split(" ")[0]}
+                @{user.username}
               </span>{" "}
               👋
             </p>
-            <div className="flex min-w-0 items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
               <BookSwitcher />
               <UserMenu user={user} />
             </div>
@@ -136,14 +141,14 @@ export function AppShell({
         {notice && (
           <div
             role="status"
-            className="flex items-start gap-2 border-b bg-accent px-4 py-2.5 text-sm text-accent-foreground md:px-8"
+            className="flex items-start gap-2 border-b bg-accent px-4 py-2.5 text-sm text-accent-foreground md:px-6 lg:px-8"
           >
             <Megaphone className="mt-0.5 size-4 shrink-0" />
             <p className="min-w-0 whitespace-pre-line break-words">{notice}</p>
           </div>
         )}
 
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-4 pb-28 md:px-8 md:pt-6 md:pb-10">
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-4 pb-28 md:px-6 md:pt-6 md:pb-10 lg:px-8">
           {children}
         </main>
       </div>

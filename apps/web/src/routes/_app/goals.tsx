@@ -3,6 +3,7 @@ import { differenceInCalendarMonths, parseISO } from "date-fns";
 import { Minus, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { CategoryIcon, COLORS } from "@/components/common/category-icon";
+import { CollapsibleGrid } from "@/components/common/collapsible-grid";
 import { confirm } from "@/components/common/confirm-dialog";
 import { DateInput } from "@/components/common/date-input";
 import { Field } from "@/components/common/field";
@@ -286,7 +287,10 @@ function GoalSheet({
             />
           </Field>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <CollapsibleGrid
+          selectedIndex={GOAL_ICONS.indexOf(form.icon)}
+          className="grid-cols-[repeat(auto-fill,2.25rem)] gap-2"
+        >
           {GOAL_ICONS.map((i) => (
             <button
               key={i}
@@ -300,7 +304,7 @@ function GoalSheet({
               <CategoryIcon icon={i} color={form.color} size="sm" />
             </button>
           ))}
-        </div>
+        </CollapsibleGrid>
         <div className="flex flex-wrap gap-2">
           {COLORS.map((c) => (
             <button

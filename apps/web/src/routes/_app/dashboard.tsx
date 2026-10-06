@@ -19,7 +19,6 @@ import { EmptyState, PageLoader } from "@/components/common/states";
 import { TransactionRow } from "@/components/transactions/transaction-list";
 import { Button } from "@/components/ui/button";
 import { useActiveAccounts, useActiveEvent } from "@/hooks/use-accounts";
-import { useAuth } from "@/hooks/use-auth";
 import { useBookScope } from "@/hooks/use-books";
 import {
   useBalance,
@@ -30,7 +29,13 @@ import {
   useTransactions,
 } from "@/hooks/use-finance";
 import { useSplitSummary } from "@/hooks/use-splits";
-import { formatAmount, pct, shortDate, todayStr } from "@/lib/format";
+import {
+  formatAmount,
+  formatAmountShort,
+  pct,
+  shortDate,
+  todayStr,
+} from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useTxnSheet } from "@/stores/txn-sheet-store";
 
@@ -38,13 +43,7 @@ export const Route = createFileRoute("/_app/dashboard")({
   component: Dashboard,
 });
 
-function greeting() {
-  const h = new Date().getHours();
-  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
-}
-
 function Dashboard() {
-  const { user } = useAuth();
   const today = todayStr();
   const { bookId } = useBookScope();
   const month = useSummary({ period: "month", date: today, bookId });
@@ -88,21 +87,13 @@ function Dashboard() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-sm text-muted-foreground">{greeting()},</p>
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-            {user?.name.split(" ")[0]}
-          </h1>
-        </div>
-        <div className="hidden gap-2 md:flex">
-          <Button variant="outline" onClick={() => openNew("credit")}>
-            <ArrowDownLeft className="text-income" /> Add income
-          </Button>
-          <Button onClick={() => openNew("debit")}>
-            <Plus /> Add expense
-          </Button>
-        </div>
+      <div className="hidden justify-end gap-2 md:flex">
+        <Button variant="outline" onClick={() => openNew("credit")}>
+          <ArrowDownLeft className="text-income" /> Add income
+        </Button>
+        <Button onClick={() => openNew("debit")}>
+          <Plus /> Add expense
+        </Button>
       </div>
 
       {/* Hero balance card */}
@@ -116,17 +107,17 @@ function Dashboard() {
               ` · ${accounts.list.length} payment method${accounts.list.length > 1 ? "s" : ""}`}{" "}
             →
           </p>
-          <p className="tabular mt-1 text-3xl font-bold sm:text-4xl">
+          <p className="tabular mt-1 break-all text-[1.75rem] leading-tight font-bold sm:text-4xl">
             {formatAmount(balance.data?.balance ?? 0)}
           </p>
         </Link>
-        <div className="mt-5 grid grid-cols-3 gap-3 text-sm">
+        <div className="mt-5 grid grid-cols-3 gap-2 text-sm sm:gap-3">
           <div>
             <p className="flex items-center gap-1 text-white/75">
               <ArrowDownLeft className="size-3.5" /> Income
             </p>
             <p className="tabular font-semibold">
-              {formatAmount(m?.current.income ?? 0)}
+              <HeroAmount value={m?.current.income ?? 0} />
             </p>
           </div>
           <div>
@@ -134,7 +125,7 @@ function Dashboard() {
               <ArrowUpRight className="size-3.5" /> Spent
             </p>
             <p className="tabular font-semibold">
-              {formatAmount(m?.current.expense ?? 0)}
+              <HeroAmount value={m?.current.expense ?? 0} />
             </p>
           </div>
           <div>
@@ -201,7 +192,9 @@ function Dashboard() {
                 : ""}
             </p>
           </div>
-          <span className="text-sm font-medium text-primary">Open →</span>
+          <span className="shrink-0 text-sm font-medium text-primary">
+            Open →
+          </span>
         </Link>
       )}
 
@@ -327,7 +320,9 @@ function Dashboard() {
                   : "Share bills with friends & family"}
               </p>
             </div>
-            <span className="text-sm font-medium text-primary">Open →</span>
+            <span className="shrink-0 text-sm font-medium text-primary">
+              Open →
+            </span>
           </Link>
 
           <SectionCard
@@ -340,7 +335,7 @@ function Dashboard() {
           >
             {overall?.budget ? (
               <div className="space-y-2">
-                <div className="flex justify-between text-sm">
+                <div className="flex flex-wrap justify-between gap-x-2 text-sm">
                   <span className="tabular font-semibold">
                     {formatAmount(overall.spent)}
                   </span>
@@ -400,7 +395,7 @@ function Dashboard() {
                     </div>
                     <span
                       className={cn(
-                        "tabular text-sm font-semibold",
+                        "tabular shrink-0 text-sm font-semibold",
                         r.type === "credit" && "text-income",
                       )}
                     >
@@ -426,7 +421,9 @@ function Dashboard() {
                 {goals.data!.slice(0, 3).map((g) => (
                   <li key={g.id} className="space-y-1.5">
                     <div className="flex justify-between text-sm">
-                      <span className="font-medium">{g.name}</span>
+                      <span className="min-w-0 truncate font-medium">
+                        {g.name}
+                      </span>
                       <span className="tabular text-muted-foreground">
                         {pct((g.saved / g.target) * 100)}
                       </span>
@@ -475,5 +472,18 @@ function BudgetAlert({
           : `${Math.round((spent / budget) * 100)}% used — ${formatAmount(budget - spent)} left`}
       </p>
     </div>
+  );
+}
+
+/** Full amount from `sm` up; the compact ₹1.2L form on narrow phones so the
+ * three hero columns never overflow. */
+function HeroAmount({ value }: { value: number }) {
+  return (
+    <>
+      <span className="sm:hidden" title={formatAmount(value)}>
+        {formatAmountShort(value)}
+      </span>
+      <span className="hidden sm:inline">{formatAmount(value)}</span>
+    </>
   );
 }

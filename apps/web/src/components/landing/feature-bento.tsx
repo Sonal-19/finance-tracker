@@ -184,7 +184,7 @@ export function FeatureBento() {
               Unified Payment Rails
             </span>
           </div>
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+          <span className="hidden sm:flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
             <Check className="size-3" /> Zero Double-Count
           </span>
         </div>
@@ -235,7 +235,7 @@ export function FeatureBento() {
 
         {/* Live Tactile Transaction Pill */}
         <div className="mt-5 rounded-2xl border border-border/80 bg-muted/40 p-4 transition-all duration-300">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-card border border-border/80 shadow-xs">
                 <IndianRupee className="size-5 text-primary" />
@@ -261,7 +261,7 @@ export function FeatureBento() {
       </div>
 
       {/* Tactile Native App Footer */}
-      <div className="mt-6 flex items-center justify-between border-t border-border/70 pt-4 text-xs font-bold text-muted-foreground">
+      <div className="mt-6 flex flex-col sm:flex-row items-center justify-between border-t border-border/70 pt-4 text-xs font-bold text-muted-foreground">
         <span className="flex items-center gap-1 text-primary">
           <Zap className="size-3.5 fill-primary" /> Indian QR & UPI Optimized
         </span>
@@ -368,7 +368,7 @@ export function FeatureBento() {
             </div>
 
             {/* Live Status Badge */}
-            <div className="mt-3 flex items-center justify-between text-xs">
+            <div className="mt-3 flex flex-col sm:flex-row items-center justify-between text-xs">
               <span className="text-muted-foreground font-medium text-[11px]">
                 Threshold Status:
               </span>
