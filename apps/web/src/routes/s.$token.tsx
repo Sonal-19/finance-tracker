@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { format, parseISO } from "date-fns";
 import {
   CircleCheck,
   Clock,
@@ -20,6 +21,7 @@ import { Logo } from "@/components/common/logo";
 import { PasswordInput } from "@/components/common/password-input";
 import { EmptyState, PageLoader } from "@/components/common/states";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   type PublicShare,
@@ -130,13 +132,14 @@ function SharedBook({ token, data }: { token: string; data: PublicShare }) {
   const base = `/api/public/shares/${token}`;
   const period = periodLabel(data.fromDate, data.toDate);
 
-  const groups: { date: string; items: PublicShare["items"] }[] = [];
-  for (const t of items) {
-    const d = ymd(t.date);
-    const last = groups[groups.length - 1];
-    if (last?.date === d) last.items.push(t);
-    else groups.push({ date: d, items: [t] });
-  }
+  const [preview, setPreview] = useState<{ src: string; name: string } | null>(
+    null,
+  );
+  // Newest first, so a month's entries are one run of the list.
+  const monthSections = data.months.map((m) => ({
+    ...m,
+    days: groupByDay(items.filter((t) => ymd(t.date).startsWith(m.month))),
+  }));
 
   return (
     <>
@@ -224,9 +227,9 @@ function SharedBook({ token, data }: { token: string; data: PublicShare }) {
         />
       )}
 
-      <section className="space-y-3">
+      <section className="space-y-4">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="font-semibold">Entries</h2>
+          <h2 className="font-semibold">Month by month</h2>
           <div className="flex gap-1 print:hidden">
             <Button variant="ghost" size="sm" asChild>
               <a href={`${base}/export.csv`} download>
@@ -238,72 +241,17 @@ function SharedBook({ token, data }: { token: string; data: PublicShare }) {
             </Button>
           </div>
         </div>
-        {items.length === 0 ? (
+        {monthSections.length === 0 ? (
           <EmptyState title="Nothing here yet" />
         ) : (
-          groups.map((g) => (
-            <div
-              key={g.date}
-              className="overflow-hidden rounded-2xl border bg-card"
-            >
-              <p className="border-b bg-muted/40 px-4 py-2 text-xs font-semibold">
-                {dayLabel(g.date)}
-              </p>
-              <ul className="divide-y">
-                {g.items.map((t) => (
-                  <li key={t.id} className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <CategoryIcon
-                        icon={t.category.icon}
-                        color={t.category.color}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium">
-                          {t.type === "credit"
-                            ? "Payment received"
-                            : t.category.name}
-                        </p>
-                        {t.note && (
-                          <p className="text-xs break-words text-muted-foreground">
-                            {t.note}
-                          </p>
-                        )}
-                      </div>
-                      <span
-                        className={cn(
-                          "tabular shrink-0 font-semibold",
-                          t.type === "credit" && "text-income",
-                        )}
-                      >
-                        {t.type === "credit"
-                          ? formatSignedAmount(t.amount, "credit")
-                          : formatAmount(t.amount)}
-                      </span>
-                    </div>
-                    {t.attachments.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-2 pl-13 print:hidden">
-                        {t.attachments.map((a) => (
-                          <a
-                            key={a.id}
-                            href={`${base}/attachments/${a.id}/file`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs hover:bg-muted"
-                          >
-                            {a.contentType === "application/pdf" ? (
-                              <FileText className="size-3.5 shrink-0" />
-                            ) : (
-                              <ImageIcon className="size-3.5 shrink-0" />
-                            )}
-                            <span className="truncate">{a.fileName}</span>
-                          </a>
-                        ))}
-                      </div>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
+          monthSections.map((m) => (
+            <MonthCard
+              key={m.month}
+              month={m}
+              separate={due !== null}
+              base={base}
+              onPreview={setPreview}
+            />
           ))
         )}
         {data.truncated && (
@@ -314,10 +262,211 @@ function SharedBook({ token, data }: { token: string; data: PublicShare }) {
         )}
       </section>
 
+      <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
+        <DialogContent className="max-w-3xl p-3 sm:max-w-3xl">
+          <DialogTitle className="truncate pr-6 text-sm font-medium">
+            {preview?.name}
+          </DialogTitle>
+          {preview && (
+            <img
+              src={preview.src}
+              alt={preview.name}
+              className="max-h-[80dvh] w-full rounded-md object-contain"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
       <p className="pb-6 text-center text-xs text-muted-foreground print:hidden">
         A read-only page. Amounts are in Indian rupees.
       </p>
     </>
+  );
+}
+
+function groupByDay(items: PublicShare["items"]) {
+  const days: { date: string; items: PublicShare["items"] }[] = [];
+  for (const t of items) {
+    const d = ymd(t.date);
+    const last = days[days.length - 1];
+    if (last?.date === d) last.items.push(t);
+    else days.push({ date: d, items: [t] });
+  }
+  return days;
+}
+
+type MonthSection = PublicShare["months"][number] & {
+  days: ReturnType<typeof groupByDay>;
+};
+
+/** One month: what it came to, where the money went, then every entry. */
+function MonthCard({
+  month,
+  separate,
+  base,
+  onPreview,
+}: {
+  month: MonthSection;
+  /** Money paid back is tracked too, so show it beside the spending. */
+  separate: boolean;
+  base: string;
+  onPreview: (f: { src: string; name: string }) => void;
+}) {
+  const top = month.categories[0]?.amount ?? 0;
+  return (
+    <div className="overflow-hidden rounded-2xl border bg-card">
+      <div className="flex items-end justify-between gap-3 border-b px-4 py-3">
+        <div>
+          <h3 className="font-semibold">
+            {format(parseISO(`${month.month}-01`), "MMMM yyyy")}
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            {month.count} {month.count === 1 ? "entry" : "entries"}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-muted-foreground">Spent</p>
+          <p className="tabular text-lg font-bold">
+            {formatAmount(month.spent)}
+          </p>
+          {separate && month.received > 0 && (
+            <p className="tabular text-xs font-medium text-income">
+              {formatSignedAmount(month.received, "credit")} paid back
+            </p>
+          )}
+        </div>
+      </div>
+
+      {month.categories.length > 0 && (
+        <ul className="space-y-2 border-b px-4 py-3">
+          {month.categories.map((c) => (
+            <li key={c.categoryId}>
+              <div className="flex items-center gap-2 text-sm">
+                <CategoryIcon icon={c.icon} color={c.color} size="sm" />
+                <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                <span className="tabular shrink-0 text-xs text-muted-foreground">
+                  {month.spent > 0
+                    ? `${Math.round((c.amount / month.spent) * 100)}%`
+                    : ""}
+                </span>
+                <span className="tabular w-24 shrink-0 text-right font-medium">
+                  {formatAmount(c.amount)}
+                </span>
+              </div>
+              <div className="mt-1 ml-8 h-1.5 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${top > 0 ? Math.max((c.amount / top) * 100, 2) : 0}%`,
+                    backgroundColor: c.color,
+                  }}
+                />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {month.days.map((g) => (
+        <div key={g.date}>
+          <p className="border-b bg-muted/40 px-4 py-2 text-xs font-semibold">
+            {dayLabel(g.date)}
+          </p>
+          <ul className="divide-y border-b last:border-b-0">
+            {g.items.map((t) => (
+              <li key={t.id} className="px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <CategoryIcon
+                    icon={t.category.icon}
+                    color={t.category.color}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">
+                      {t.type === "credit"
+                        ? "Payment received"
+                        : t.category.name}
+                    </p>
+                    {t.note && (
+                      <p className="text-xs break-words text-muted-foreground">
+                        {t.note}
+                      </p>
+                    )}
+                  </div>
+                  <span
+                    className={cn(
+                      "tabular shrink-0 font-semibold",
+                      t.type === "credit" && "text-income",
+                    )}
+                  >
+                    {t.type === "credit"
+                      ? formatSignedAmount(t.amount, "credit")
+                      : formatAmount(t.amount)}
+                  </span>
+                </div>
+                {t.attachments.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2 pl-13">
+                    {t.attachments.map((a) => (
+                      <AttachmentPreview
+                        key={a.id}
+                        file={a}
+                        src={`${base}/attachments/${a.id}/file`}
+                        onPreview={onPreview}
+                      />
+                    ))}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** A bill: photos show as a small thumbnail that opens larger, PDFs as a
+ * link. A photo that fails to load falls back to the link too. */
+function AttachmentPreview({
+  file,
+  src,
+  onPreview,
+}: {
+  file: PublicShare["items"][number]["attachments"][number];
+  src: string;
+  onPreview: (f: { src: string; name: string }) => void;
+}) {
+  const [broken, setBroken] = useState(false);
+  if (file.contentType.startsWith("image/") && !broken)
+    return (
+      <button
+        type="button"
+        aria-label={`View ${file.fileName}`}
+        onClick={() => onPreview({ src, name: file.fileName })}
+        className="size-20 overflow-hidden rounded-lg border bg-muted transition hover:opacity-90 print:size-24"
+      >
+        <img
+          src={src}
+          alt={file.fileName}
+          loading="lazy"
+          onError={() => setBroken(true)}
+          className="size-full object-cover"
+        />
+      </button>
+    );
+  return (
+    <a
+      href={src}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs hover:bg-muted print:hidden"
+    >
+      {file.contentType === "application/pdf" ? (
+        <FileText className="size-3.5 shrink-0" />
+      ) : (
+        <ImageIcon className="size-3.5 shrink-0" />
+      )}
+      <span className="truncate">{file.fileName}</span>
+    </a>
   );
 }
 
@@ -339,7 +488,7 @@ function PayCard({
     <section className="rounded-3xl border bg-card p-5 print:hidden">
       <h2 className="font-semibold">Pay {upi.payeeName}</h2>
       <p className="text-sm text-muted-foreground">
-        Scan with any UPI app, or open one on this phone.
+        Scan this QR code with any UPI app.
       </p>
       <div className="mt-4 flex flex-col items-center gap-4 sm:flex-row sm:items-start">
         {/* QR codes need dark-on-light to scan, whatever the theme. */}
@@ -363,12 +512,14 @@ function PayCard({
               }}
             />
           </Field>
-          <Button size="lg" className="w-full" asChild>
-            <a href={link}>
-              <Smartphone /> Pay
-              {amount > 0 ? ` ${formatAmount(amount)}` : ""} with a UPI app
-            </a>
-          </Button>
+          {upi.button === "shown" && (
+            <Button size="lg" className="w-full" asChild>
+              <a href={link}>
+                <Smartphone /> Pay
+                {amount > 0 ? ` ${formatAmount(amount)}` : ""} with a UPI app
+              </a>
+            </Button>
+          )}
           <button
             type="button"
             className="flex w-full items-center justify-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"

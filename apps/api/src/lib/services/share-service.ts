@@ -92,9 +92,67 @@ const visibleCond = (share: SelectBookShare, book: SelectBook) =>
     book.totals === "separate" ? undefined : eq(T.type, "debit"),
   );
 
+type MonthRow = {
+  month: string;
+  type: "debit" | "credit";
+  categoryId: number;
+  name: string;
+  icon: string;
+  color: string;
+  amount: string;
+  count: number;
+};
+
+/** Per month (newest first): what was spent and received, and the spending
+ * by category (biggest first). */
+function monthBreakdown(rows: MonthRow[]) {
+  const months = new Map<
+    string,
+    {
+      month: string;
+      spent: number;
+      received: number;
+      count: number;
+      categories: (Omit<MonthRow, "month" | "type" | "amount"> & {
+        amount: number;
+      })[];
+    }
+  >();
+  for (const r of rows) {
+    const m = months.get(r.month) ?? {
+      month: r.month,
+      spent: 0,
+      received: 0,
+      count: 0,
+      categories: [],
+    };
+    const amount = amountOf(r.amount);
+    m.count += r.count;
+    if (r.type === "credit") m.received += amount;
+    else {
+      m.spent += amount;
+      m.categories.push({
+        categoryId: r.categoryId,
+        name: r.name,
+        icon: r.icon,
+        color: r.color,
+        amount,
+        count: r.count,
+      });
+    }
+    months.set(r.month, m);
+  }
+  return [...months.values()]
+    .map((m) => ({
+      ...m,
+      categories: m.categories.sort((a, b) => b.amount - a.amount),
+    }))
+    .sort((a, b) => b.month.localeCompare(a.month));
+}
+
 export async function shareEntries(share: SelectBookShare, book: SelectBook) {
   const where = visibleCond(share, book);
-  const [rows, [sums]] = await Promise.all([
+  const [rows, [sums], monthRows] = await Promise.all([
     db
       .select({
         id: T.id,
@@ -121,6 +179,27 @@ export async function shareEntries(share: SelectBookShare, book: SelectBook) {
       })
       .from(T)
       .where(where),
+    // One row per month, type and category: the whole period, not just the
+    // rows listed.
+    db
+      .select({
+        month: sql<string>`to_char(${T.date}, 'YYYY-MM')`,
+        type: T.type,
+        categoryId: categoriesTable.id,
+        name: categoriesTable.name,
+        icon: categoriesTable.icon,
+        color: categoriesTable.color,
+        amount: sql<string>`sum(${T.amount})`,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(T)
+      .innerJoin(categoriesTable, eq(categoriesTable.id, T.categoryId))
+      .where(where)
+      .groupBy(
+        sql`to_char(${T.date}, 'YYYY-MM')`,
+        T.type,
+        categoriesTable.id,
+      ),
   ]);
   const items = rows.slice(0, SHARE_ROW_LIMIT);
   const files =
@@ -130,6 +209,7 @@ export async function shareEntries(share: SelectBookShare, book: SelectBook) {
   const spent = amountOf(sums?.spent);
   const received = amountOf(sums?.received);
   return {
+    months: monthBreakdown(monthRows),
     items: items.map((i) => ({
       ...i,
       amount: amountOf(i.amount),

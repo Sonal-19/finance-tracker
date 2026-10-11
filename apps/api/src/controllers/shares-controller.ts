@@ -7,6 +7,7 @@ import {
   categoriesTable,
   paymentClaimsTable,
   shareAttachmentModes,
+  sharePayButtonModes,
   transactionsTable,
 } from "$/db/schema";
 import { IS_PROD } from "$/env";
@@ -53,6 +54,7 @@ const shareBody = t.Object({
   upiId: t.Optional(t.Nullable(t.String({ pattern: UPI_ID_PATTERN }))),
   payeeName: t.Optional(t.Nullable(t.String({ maxLength: 60 }))),
   attachments: t.Optional(tEnum(shareAttachmentModes)),
+  payButton: t.Optional(tEnum(sharePayButtonModes)),
 });
 
 type ShareBody = typeof shareBody.static;
@@ -76,6 +78,7 @@ async function shareValues(body: ShareBody) {
       payeeName: body.payeeName?.trim() || null,
     }),
     ...(body.attachments && { attachments: body.attachments }),
+    ...(body.payButton && { payButton: body.payButton }),
     // A new secret with every password change locks all browsers again.
     ...(body.password !== undefined && {
       passwordHash: body.password
@@ -323,7 +326,11 @@ export const publicSharesController = new Elysia({
         toDate: share.toDate,
         attachments: share.attachments,
         upi: share.upiId
-          ? { id: share.upiId, payeeName: share.payeeName ?? ownerName }
+          ? {
+              id: share.upiId,
+              payeeName: share.payeeName ?? ownerName,
+              button: share.payButton,
+            }
           : null,
         /** "I've paid" reports the owner hasn't answered yet. */
         pendingClaims: await pendingClaimsOfShare(share.id),

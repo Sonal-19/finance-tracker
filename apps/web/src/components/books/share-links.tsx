@@ -58,6 +58,7 @@ type Form = {
   upiId: string;
   payeeName: string;
   showFiles: boolean;
+  payButton: boolean;
 };
 
 function ShareSheet({
@@ -85,6 +86,7 @@ function ShareSheet({
     upiId: "",
     payeeName: "",
     showFiles: false,
+    payButton: false,
   });
   const set = <K extends keyof Form>(k: K, v: Form[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -101,6 +103,7 @@ function ShareSheet({
       upiId: (editing ? editing.upiId : lastUpi?.upiId) ?? "",
       payeeName: (editing ? editing.payeeName : lastUpi?.payeeName) ?? "",
       showFiles: editing?.attachments === "shown",
+      payButton: editing?.payButton === "shown",
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editing]);
@@ -126,6 +129,7 @@ function ShareSheet({
         upiId: upiId || null,
         payeeName: form.payeeName.trim() || null,
         attachments: form.showFiles ? "shown" : "hidden",
+        payButton: form.payButton ? "shown" : "hidden",
         ...(form.password
           ? { password: form.password }
           : form.removePassword
@@ -276,11 +280,29 @@ function ShareSheet({
           </Field>
         </div>
 
+        {upiId && (
+          <label className="flex items-center justify-between gap-3 rounded-xl border p-3 text-sm">
+            <span>
+              <span className="block font-medium">
+                Add a "Pay with a UPI app" button
+              </span>
+              <span className="block text-xs text-muted-foreground">
+                Many apps refuse payments started from a link, so by default
+                they only get the QR code to scan.
+              </span>
+            </span>
+            <Switch
+              checked={form.payButton}
+              onCheckedChange={(v) => set("payButton", v)}
+            />
+          </label>
+        )}
+
         <label className="flex items-center justify-between gap-3 rounded-xl border p-3 text-sm">
           <span>
             <span className="block font-medium">Show attached bills</span>
             <span className="block text-xs text-muted-foreground">
-              Lets them open the photos and PDFs on each entry.
+              Shows a small preview of each photo and lets them open the PDFs.
             </span>
           </span>
           <Switch

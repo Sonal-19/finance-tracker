@@ -13,6 +13,16 @@ export const shareAttachmentModeEnum = pgEnum(
   shareAttachmentModes,
 );
 
+/** Whether the page also has a button that opens a UPI app on the viewer's
+ * phone. Many apps refuse links opened this way, so the QR code is the
+ * default and the button is the link maker's choice. */
+export const sharePayButtonModes = ["hidden", "shown"] as const;
+export type SharePayButtonMode = (typeof sharePayButtonModes)[number];
+export const sharePayButtonModeEnum = pgEnum(
+  "share_pay_button_mode",
+  sharePayButtonModes,
+);
+
 /**
  * A public, read-only link to one book's entries (`/s/<token>`), so whoever
  * the money was spent for can review it and pay it back. Deleting the row
@@ -51,6 +61,7 @@ export const bookSharesTable = pgTable(
     upiId: pg.text("upi_id"),
     /** Name shown in the UPI app; null = the owner's name. */
     payeeName: pg.text("payee_name"),
+    payButton: sharePayButtonModeEnum("pay_button").notNull().default("hidden"),
     attachments: shareAttachmentModeEnum("attachments")
       .notNull()
       .default("hidden"),

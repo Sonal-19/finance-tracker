@@ -23,6 +23,7 @@ export type ShareInput = {
   upiId?: string | null;
   payeeName?: string | null;
   attachments?: Share["attachments"];
+  payButton?: Share["payButton"];
 };
 
 const onError = (e: Error) => toast.error(e.message);
