@@ -1,4 +1,9 @@
-import { eachDayOfInterval, format, parseISO } from "date-fns";
+import {
+  eachDayOfInterval,
+  eachMonthOfInterval,
+  format,
+  parseISO,
+} from "date-fns";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import {
@@ -22,21 +27,22 @@ const TOP_CATEGORIES = 4;
 export function PeriodSummary({
   summary,
   type,
-  chartRange,
+  chart,
   compareLabel,
   selectedCategoryIds,
-  onPickDay,
+  onPickBar,
   onToggleCategory,
 }: {
   summary: TxnSummary;
   /** The list's type filter; income is the headline only for "credit". */
   type?: TxnType;
-  /** Days to draw bars for; null when the period is too long or open-ended. */
-  chartRange: { from: string; to: string } | null;
-  /** What `summary.previous` covers, e.g. "September" or "1–11 Sep". */
+  /** Dates to draw a bar per day or month for; null when there is nothing to break down. */
+  chart: { from: string; to: string; unit: "day" | "month" } | null;
+  /** What `summary.previous` covers, e.g. "September", "1–11 Sep" or "yesterday". */
   compareLabel?: string;
   selectedCategoryIds: number[];
-  onPickDay: (date: string) => void;
+  /** `key` is the bar's day (yyyy-MM-dd) or month (yyyy-MM). */
+  onPickBar: (key: string) => void;
   onToggleCategory: (id: number) => void;
 }) {
   const { totals, previous } = summary;
@@ -47,16 +53,24 @@ export function PeriodSummary({
   // Spending more is the bad direction, earning more the good one.
   const worse = kind === "expense" ? main > before : main < before;
 
-  const byDate = new Map(summary.days.map((d) => [d.date, d[kind]]));
-  const bars = chartRange
-    ? eachDayOfInterval({
-        start: parseISO(chartRange.from),
-        end: parseISO(chartRange.to),
-      }).map((d) => {
-        const date = format(d, "yyyy-MM-dd");
-        return { date, amount: byDate.get(date) ?? 0 };
-      })
+  const byMonth = chart?.unit === "month";
+  const keyOf = (d: Date) => format(d, byMonth ? "yyyy-MM" : "yyyy-MM-dd");
+  const byKey = new Map<string, number>();
+  for (const d of summary.days) {
+    const key = byMonth ? d.date.slice(0, 7) : d.date;
+    byKey.set(key, (byKey.get(key) ?? 0) + d[kind]);
+  }
+  const interval = chart && {
+    start: parseISO(chart.from),
+    end: parseISO(chart.to),
+  };
+  const bars = interval
+    ? (byMonth
+        ? eachMonthOfInterval(interval)
+        : eachDayOfInterval(interval)
+      ).map((d) => ({ key: keyOf(d), amount: byKey.get(keyOf(d)) ?? 0 }))
     : [];
+  const tick = byMonth ? "MMM" : bars.length <= 7 ? "EEE" : "d";
   const categories = summary.categories
     .filter((c) => c.type === (kind === "income" ? "credit" : "debit"))
     .slice(0, TOP_CATEGORIES);
@@ -129,17 +143,18 @@ export function PeriodSummary({
           {bars.length > 1 && (
             <div>
               <p className="mb-1 text-xs text-muted-foreground">
-                {kind === "expense" ? "Spent" : "Received"} each day
+                {kind === "expense" ? "Spent" : "Received"} each{" "}
+                {byMonth ? "month" : "day"}
               </p>
               <div className="h-28">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={bars} barCategoryGap="18%">
                     <XAxis
-                      dataKey="date"
+                      dataKey="key"
                       tickLine={false}
                       axisLine={false}
                       tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                      tickFormatter={(d: string) => format(parseISO(d), "d")}
+                      tickFormatter={(k: string) => format(parseISO(k), tick)}
                       interval="preserveStartEnd"
                       minTickGap={12}
                     />
@@ -147,8 +162,11 @@ export function PeriodSummary({
                       cursor={{ fill: "var(--muted)", opacity: 0.6 }}
                       content={
                         <ChartTooltip
-                          labelFormatter={(d) =>
-                            format(parseISO(d), "EEE, d MMM yyyy")
+                          labelFormatter={(k) =>
+                            format(
+                              parseISO(k),
+                              byMonth ? "MMMM yyyy" : "EEE, d MMM yyyy",
+                            )
                           }
                         />
                       }
@@ -162,7 +180,7 @@ export function PeriodSummary({
                       className="cursor-pointer"
                       isAnimationActive={false}
                       onClick={(bar) =>
-                        onPickDay((bar.payload as { date: string }).date)
+                        onPickBar((bar.payload as { key: string }).key)
                       }
                     />
                   </BarChart>

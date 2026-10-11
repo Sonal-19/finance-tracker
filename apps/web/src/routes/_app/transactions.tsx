@@ -1,18 +1,28 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
+  addDays,
   addMonths,
+  addWeeks,
+  addYears,
   differenceInCalendarDays,
   endOfMonth,
+  endOfWeek,
+  endOfYear,
   format,
   parseISO,
+  startOfMonth,
+  startOfWeek,
+  startOfYear,
 } from "date-fns";
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Download,
   Filter,
   Plus,
   Search as SearchIcon,
+  Undo2,
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -25,6 +35,14 @@ import { EmptyState, ErrorState, PageLoader } from "@/components/common/states";
 import { PeriodSummary } from "@/components/transactions/period-summary";
 import { GroupedTransactions } from "@/components/transactions/transaction-list";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAccounts, useEvents } from "@/hooks/use-accounts";
@@ -36,13 +54,19 @@ import {
   useTransactionsPage,
   useTransactionsSummary,
 } from "@/hooks/use-finance";
-import { shortDate, todayStr } from "@/lib/format";
+import { dayLabel, shortDate, todayStr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useTxnSheet } from "@/stores/txn-sheet-store";
 
+const MODES = ["day", "week", "month", "year"] as const;
+type Mode = (typeof MODES)[number];
+type Range = { from: string; to: string };
+
 type Search = TxnFilters & {
-  /** "yyyy-MM", or "all" for every month. Absent = the current month. A from/to range wins over it. */
-  month?: string;
+  /** How much is listed at once. Absent = a month; "all" = everything. A from/to range wins over it. */
+  period?: Exclude<Mode, "month"> | "all";
+  /** First day of the period shown. Absent = the period today is in. */
+  date?: string;
   /** 1-based; only there when a period has more than one page. */
   page?: number;
 };
@@ -51,30 +75,107 @@ type Search = TxnFilters & {
 const MAX_CHART_DAYS = 62;
 
 const ymdOf = (d: Date) => format(d, "yyyy-MM-dd");
-const monthStart = (month: string) => parseISO(`${month}-01`);
-const monthRange = (month: string) => ({
-  from: `${month}-01`,
-  to: ymdOf(endOfMonth(monthStart(month))),
-});
+const same = (d: Date) => d;
+const MODE: Record<
+  Mode,
+  {
+    label: string;
+    short: string;
+    current: string;
+    start: (d: Date) => Date;
+    end: (d: Date) => Date;
+    step: (d: Date, n: number) => Date;
+  }
+> = {
+  day: {
+    label: "Daily",
+    short: "Day",
+    current: "Today",
+    start: same,
+    end: same,
+    step: addDays,
+  },
+  // Weeks run Monday to Sunday, as in Reports.
+  week: {
+    label: "Weekly",
+    short: "Week",
+    current: "This week",
+    start: (d) => startOfWeek(d, { weekStartsOn: 1 }),
+    end: (d) => endOfWeek(d, { weekStartsOn: 1 }),
+    step: addWeeks,
+  },
+  month: {
+    label: "Monthly",
+    short: "Month",
+    current: "This month",
+    start: startOfMonth,
+    end: endOfMonth,
+    step: addMonths,
+  },
+  year: {
+    label: "Yearly",
+    short: "Year",
+    current: "This year",
+    start: startOfYear,
+    end: endOfYear,
+    step: addYears,
+  },
+};
+
+/** The day, week, month or year that `date` falls in. */
+function periodRange(mode: Mode, date: string): Range {
+  const d = parseISO(date);
+  return { from: ymdOf(MODE[mode].start(d)), to: ymdOf(MODE[mode].end(d)) };
+}
+
+function spanLabel(mode: Mode, r: Range, today: string) {
+  const from = parseISO(r.from);
+  switch (mode) {
+    case "day":
+      return dayLabel(r.from);
+    case "week": {
+      // The year is left out for this year's weeks so the label fits a phone.
+      const to = parseISO(r.to);
+      const end = r.to.slice(0, 4) === today.slice(0, 4) ? "d MMM" : "d MMM yy";
+      return `${format(from, r.from.slice(0, 7) === r.to.slice(0, 7) ? "d" : "d MMM")} – ${format(to, end)}`;
+    }
+    case "month":
+      return format(from, "MMMM yyyy");
+    case "year":
+      return format(from, "yyyy");
+  }
+}
 
 /**
- * What a month is compared with: the whole month before, or, while the month
- * is still running, the same days of the month before.
+ * What a period is compared with: the whole period before, or, while the
+ * period is still running, the same number of days at the start of that one.
  */
-function previousSpan(month: string, today: string) {
-  const start = addMonths(monthStart(month), -1);
-  const lastDay = endOfMonth(start).getDate();
-  const running = month === today.slice(0, 7);
-  const day = running ? Math.min(Number(today.slice(8, 10)), lastDay) : lastDay;
-  return {
-    from: ymdOf(start),
-    to: `${format(start, "yyyy-MM")}-${String(day).padStart(2, "0")}`,
-    label: !running
-      ? format(start, "MMMM")
-      : day === 1
-        ? `1 ${format(start, "MMM")}`
-        : `1–${day} ${format(start, "MMM")}`,
-  };
+function previousSpan(mode: Mode, r: Range, today: string) {
+  const start = MODE[mode].step(parseISO(r.from), -1);
+  const whole = MODE[mode].end(start);
+  const running = r.from <= today && today < r.to;
+  const sameDays = addDays(
+    start,
+    differenceInCalendarDays(parseISO(today), parseISO(r.from)),
+  );
+  const end = running && sameDays < whole ? sameDays : whole;
+  const from = ymdOf(start);
+  const label = {
+    day: () => {
+      const l = dayLabel(from);
+      return l === "Yesterday" || l === "Today" ? l.toLowerCase() : l;
+    },
+    week: () => (running ? "the same days last week" : "the week before"),
+    month: () =>
+      !running
+        ? format(start, "MMMM")
+        : end.getDate() === 1
+          ? `1 ${format(start, "MMM")}`
+          : `1–${end.getDate()} ${format(start, "MMM")}`,
+    year: () =>
+      running ? `1 Jan – ${format(end, "d MMM yyyy")}` : format(start, "yyyy"),
+  }[mode]();
+  return { from, to: ymdOf(end), label };
 }
 
 export const Route = createFileRoute("/_app/transactions")({
@@ -88,7 +189,8 @@ export const Route = createFileRoute("/_app/transactions")({
         ? n
         : undefined;
     };
-    const month = str("month");
+    const period = str("period");
+    const date = str("date");
     const page = num("page");
     return {
       accountId: num("accountId") || undefined,
@@ -98,10 +200,14 @@ export const Route = createFileRoute("/_app/transactions")({
       from: str("from"),
       to: str("to"),
       q: str("q"),
-      month:
-        month && /^(\d{4}-(0[1-9]|1[0-2])|all)$/.test(month)
-          ? month
+      period:
+        period === "day" ||
+        period === "week" ||
+        period === "year" ||
+        period === "all"
+          ? period
           : undefined,
+      date: date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : undefined,
       page: page && page > 1 ? page : undefined,
     };
   },
@@ -109,11 +215,17 @@ export const Route = createFileRoute("/_app/transactions")({
 });
 
 function TransactionsPage() {
-  const { month: monthParam, page = 1, ...filters } = Route.useSearch();
+  const {
+    period: periodParam,
+    date: dateParam,
+    page = 1,
+    ...filters
+  } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   // Changing the filters or the period starts again from the first page.
   const setSearch = (s: Search) => navigate({ search: s, replace: true });
-  const setFilters = (f: TxnFilters) => setSearch({ ...f, month: monthParam });
+  const setFilters = (f: TxnFilters) =>
+    setSearch({ ...f, period: periodParam, date: dateParam });
   const [q, setQ] = useState(filters.q ?? "");
   const [filterOpen, setFilterOpen] = useState(false);
   const openNew = useTxnSheet((s) => s.openNew);
@@ -131,49 +243,57 @@ function TransactionsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
-  // One month at a time, unless a from/to range (or "all") is asked for.
+  // One period (a month unless another is picked) at a time; a from/to range
+  // or "all" shows everything that matches instead.
   const today = todayStr();
-  const thisMonth = today.slice(0, 7);
-  const month = monthParam ?? thisMonth;
   const ranged = !!(filters.from || filters.to);
-  const monthly = !ranged && month !== "all";
+  const view = periodParam ?? "month";
+  const mode = ranged || view === "all" ? null : view;
+  const span = mode ? periodRange(mode, dateParam ?? today) : null;
+  const current = !!span && span.from <= today && today <= span.to;
   const rangeLabel =
     filters.from === filters.to && filters.from
       ? shortDate(filters.from)
       : `${filters.from ? shortDate(filters.from) : "…"} – ${filters.to ? shortDate(filters.to) : "…"}`;
   const periodLabel = ranged
     ? rangeLabel
-    : monthly
-      ? format(monthStart(month), "MMMM yyyy")
+    : mode && span
+      ? spanLabel(mode, span, today)
       : "All time";
-  const period = ranged
+  const period: { from?: string; to?: string } = ranged
     ? { from: filters.from, to: filters.to }
-    : monthly
-      ? monthRange(month)
-      : {};
-  const previous = monthly ? previousSpan(month, today) : undefined;
-  const chartRange =
-    period.from &&
-    period.to &&
-    period.from <= period.to &&
-    differenceInCalendarDays(parseISO(period.to), parseISO(period.from)) <
-      MAX_CHART_DAYS
-      ? { from: period.from, to: period.to }
-      : null;
+    : (span ?? {});
+  const previous = mode && span ? previousSpan(mode, span, today) : undefined;
+  // A year gets a bar per month, anything shorter a bar per day.
+  const chart =
+    mode === "year" && span
+      ? { ...span, unit: "month" as const }
+      : period.from &&
+          period.to &&
+          period.from < period.to &&
+          differenceInCalendarDays(parseISO(period.to), parseISO(period.from)) <
+            MAX_CHART_DAYS
+        ? { from: period.from, to: period.to, unit: "day" as const }
+        : null;
 
   const top = useRef<HTMLDivElement>(null);
   const toTop = () => top.current?.scrollIntoView({ block: "start" });
-  const showMonth = (m: string) => {
+  /** Shows the `v` that `date` falls in (today's when left out). */
+  const showPeriod = (v: Mode | "all", date?: string) => {
+    const r = v !== "all" && date ? periodRange(v, date) : null;
     setSearch({
       ...filters,
       from: undefined,
       to: undefined,
-      month: m === thisMonth ? undefined : m,
+      period: v === "month" ? undefined : v,
+      date: r && !(r.from <= today && today <= r.to) ? r.from : undefined,
     });
     toTop();
   };
-  const monthAt = (n: number) =>
-    format(addMonths(monthStart(month), n), "yyyy-MM");
+  const stepped = (n: number) =>
+    mode && span ? ymdOf(MODE[mode].step(parseISO(span.from), n)) : today;
+  const steppedLabel = (n: number) =>
+    mode ? spanLabel(mode, periodRange(mode, stepped(n)), today) : "";
 
   // The header's book switcher narrows the list; it isn't part of the URL.
   const { bookId } = useBookScope();
@@ -187,7 +307,12 @@ function TransactionsPage() {
   const count = query.data?.totals.count ?? 0;
   const pageCount = Math.max(1, Math.ceil(count / TXN_PAGE_SIZE));
   const showPage = (n: number) => {
-    setSearch({ ...filters, month: monthParam, page: n > 1 ? n : undefined });
+    setSearch({
+      ...filters,
+      period: periodParam,
+      date: dateParam,
+      page: n > 1 ? n : undefined,
+    });
     toTop();
   };
   // A page that no longer exists (entries deleted, stale link) falls back to the last one.
@@ -248,7 +373,7 @@ function TransactionsPage() {
     <div ref={top} className="scroll-mt-16">
       <PageHeader
         title="Transactions"
-        description="Every credit and debit, month by month."
+        description="Every credit and debit, one period at a time."
         actions={
           <>
             <Button variant="outline" asChild>
@@ -265,13 +390,13 @@ function TransactionsPage() {
       />
 
       <div className="mb-3 flex items-center gap-2">
-        <div className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-xl border bg-card p-1 sm:flex-none">
+        <div className="flex min-w-0 flex-1 items-center justify-between gap-1 rounded-xl border bg-card p-1 sm:flex-none sm:gap-2">
           <Button
             variant="ghost"
             size="icon"
-            disabled={!monthly}
-            onClick={() => showMonth(monthAt(-1))}
-            aria-label="Previous month"
+            disabled={!mode}
+            onClick={() => mode && showPeriod(mode, stepped(-1))}
+            aria-label="Previous period"
           >
             <ChevronLeft />
           </Button>
@@ -281,21 +406,67 @@ function TransactionsPage() {
           <Button
             variant="ghost"
             size="icon"
-            disabled={!monthly}
-            onClick={() => showMonth(monthAt(1))}
-            aria-label="Next month"
+            disabled={!mode}
+            onClick={() => mode && showPeriod(mode, stepped(1))}
+            aria-label="Next period"
           >
             <ChevronRight />
           </Button>
         </div>
-        {(!monthly || month !== thisMonth) && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              className="shrink-0 gap-1"
+              aria-label="Change how much is shown at once"
+            >
+              {mode ? (
+                <>
+                  <span className="sm:hidden">{MODE[mode].short}</span>
+                  <span className="hidden sm:inline">{MODE[mode].label}</span>
+                </>
+              ) : ranged ? (
+                "Range"
+              ) : (
+                "All time"
+              )}
+              <ChevronDown className="text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuRadioGroup
+              value={mode ?? (ranged ? "" : "all")}
+              onValueChange={(v) =>
+                // Stay on the period being looked at unless it's the current one.
+                showPeriod(
+                  v as Mode | "all",
+                  current || !span ? undefined : span.from,
+                )
+              }
+            >
+              {MODES.map((m) => (
+                <DropdownMenuRadioItem key={m} value={m}>
+                  {MODE[m].label}
+                </DropdownMenuRadioItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuRadioItem value="all">
+                All time
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {!current && (
           <Button
             variant="ghost"
-            size="sm"
-            className="shrink-0"
-            onClick={() => showMonth(thisMonth)}
+            className="shrink-0 max-sm:size-9 max-sm:px-0"
+            onClick={() => showPeriod(mode ?? "month")}
+            aria-label={MODE[mode ?? "month"].current}
           >
-            This month
+            <Undo2 className="sm:hidden" />
+            <span className="hidden sm:inline">
+              {MODE[mode ?? "month"].current}
+            </span>
           </Button>
         )}
       </div>
@@ -363,15 +534,15 @@ function TransactionsPage() {
             </button>
           </div>
         )}
-        {filters.q && monthly && (
+        {filters.q && mode && (
           <p className="text-xs text-muted-foreground">
             Searching in {periodLabel}.{" "}
             <button
               type="button"
               className="underline"
-              onClick={() => setSearch({ ...filters, month: "all" })}
+              onClick={() => showPeriod("all")}
             >
-              Search all months
+              Search all time
             </button>
           </p>
         )}
@@ -381,10 +552,14 @@ function TransactionsPage() {
         <PeriodSummary
           summary={summary.data}
           type={filters.type}
-          chartRange={chartRange}
+          chart={chart}
           compareLabel={previous?.label}
           selectedCategoryIds={selectedCats}
-          onPickDay={(d) => setFilters({ ...filters, from: d, to: d })}
+          onPickBar={(key) =>
+            chart?.unit === "month"
+              ? showPeriod("month", `${key}-01`)
+              : showPeriod("day", key)
+          }
           onToggleCategory={toggleCategory}
         />
       )}
@@ -397,8 +572,8 @@ function TransactionsPage() {
         <EmptyState title="No transactions found">
           {chips.length || filters.q
             ? "Try changing the filters."
-            : monthly
-              ? `Nothing recorded in ${periodLabel}. Tap + to add an income or expense.`
+            : mode
+              ? "Nothing recorded in this period. Tap + to add an income or expense."
               : "Tap + to add your first income or expense."}
         </EmptyState>
       ) : (
@@ -432,14 +607,17 @@ function TransactionsPage() {
           </Button>
         </nav>
       )}
-      {monthly && (
+      {mode && span && (
         <div className="mt-4 flex justify-between gap-2">
-          <Button variant="ghost" onClick={() => showMonth(monthAt(-1))}>
-            <ChevronLeft /> {format(monthStart(monthAt(-1)), "MMMM yyyy")}
+          <Button variant="ghost" onClick={() => showPeriod(mode, stepped(-1))}>
+            <ChevronLeft /> {steppedLabel(-1)}
           </Button>
-          {month < thisMonth && (
-            <Button variant="ghost" onClick={() => showMonth(monthAt(1))}>
-              {format(monthStart(monthAt(1)), "MMMM yyyy")} <ChevronRight />
+          {span.to < today && (
+            <Button
+              variant="ghost"
+              onClick={() => showPeriod(mode, stepped(1))}
+            >
+              {steppedLabel(1)} <ChevronRight />
             </Button>
           )}
         </div>
