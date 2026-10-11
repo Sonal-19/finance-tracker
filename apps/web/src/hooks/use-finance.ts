@@ -55,6 +55,45 @@ export type Txn = NonNullable<
   ReturnType<typeof useTransactions>["data"]
 >["pages"][number]["items"][number];
 
+/** The transactions page shows one period at a time, this many per page. */
+export const TXN_PAGE_SIZE = 100;
+
+/** One numbered page (1-based) of the filtered transactions. */
+export const useTransactionsPage = (filters: TxnFilters, page: number) =>
+  useQuery({
+    queryKey: ["transactions", "page", filters, page],
+    queryFn: () =>
+      call(
+        api.transactions.get({
+          query: {
+            ...filters,
+            limit: TXN_PAGE_SIZE,
+            offset: (page - 1) * TXN_PAGE_SIZE,
+          },
+        }),
+      ),
+    placeholderData: keepPreviousData,
+  });
+
+/** Totals, daily totals and categories for everything the filters match. */
+export const useTransactionsSummary = (
+  filters: TxnFilters,
+  previous?: { from: string; to: string },
+) =>
+  useQuery({
+    queryKey: ["transactions", "summary", filters, previous],
+    queryFn: () =>
+      call(
+        api.transactions.summary.get({
+          query: { ...filters, prevFrom: previous?.from, prevTo: previous?.to },
+        }),
+      ),
+    placeholderData: keepPreviousData,
+  });
+export type TxnSummary = NonNullable<
+  ReturnType<typeof useTransactionsSummary>["data"]
+>;
+
 export const useSummary = (q: {
   period: Period;
   date?: string;

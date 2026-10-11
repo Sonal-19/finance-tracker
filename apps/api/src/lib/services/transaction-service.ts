@@ -122,25 +122,30 @@ export const serializeTxn = (r: TxnRow) => ({
   originalAmount: r.originalAmount === null ? null : amountOf(r.originalAmount),
 });
 
+const income = sql<string>`coalesce(sum(${transactionsTable.amount}) filter (where ${transactionsTable.type} = 'credit'), 0)`;
+const expense = sql<string>`coalesce(sum(${transactionsTable.amount}) filter (where ${transactionsTable.type} = 'debit'), 0)`;
+const dayKey = sql<string>`to_char(${transactionsTable.date}, 'YYYY-MM-DD')`;
+
+/**
+ * Aggregate select over the filtered transactions. Only the text search
+ * looks at the category name; without it the join is skipped entirely.
+ */
+function aggregate<T extends Record<string, SQL>>(f: TxnFilters, columns: T) {
+  const q = db.select(columns).from(transactionsTable).$dynamic();
+  return f.q?.trim()
+    ? q.innerJoin(
+        categoriesTable,
+        eq(categoriesTable.id, transactionsTable.categoryId),
+      )
+    : q;
+}
+
 export async function listTransactions(
   userId: number,
   f: TxnFilters,
   page: { limit: number; offset: number },
 ) {
   const where = txnWhere(userId, f);
-  // Only the text search looks at the category name; without it the
-  // aggregates skip the join entirely.
-  const aggregate = <T extends Record<string, SQL>>(columns: T) => {
-    const q = db.select(columns).from(transactionsTable).$dynamic();
-    return f.q?.trim()
-      ? q.innerJoin(
-          categoriesTable,
-          eq(categoriesTable.id, transactionsTable.categoryId),
-        )
-      : q;
-  };
-  const income = sql<string>`coalesce(sum(${transactionsTable.amount}) filter (where ${transactionsTable.type} = 'credit'), 0)`;
-  const expense = sql<string>`coalesce(sum(${transactionsTable.amount}) filter (where ${transactionsTable.type} = 'debit'), 0)`;
 
   // The page and the filter-wide totals don't depend on each other.
   const [rows, [totals]] = await Promise.all([
@@ -149,9 +154,11 @@ export async function listTransactions(
       .orderBy(desc(transactionsTable.date), desc(transactionsTable.id))
       .limit(page.limit + 1)
       .offset(page.offset),
-    aggregate({ count: sql<number>`count(*)::int`, income, expense }).where(
-      where,
-    ),
+    aggregate(f, {
+      count: sql<number>`count(*)::int`,
+      income,
+      expense,
+    }).where(where),
   ]);
   const hasMore = rows.length > page.limit;
   const items = rows.slice(0, page.limit);
@@ -159,11 +166,7 @@ export async function listTransactions(
   // Per-day totals for the days on this page (whole day, not just this page's rows).
   const dates = [...new Set(items.map((i) => i.date))];
   const dayRows = dates.length
-    ? await aggregate({
-        date: sql<string>`to_char(${transactionsTable.date}, 'YYYY-MM-DD')`,
-        income,
-        expense,
-      })
+    ? await aggregate(f, { date: dayKey, income, expense })
         .where(and(where, inArray(transactionsTable.date, dates)))
         .groupBy(transactionsTable.date)
     : [];
@@ -182,6 +185,72 @@ export async function listTransactions(
         { income: amountOf(d.income), expense: amountOf(d.expense) },
       ]),
     ),
+  };
+}
+
+/**
+ * Totals, per-day totals and per-category totals for everything the filters
+ * match (not just one page), plus the totals of `previous` (same filters,
+ * other dates) to compare against.
+ */
+export async function summarizeTransactions(
+  userId: number,
+  f: TxnFilters,
+  previous?: { from: string; to: string },
+) {
+  const where = txnWhere(userId, f);
+  const total = sql<string>`sum(${transactionsTable.amount})`;
+  const [[totals], days, categories, prev] = await Promise.all([
+    aggregate(f, {
+      count: sql<number>`count(*)::int`,
+      income,
+      expense,
+    }).where(where),
+    aggregate(f, { date: dayKey, income, expense })
+      .where(where)
+      .groupBy(transactionsTable.date),
+    db
+      .select({
+        id: categoriesTable.id,
+        name: categoriesTable.name,
+        icon: categoriesTable.icon,
+        color: categoriesTable.color,
+        type: transactionsTable.type,
+        total,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(transactionsTable)
+      .innerJoin(
+        categoriesTable,
+        eq(categoriesTable.id, transactionsTable.categoryId),
+      )
+      .where(where)
+      .groupBy(categoriesTable.id, transactionsTable.type)
+      .orderBy(desc(total)),
+    previous
+      ? aggregate(f, { income, expense }).where(
+          txnWhere(userId, { ...f, ...previous }),
+        )
+      : null,
+  ]);
+  return {
+    totals: {
+      count: totals?.count ?? 0,
+      income: amountOf(totals?.income),
+      expense: amountOf(totals?.expense),
+    },
+    previous: prev?.[0]
+      ? {
+          income: amountOf(prev[0].income),
+          expense: amountOf(prev[0].expense),
+        }
+      : null,
+    days: days.map((d) => ({
+      date: d.date,
+      income: amountOf(d.income),
+      expense: amountOf(d.expense),
+    })),
+    categories: categories.map((c) => ({ ...c, total: amountOf(c.total) })),
   };
 }
 

@@ -17,6 +17,7 @@ import {
   ownedCategory,
   ownedEventId,
   selectTxns,
+  summarizeTransactions,
   type TxnFilters,
   txnWhere,
 } from "$/lib/services/transaction-service";
@@ -128,6 +129,32 @@ export const transactionsController = new Elysia({
         t.Object({
           limit: t.Optional(t.Numeric({ minimum: 1 })),
           offset: t.Optional(t.Numeric({ minimum: 0 })),
+        }),
+      ]),
+    },
+  )
+  /** Totals, daily bars and categories for everything the filters match. */
+  .get(
+    "/summary",
+    async ({ user, query, status }) => {
+      const { prevFrom, prevTo } = query;
+      if ((prevFrom === undefined) !== (prevTo === undefined))
+        return status(400, fail("Send both prevFrom and prevTo, or neither"));
+      return ok(
+        await summarizeTransactions(
+          user.id,
+          toFilters(query),
+          prevFrom && prevTo ? { from: prevFrom, to: prevTo } : undefined,
+        ),
+      );
+    },
+    {
+      query: t.Composite([
+        filterQuery,
+        t.Object({
+          /** Same filters over these dates, to compare against. */
+          prevFrom: t.Optional(tDate),
+          prevTo: t.Optional(tDate),
         }),
       ]),
     },
