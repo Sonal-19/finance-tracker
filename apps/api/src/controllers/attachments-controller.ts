@@ -4,7 +4,9 @@ import { db } from "$/db";
 import { attachmentsTable, transactionsTable } from "$/db/schema";
 import {
   cleanFileName,
+  compressImage,
   deleteAttachment,
+  isImageType,
   MAX_ATTACHMENT_BYTES,
   MAX_ATTACHMENTS_PER_TRANSACTION,
   newAttachmentKey,
@@ -62,13 +64,31 @@ export const attachmentsController = new Elysia({
       const { file } = body;
       if (file.size > MAX_ATTACHMENT_BYTES)
         return status(413, fail("Files can be up to 10 MB"));
-      const data = new Uint8Array(await file.arrayBuffer());
-      const type = sniffType(data);
+      let data: Uint8Array = new Uint8Array(await file.arrayBuffer());
+      let type = sniffType(data);
       if (!type)
         return status(
           415,
           fail("Only JPG, PNG, WebP images and PDFs can be attached"),
         );
+      // Images are always stored as WebP; PDFs go in untouched.
+      if (isImageType(type)) {
+        try {
+          data = await compressImage(data);
+          type = "image/webp";
+        } catch (e) {
+          const tooBig =
+            (e as { code?: string }).code === "ERR_IMAGE_TOO_MANY_PIXELS";
+          return status(
+            tooBig ? 413 : 415,
+            fail(
+              tooBig
+                ? "That image is too large to process"
+                : "That image couldn't be read. Try another photo.",
+            ),
+          );
+        }
+      }
       const [[count], used] = await Promise.all([
         db
           .select({ n: sql<number>`count(*)::int` })

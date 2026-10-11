@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, call } from "@/lib/api";
-import { shrinkImage } from "@/lib/image";
 
 export const MAX_ATTACHMENTS = 5;
 export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
@@ -29,15 +28,14 @@ export type Attachment = NonNullable<
 /** Uploads one after another; resolves to the names that failed. */
 export async function uploadAttachments(transactionId: number, files: File[]) {
   const failed: string[] = [];
-  for (const picked of files) {
+  for (const file of files) {
     try {
-      const file = await shrinkImage(picked);
       if (file.size > MAX_ATTACHMENT_BYTES)
         throw new Error("Files can be up to 10 MB");
       await call(api.attachments.post({ transactionId, file }));
     } catch (e) {
-      failed.push(picked.name);
-      toast.error(`${picked.name}: ${(e as Error).message}`);
+      failed.push(file.name);
+      toast.error(`${file.name}: ${(e as Error).message}`);
     }
   }
   return failed;

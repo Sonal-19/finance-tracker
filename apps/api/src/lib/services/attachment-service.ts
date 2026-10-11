@@ -36,6 +36,30 @@ export function sniffType(b: Uint8Array): AttachmentType | null {
   return null;
 }
 
+const WEBP_QUALITY = 80;
+/** Longest side kept. Plenty to read a bill, a fraction of a phone photo. */
+const MAX_IMAGE_SIDE = 2560;
+/** Refuse to decode anything larger (a small file can claim a huge canvas). */
+const MAX_IMAGE_PIXELS = 64_000_000;
+
+export const isImageType = (type: AttachmentType) => type.startsWith("image/");
+
+/**
+ * Every uploaded image is stored as WebP (quality 80, EXIF rotation applied,
+ * scaled down when huge) through Bun's built-in image pipeline, whatever
+ * format it arrived in. Throws a `Bun.Image` error (`error.code`) when the
+ * bytes aren't a readable image.
+ */
+export function compressImage(data: Uint8Array) {
+  return new Bun.Image(data, { maxPixels: MAX_IMAGE_PIXELS })
+    .resize(MAX_IMAGE_SIDE, MAX_IMAGE_SIDE, {
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .webp({ quality: WEBP_QUALITY })
+    .bytes();
+}
+
 /** A display name that is safe in a header and ends in the real extension. */
 export function cleanFileName(name: string, type: AttachmentType) {
   const base =
