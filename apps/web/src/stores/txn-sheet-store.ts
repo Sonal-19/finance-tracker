@@ -6,6 +6,11 @@ export type TxnPrefill = {
   accountId?: number;
   eventId?: number;
   bookId?: number;
+  /** Stored amount to start with (e.g. what is still owed in a book). */
+  amount?: number;
+  note?: string;
+  /** Preselects the category with this name, when the user has one. */
+  categoryName?: string;
 };
 
 /** Global add/edit transaction sheet so the FAB, dashboard and lists share one form. */

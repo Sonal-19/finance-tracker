@@ -1,4 +1,4 @@
-import { ChevronRight, Repeat, Users } from "lucide-react";
+import { ChevronRight, Paperclip, Repeat, Users } from "lucide-react";
 import { CategoryIcon } from "@/components/common/category-icon";
 import { useActiveBooks } from "@/hooks/use-books";
 import type { Txn } from "@/hooks/use-finance";
@@ -41,6 +41,12 @@ export function TransactionRow({
             <Users
               className="size-3.5 text-muted-foreground"
               aria-label="Your share of a split"
+            />
+          )}
+          {t.attachmentCount > 0 && (
+            <Paperclip
+              className="size-3.5 shrink-0 text-muted-foreground"
+              aria-label={`${t.attachmentCount} attached file(s)`}
             />
           )}
           {!defaultBookId || t.book.id === defaultBookId ? null : (

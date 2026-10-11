@@ -8,6 +8,7 @@ import {
   txnTypes,
 } from "$/db/schema";
 import { resolveAccountId } from "$/lib/services/account-service";
+import { sweepOrphanAttachments } from "$/lib/services/attachment-service";
 import { resolveBookId } from "$/lib/services/book-service";
 import { foreignCurrencies, fxService } from "$/lib/services/fx-service";
 import {
@@ -303,6 +304,8 @@ export const transactionsController = new Elysia({
         )
         .returning();
       if (!row) return status(404, fail("Transaction not found"));
+      // Its files lost their transaction: remove them from storage, off the request.
+      sweepOrphanAttachments().catch(console.error);
       // Deleting your copy of a tagged split means "don't add it": remember that
       // so the owner's later edits don't bring it back.
       if (row.sharedSplitId)

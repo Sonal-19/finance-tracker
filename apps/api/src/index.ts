@@ -3,6 +3,7 @@ import Elysia from "elysia";
 import { mainController } from "./controllers";
 import { connectionTest } from "./db/connect";
 import { ALLOWED_ORIGIN_HOSTS, IS_PROD, PORT } from "./env";
+import { startAttachmentSweep } from "./lib/services/attachment-service";
 import { coreAuthService } from "./lib/services/core-auth-service";
 import { recurringService } from "./lib/services/recurring-service";
 import { systemConfigService } from "./lib/services/system-config-service";
@@ -34,6 +35,7 @@ connectionTest().then(async (res) => {
     await systemConfigService.initialize();
     await usernameService.initialize();
     recurringService.startSchedule();
+    startAttachmentSweep();
     app.listen(PORT);
     console.info(`ENV is ${process.env.NODE_ENV}`);
     console.info(

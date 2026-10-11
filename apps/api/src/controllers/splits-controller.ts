@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import Elysia, { t } from "elysia";
 import { db } from "$/db";
 import {
+  attachmentsTable,
   categoriesTable,
   ownShareModes,
   peopleTable,
@@ -795,11 +796,46 @@ const splitsController = new Elysia({
         await tx
           .insert(splitSharesTable)
           .values(prep.shares.map((s) => ({ ...s, splitId: split!.id })));
+        // Bills attached to the original transaction move to the split's
+        // "your share" row (when there is one) instead of being lost.
+        const carried = body.fromTransactionId
+          ? await tx
+              .select({ id: attachmentsTable.id })
+              .from(attachmentsTable)
+              .where(
+                and(
+                  eq(attachmentsTable.transactionId, body.fromTransactionId),
+                  eq(attachmentsTable.userId, user.id),
+                ),
+              )
+          : [];
         if (body.fromTransactionId)
           await tx
             .delete(transactionsTable)
             .where(eq(transactionsTable.id, body.fromTransactionId));
         await syncShareTransaction(tx, split!, prep.myShare);
+        if (carried.length) {
+          const [share] = await tx
+            .select({ id: transactionsTable.id })
+            .from(transactionsTable)
+            .where(
+              and(
+                eq(transactionsTable.splitId, split!.id),
+                eq(transactionsTable.userId, user.id),
+              ),
+            )
+            .limit(1);
+          if (share)
+            await tx
+              .update(attachmentsTable)
+              .set({ transactionId: share.id })
+              .where(
+                inArray(
+                  attachmentsTable.id,
+                  carried.map((c) => c.id),
+                ),
+              );
+        }
         await syncSharedTransactions(tx, split!);
         return split!.id;
       });

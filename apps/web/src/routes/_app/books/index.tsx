@@ -41,6 +41,9 @@ function BookCard({ b }: { b: Book }) {
               b.status === "archived" ? "Archived" : null,
               separate ? "Kept separate" : "In my totals",
               `${b.count} entries`,
+              b.pendingClaims > 0
+                ? `${b.pendingClaims} payment ${b.pendingClaims === 1 ? "report" : "reports"} to check`
+                : null,
             ]
               .filter(Boolean)
               .join(" · ")}

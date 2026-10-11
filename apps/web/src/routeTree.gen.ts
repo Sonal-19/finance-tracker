@@ -22,6 +22,7 @@ import { Route as AppReportsRouteImport } from './routes/_app/reports'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppSystemConfigRouteImport } from './routes/_app/system-config'
 import { Route as AppTransactionsRouteImport } from './routes/_app/transactions'
+import { Route as STokenRouteImport } from './routes/s.$token'
 import { Route as AppAccountsIndexRouteImport } from './routes/_app/accounts/index'
 import { Route as AppAccountsAccountIdRouteImport } from './routes/_app/accounts/$accountId'
 import { Route as AppBooksIndexRouteImport } from './routes/_app/books/index'
@@ -96,6 +97,11 @@ const AppTransactionsRoute = AppTransactionsRouteImport.update({
   path: '/transactions',
   getParentRoute: () => AppRoute,
 } as any)
+const STokenRoute = STokenRouteImport.update({
+  id: '/s/$token',
+  path: '/s/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppAccountsIndexRoute = AppAccountsIndexRouteImport.update({
   id: '/accounts/',
   path: '/accounts/',
@@ -155,6 +161,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AppSettingsRoute
   '/system-config': typeof AppSystemConfigRoute
   '/transactions': typeof AppTransactionsRoute
+  '/s/$token': typeof STokenRoute
   '/accounts/$accountId': typeof AppAccountsAccountIdRoute
   '/books/$bookId': typeof AppBooksBookIdRoute
   '/events/$eventId': typeof AppEventsEventIdRoute
@@ -178,6 +185,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AppSettingsRoute
   '/system-config': typeof AppSystemConfigRoute
   '/transactions': typeof AppTransactionsRoute
+  '/s/$token': typeof STokenRoute
   '/accounts/$accountId': typeof AppAccountsAccountIdRoute
   '/books/$bookId': typeof AppBooksBookIdRoute
   '/events/$eventId': typeof AppEventsEventIdRoute
@@ -203,6 +211,7 @@ export interface FileRoutesById {
   '/_app/settings': typeof AppSettingsRoute
   '/_app/system-config': typeof AppSystemConfigRoute
   '/_app/transactions': typeof AppTransactionsRoute
+  '/s/$token': typeof STokenRoute
   '/_app/accounts/$accountId': typeof AppAccountsAccountIdRoute
   '/_app/books/$bookId': typeof AppBooksBookIdRoute
   '/_app/events/$eventId': typeof AppEventsEventIdRoute
@@ -228,6 +237,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/system-config'
     | '/transactions'
+    | '/s/$token'
     | '/accounts/$accountId'
     | '/books/$bookId'
     | '/events/$eventId'
@@ -251,6 +261,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/system-config'
     | '/transactions'
+    | '/s/$token'
     | '/accounts/$accountId'
     | '/books/$bookId'
     | '/events/$eventId'
@@ -275,6 +286,7 @@ export interface FileRouteTypes {
     | '/_app/settings'
     | '/_app/system-config'
     | '/_app/transactions'
+    | '/s/$token'
     | '/_app/accounts/$accountId'
     | '/_app/books/$bookId'
     | '/_app/events/$eventId'
@@ -290,6 +302,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
   ForgotPasswordRoute: typeof ForgotPasswordRoute
+  STokenRoute: typeof STokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -384,6 +397,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/transactions'
       preLoaderRoute: typeof AppTransactionsRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/s/$token': {
+      id: '/s/$token'
+      path: '/s/$token'
+      fullPath: '/s/$token'
+      preLoaderRoute: typeof STokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_app/accounts/': {
       id: '/_app/accounts/'
@@ -501,6 +521,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
   ForgotPasswordRoute: ForgotPasswordRoute,
+  STokenRoute: STokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

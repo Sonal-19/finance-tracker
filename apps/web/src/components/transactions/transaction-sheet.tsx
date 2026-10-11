@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { format, subDays } from "date-fns";
 import { ArrowRightLeft, Pencil, Trash2, Users } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -12,10 +13,12 @@ import { confirm } from "@/components/common/confirm-dialog";
 import { DateInput } from "@/components/common/date-input";
 import { ResponsiveSheet } from "@/components/common/responsive-sheet";
 import { Segmented } from "@/components/common/segmented";
+import { AttachmentsField } from "@/components/transactions/attachments-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useActiveAccounts, useActiveEvent } from "@/hooks/use-accounts";
+import { uploadAttachments } from "@/hooks/use-attachments";
 import { useActiveBooks, useBookScope } from "@/hooks/use-books";
 import {
   type Currency,
@@ -65,12 +68,18 @@ export function TransactionSheet() {
   const save = useSaveTransaction();
   const del = useDeleteTransaction();
 
+  const qc = useQueryClient();
+  /** Files picked for a transaction that doesn't exist yet. */
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+
   const blank = (type: TxnType): Form => ({
     type,
-    amount: "",
-    categoryId: null,
+    amount: prefill.amount ? String(fromAmount(prefill.amount)) : "",
+    categoryId:
+      categories.find((c) => c.type === type && c.name === prefill.categoryName)
+        ?.id ?? null,
     date: todayStr(),
-    note: "",
+    note: prefill.note ?? "",
     currency: "INR",
     fxRate: "",
     accountId: prefill.accountId ?? defaultAccount?.id ?? null,
@@ -84,6 +93,7 @@ export function TransactionSheet() {
   useEffect(() => {
     if (!open) return;
     setEditingRate(false);
+    setPendingFiles([]);
     setForm(
       editing
         ? {
@@ -115,13 +125,21 @@ export function TransactionSheet() {
 
   // Accounts may load after the sheet opens: fall back to the default account.
   useEffect(() => {
+    // Checked again inside the update: on the render the sheet opens, `form`
+    // here is still the previous one, and an edit must keep its own account.
     if (open && form.accountId === null && defaultAccount)
-      setForm((f) => ({ ...f, accountId: defaultAccount.id }));
+      setForm((f) =>
+        f.accountId === null ? { ...f, accountId: defaultAccount.id } : f,
+      );
   }, [open, form.accountId, defaultAccount]);
 
   useEffect(() => {
     if (open && form.bookId === null && defaultBook)
-      setForm((f) => ({ ...f, bookId: scope.bookId ?? defaultBook.id }));
+      setForm((f) =>
+        f.bookId === null
+          ? { ...f, bookId: scope.bookId ?? defaultBook.id }
+          : f,
+      );
   }, [open, form.bookId, defaultBook, scope.bookId]);
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) =>
@@ -157,7 +175,16 @@ export function TransactionSheet() {
         eventId: form.eventId,
         note: form.note.trim() || null,
       },
-      { onSuccess: close },
+      {
+        onSuccess: ({ data }) => {
+          close();
+          if (!data || !pendingFiles.length) return;
+          // The entry is saved; its files follow in the background.
+          uploadAttachments(data.id, pendingFiles).then(() =>
+            qc.invalidateQueries({ queryKey: ["transactions"] }),
+          );
+        },
+      },
     );
   };
 
@@ -205,6 +232,11 @@ export function TransactionSheet() {
             Only your share of this shared bill counts as your expense. To
             change the amount, people or category, edit the split.
           </p>
+          <AttachmentsField
+            transactionId={editing.id}
+            pending={pendingFiles}
+            onPendingChange={setPendingFiles}
+          />
           <Button
             size="lg"
             className="w-full"
@@ -473,6 +505,12 @@ export function TransactionSheet() {
             onChange={(e) => set("note", e.target.value)}
           />
         </div>
+
+        <AttachmentsField
+          transactionId={editing?.id}
+          pending={pendingFiles}
+          onPendingChange={setPendingFiles}
+        />
 
         <div className="flex gap-2 pt-1">
           {editing && (

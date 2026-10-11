@@ -29,6 +29,7 @@
     "input-otp": "^1.5.0",
     "lucide-react": "^0.544.0",
     "motion": "^12.23.25",
+    "qrcode.react": "^4.2.0",
     "react": "catalog:",
     "react-dom": "catalog:",
     "recharts": "^3.10.1",

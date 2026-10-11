@@ -2,6 +2,10 @@ import { and, eq } from "drizzle-orm";
 import Elysia, { t } from "elysia";
 import { db } from "$/db";
 import { taggedExpenseModes, userBlocksTable, usersTable } from "$/db/schema";
+import {
+  attachmentKeysOf,
+  deleteStoredObjects,
+} from "$/lib/services/attachment-service";
 import { coreAuthService } from "$/lib/services/core-auth-service";
 import { publicUser } from "$/lib/services/session-service";
 import { userCacheService } from "$/lib/services/user-cache-service";
@@ -154,8 +158,11 @@ export const profileController = new Elysia({
       const valid = await Bun.password.verify(body.password, user.passwordHash);
       if (!valid) return status(400, fail("Password is incorrect"));
       await coreAuthService.revokeAllForUser(user.id);
+      // The attachment rows cascade away with the user, so note their files first.
+      const storedKeys = await attachmentKeysOf(user.id);
       await db.delete(usersTable).where(eq(usersTable.id, user.id));
       userCacheService.invalidate(user.id);
+      deleteStoredObjects(storedKeys).catch(console.error);
       cookie?.token?.remove();
       return ok(null, "Account deleted");
     },

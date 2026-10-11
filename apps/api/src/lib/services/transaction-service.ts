@@ -13,6 +13,7 @@ import {
 import { db } from "$/db";
 import {
   accountsTable,
+  attachmentsTable,
   booksTable,
   categoriesTable,
   eventsTable,
@@ -70,6 +71,8 @@ export const txnSelect = {
   splitId: transactionsTable.splitId,
   sharedSplitId: transactionsTable.sharedSplitId,
   createdAt: transactionsTable.createdAt,
+  /** Bills/receipts kept with it (answered from `attachments_transaction_idx`). */
+  attachmentCount: sql<number>`(select count(*) from ${attachmentsTable} where ${attachmentsTable.transactionId} = ${transactionsTable.id})::int`,
   category: {
     id: categoriesTable.id,
     name: categoriesTable.name,
