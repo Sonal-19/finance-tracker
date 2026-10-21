@@ -16,6 +16,7 @@ import {
   usersTable,
 } from "$/db/schema";
 import { seedDefaultCategories } from "$/lib/services/default-categories";
+import { createUser } from "$/lib/services/user-service";
 import { rupees } from "$/lib/utils/money";
 import { addDays, addMonths, today } from "$/lib/utils/period";
 import { seedSplits } from "./split-data";
@@ -31,6 +32,11 @@ if (isProduction && process.env.FORCE_SEED !== "true") {
 
 const DEMO_EMAIL = "demo@finance.local";
 const DEMO_PASSWORD = "Demo@1234";
+/** Opens the admin dashboard. "admin" is a reserved username, so nobody
+ * can sign up with it. */
+const ADMIN_EMAIL = "admin@finance.local";
+const ADMIN_USERNAME = "admin";
+const ADMIN_PASSWORD = "Admin@1234";
 
 /** Deterministic pseudo-random so every seed produces the same data. */
 let s = 42;
@@ -379,10 +385,24 @@ async function mainSeed() {
     ]);
     await seedSplits(tx, user.id, cat, end, goaTrip!.id);
     console.info(`Seeded ${txns.length} transactions + shared expenses`);
+
+    await createUser(
+      {
+        name: "Admin",
+        email: ADMIN_EMAIL,
+        username: ADMIN_USERNAME,
+        password: ADMIN_PASSWORD,
+        role: "admin",
+      },
+      tx,
+    );
   });
 
   console.info("✅ Seed complete");
   console.info(`   Demo login: ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);
+  console.info(
+    `   Admin login: ${ADMIN_EMAIL} (@${ADMIN_USERNAME}) / ${ADMIN_PASSWORD}`,
+  );
   process.exit(0);
 }
 

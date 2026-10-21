@@ -30,7 +30,7 @@ import { useTxnSheet } from "@/stores/txn-sheet-store";
 import { useUiStore } from "@/stores/ui-store";
 import { BookSwitcher } from "./book-switcher";
 import { InstallButton } from "./install-app";
-import { navFor } from "./nav-items";
+import { homeFor, navFor } from "./nav-items";
 import { ShortcutKeys, ShortcutsDialog } from "./shortcuts";
 import { SyncStatus } from "./sync-status";
 import { Avatar, UserMenu, useSignOut } from "./user-menu";
@@ -128,6 +128,11 @@ export function AppShell({
   const openNew = useTxnSheet((s) => s.openNew);
   const signOut = useSignOut();
   const nav = navFor(user);
+  const home = homeFor(user);
+  // An admin's Home tab is the admin dashboard, so their own finances sit
+  // under More.
+  const morePaths =
+    home === "/dashboard" ? MORE_PATHS : [...MORE_PATHS, "/dashboard"];
   const notice = usePublicConfig().data?.notice;
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
@@ -159,7 +164,7 @@ export function AppShell({
             collapsed ? "flex-col px-2" : "justify-between px-5",
           )}
         >
-          <Link to="/dashboard" aria-label="Dashboard">
+          <Link to={home} aria-label="Home">
             {collapsed ? (
               <img src="/favicon.svg" alt="" className="size-8 rounded-lg" />
             ) : (
@@ -359,14 +364,15 @@ export function AppShell({
                   </button>
                 </div>
               );
+            const to = tab.to === "/dashboard" ? home : tab.to;
             const active =
-              tab.to === "/more"
-                ? MORE_PATHS.some((p) => pathname.startsWith(p))
-                : pathname.startsWith(tab.to);
+              to === "/more"
+                ? morePaths.some((p) => pathname.startsWith(p))
+                : pathname.startsWith(to);
             return (
               <Link
                 key={tab.to}
-                to={tab.to}
+                to={to}
                 className={cn(
                   "flex h-full flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-muted-foreground transition-colors",
                   active && "text-primary",

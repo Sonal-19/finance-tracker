@@ -20,6 +20,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { homeFor } from "@/components/app/nav-items";
 import { Field } from "@/components/common/field";
 import { OtpInput } from "@/components/common/otp-input";
 import { PasswordInput } from "@/components/common/password-input";
@@ -78,7 +79,7 @@ function useOnAuthed() {
     setUser(user);
     qc.setQueryData(["auth", "me"], user);
     toast.success(message);
-    navigate({ to: "/dashboard", replace: true });
+    navigate({ to: homeFor(user), replace: true });
   };
 }
 

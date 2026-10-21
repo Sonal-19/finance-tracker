@@ -2,16 +2,14 @@ import { eq } from "drizzle-orm";
 import Elysia, { t } from "elysia";
 import { db } from "$/db";
 import { usersTable } from "$/db/schema";
-import { seedDefaultAccounts } from "$/lib/services/account-service";
-import { seedDefaultBooks } from "$/lib/services/book-service";
 import { coreAuthService } from "$/lib/services/core-auth-service";
-import { seedDefaultCategories } from "$/lib/services/default-categories";
 import { otpService } from "$/lib/services/otp-service";
 import { PasskeyError, passkeyService } from "$/lib/services/passkey-service";
 import { clientIp, rateLimitService } from "$/lib/services/rate-limit-service";
 import { publicUser, startSession } from "$/lib/services/session-service";
 import { systemConfigService } from "$/lib/services/system-config-service";
 import { userCacheService } from "$/lib/services/user-cache-service";
+import { createUser } from "$/lib/services/user-service";
 import {
   isUniqueViolation,
   normalizeUsername,
@@ -58,25 +56,6 @@ async function findUserByEmail(email: string) {
     .where(eq(usersTable.email, email))
     .limit(1);
   return user;
-}
-
-function insertUser(
-  name: string,
-  email: string,
-  username: string,
-  passwordHash: string,
-) {
-  return db.transaction(async (tx) => {
-    const [u] = await tx
-      .insert(usersTable)
-      .values({ name, email, username, passwordHash })
-      .returning();
-    if (!u) throw new Error("user insert failed");
-    await seedDefaultCategories(tx, u.id);
-    await seedDefaultAccounts(tx, u.id);
-    await seedDefaultBooks(tx, u.id);
-    return u;
-  });
 }
 
 export const authController = new Elysia({
@@ -175,22 +154,20 @@ export const authController = new Elysia({
         if (!check.ok) return status(400, fail(check.message));
       }
 
-      const passwordHash = await Bun.password.hash(body.password);
-      let user: Awaited<ReturnType<typeof insertUser>>;
+      let user: Awaited<ReturnType<typeof createUser>>;
       try {
-        user = await insertUser(
-          body.name.trim(),
+        user = await createUser({
+          name: body.name.trim(),
           email,
           username,
-          passwordHash,
-        );
+          password: body.password,
+        });
       } catch (e) {
         // Lost a race the cache couldn't see: the unique index decides.
         if (isUniqueViolation(e))
           return status(409, fail("That username or email is already taken"));
         throw e;
       }
-      usernameService.set(user.id, username);
       await startSession(cookie, user.id, {
         ip: clientIp(request, server),
         userAgent: headers["user-agent"],

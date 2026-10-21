@@ -7,6 +7,7 @@ import {
   PieChart,
   Repeat,
   Settings,
+  ShieldCheck,
   SlidersHorizontal,
   Tags,
   Target,
@@ -63,17 +64,27 @@ export const NAV = [
 
 /** Extra entries for `role = admin` (the API enforces it; this only hides
  * the link). */
+const ADMIN_HOME = {
+  to: "/admin",
+  label: "Admin dashboard",
+  icon: ShieldCheck,
+} as const;
 export const ADMIN_NAV = [
   { to: "/system-config", label: "System config", icon: SlidersHorizontal },
 ] as const;
 
+type NavUser = { role?: string } | null | undefined;
+
+/** Admins land on the admin dashboard; everyone else on their finances. */
+export const homeFor = (user: NavUser) =>
+  user?.role === "admin" ? ADMIN_HOME.to : "/dashboard";
+
 export type NavItem = {
-  to: (typeof NAV | typeof ADMIN_NAV)[number]["to"];
+  to: (typeof NAV | typeof ADMIN_NAV)[number]["to"] | typeof ADMIN_HOME.to;
   label: string;
   icon: (typeof NAV)[number]["icon"];
   shortcut?: ShortcutAction;
 };
 
-export const navFor = (
-  user: { role?: string } | null | undefined,
-): NavItem[] => (user?.role === "admin" ? [...NAV, ...ADMIN_NAV] : [...NAV]);
+export const navFor = (user: NavUser): NavItem[] =>
+  user?.role === "admin" ? [ADMIN_HOME, ...NAV, ...ADMIN_NAV] : [...NAV];
