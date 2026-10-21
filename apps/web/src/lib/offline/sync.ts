@@ -559,9 +559,11 @@ export async function flush() {
 
 /** Pulls fresh data for everything on screen (after pushing changes). */
 export async function refresh() {
-  await Promise.all(
-    MONEY_KEYS.map((k) => qc.invalidateQueries({ queryKey: [k] })),
-  );
+  await Promise.all([
+    ...MONEY_KEYS.map((k) => qc.invalidateQueries({ queryKey: [k] })),
+    // App-wide settings (shortcut defaults, notice) the admin may have changed.
+    qc.invalidateQueries({ queryKey: ["auth", "config"] }),
+  ]);
   if (!outbox().ops.some((o) => o.status === "pending"))
     outbox().set({ lastSyncedAt: Date.now() });
 }

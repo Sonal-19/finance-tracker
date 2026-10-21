@@ -194,9 +194,25 @@ export function resolveShortcuts(
   admin: Partial<Record<string, string>> | null | undefined,
   user: Partial<Record<string, string>> | null | undefined,
 ): ShortcutMap {
-  return {
+  const own = cleanShortcuts(user ?? {});
+  const merged: ShortcutMap = {
     ...DEFAULT_SHORTCUTS,
     ...cleanShortcuts(admin ?? {}),
-    ...cleanShortcuts(user ?? {}),
+    ...own,
   };
+  // The admin may later give a default the keys a user already picked for
+  // something else: the user's choice wins and that default is switched off.
+  const mine = Object.values(own).filter(Boolean) as string[];
+  for (const id of SHORTCUT_IDS) {
+    if (id in own) continue;
+    const b = merged[id];
+    if (
+      b &&
+      mine.some(
+        (m) => m === b || m.startsWith(`${b} `) || b.startsWith(`${m} `),
+      )
+    )
+      merged[id] = "";
+  }
+  return merged;
 }

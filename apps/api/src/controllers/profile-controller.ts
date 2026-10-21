@@ -63,8 +63,10 @@ export const profileController = new Elysia({
         // Checked together with the admin's defaults they sit on top of.
         const admin = systemConfigService.SYSTEM_CONFIG.SHORTCUTS.DEFAULTS;
         const own = body.shortcuts && cleanShortcuts(body.shortcuts);
+        // Strict here: new keys must fit around today's defaults. (Only a
+        // later change to the defaults gives way to them, in resolveShortcuts.)
         const [problem] = Object.values(
-          shortcutProblems(resolveShortcuts(admin, own)),
+          shortcutProblems({ ...resolveShortcuts(admin, null), ...own }),
         );
         if (problem) return status(400, fail(problem));
         shortcuts = own && Object.keys(own).length ? own : null;
