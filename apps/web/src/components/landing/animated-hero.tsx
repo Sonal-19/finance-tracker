@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
+import { FIRST_HERO, landingImage } from "./landing-image";
 
 interface AnimatedHeroProps {
   onStartFree: () => void;
@@ -16,35 +17,35 @@ interface AnimatedHeroProps {
 const HERO_SLIDES = [
   {
     id: "piggy",
-    image: "/images/piggy-bank.jpg",
+    image: landingImage(FIRST_HERO),
     alt: "Golden Savings Piggy Bank with Milestone Coins",
     tag: "Visual Goal Milestones",
     sub: "Watch incremental rupee deposits compound to 100%",
   },
   {
     id: "notebook",
-    image: "/images/hero-notebook-pen.jpg",
+    image: landingImage("hero-notebook-pen"),
     alt: "Tactile Khata Notebook with Golden Pen and Rupee Journal",
     tag: "Tactile Khata Ledger",
     sub: "The tactile speed of pen & paper with cloud intelligence",
   },
   {
     id: "wallet",
-    image: "/images/smart-wallet.jpg",
+    image: landingImage("smart-wallet"),
     alt: "Leather Pocket Wallet with Indian Rupee Notes and Rohit Singh Card",
     tag: "Pocket Cash & Visa Cards",
     sub: "Physical cash in wallet tracked alongside plastic cards",
   },
   {
     id: "vault",
-    image: "/images/bank-vault.jpg",
+    image: landingImage("bank-vault"),
     alt: "Heavy Fortified Bank Vault Safe with Golden Bars",
     tag: "Bank-Grade Ironclad Privacy",
     sub: "Zero SMS inbox reading, Argon2id security & instant OTP",
   },
   {
     id: "team",
-    image: "/images/hero-team-lifestyle.jpg",
+    image: landingImage("hero-team-lifestyle"),
     alt: "Young Indian professionals tracking finances together",
     tag: "Financial Clarity in Action",
     sub: "Everyday Indian spenders curbing leaks & building wealth",
@@ -136,7 +137,7 @@ export function AnimatedHero({
               <button
                 type="button"
                 onClick={onStartFree}
-                className="group inline-flex items-center justify-center gap-2 rounded-full bg-[#22c55e] hover:bg-[#1bb852] px-8 py-4 text-base font-bold text-white shadow-xl shadow-emerald-950/40 transition-all duration-300 hover:scale-[1.03] active:scale-[0.98] cursor-pointer"
+                className="group inline-flex items-center justify-center gap-2 rounded-full bg-[#22c55e] hover:bg-[#1bb852] px-8 py-4 text-base font-bold text-[#052e16] shadow-xl shadow-emerald-950/40 transition-all duration-300 hover:scale-[1.03] active:scale-[0.98] cursor-pointer"
               >
                 <span>Start Tracking Free</span>
                 <ArrowUpRight className="size-5 stroke-[2.8] transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
@@ -194,8 +195,11 @@ export function AnimatedHero({
                 className="absolute inset-0 size-full"
               >
                 <img
-                  src={activeSlide.image}
+                  {...activeSlide.image}
+                  sizes="(min-width: 1024px) 50vw, 100vw"
                   alt={activeSlide.alt}
+                  // The first slide is the page's largest paint.
+                  fetchPriority={currentSlideIndex === 0 ? "high" : "auto"}
                   className="size-full object-cover object-center"
                 />
 
@@ -227,19 +231,24 @@ export function AnimatedHero({
             {/* Dynamic Slide Info & Pagination HUD at Bottom of Image */}
             <div className="absolute bottom-6 sm:bottom-8  z-30 flex flex-col sm:flex-row sm:items-end pointer-events-none">
               {/* Slider Dots / Progress Indicator */}
-              <div className="flex items-center gap-1.5 self-center sm:self-auto rounded-full border border-white/20 bg-black/50 px-3 py-1.5 backdrop-blur-md pointer-events-auto">
+              <div className="flex items-center self-center sm:self-auto rounded-full border border-white/20 bg-black/50 px-1.5 backdrop-blur-md pointer-events-auto">
                 {HERO_SLIDES.map((slide, idx) => (
                   <button
                     key={slide.id}
                     type="button"
                     onClick={() => setCurrentSlideIndex(idx)}
-                    className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
-                      idx === currentSlideIndex
-                        ? "w-7 bg-[#22c55e] shadow-xs"
-                        : "w-2 bg-white/40 hover:bg-white/70"
-                    }`}
+                    // A 24px tap area around the small dot.
+                    className="group/dot grid h-6 min-w-6 place-items-center cursor-pointer"
                     aria-label={`Go to slide ${idx + 1}: ${slide.tag}`}
-                  />
+                  >
+                    <span
+                      className={`h-2 rounded-full transition-all duration-300 ${
+                        idx === currentSlideIndex
+                          ? "w-7 bg-[#22c55e] shadow-xs"
+                          : "w-2 bg-white/40 group-hover/dot:bg-white/70"
+                      }`}
+                    />
+                  </button>
                 ))}
               </div>
             </div>

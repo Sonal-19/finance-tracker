@@ -1,0 +1,4 @@
+# Shared book links (/s/...) are private; the API isn't a page.
+User-agent: *
+Disallow: /s/
+Disallow: /api/

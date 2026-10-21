@@ -37,15 +37,6 @@ export default defineConfig({
         // API data is kept offline by the app (IndexedDB), not the worker.
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "google-fonts",
-              expiration: { maxEntries: 20, maxAgeSeconds: 365 * 24 * 3600 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
             urlPattern: ({ url, sameOrigin }) =>
               sameOrigin && url.pathname.startsWith("/images/"),
             handler: "StaleWhileRevalidate",

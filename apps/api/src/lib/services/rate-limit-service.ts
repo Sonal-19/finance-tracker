@@ -44,8 +44,10 @@ export function clientIp(
   request: Request,
   server?: { requestIP?: (r: Request) => { address: string } | null } | null,
 ) {
+  // X-Real-IP is set by our nginx from the connection itself. Never take the
+  // first X-Forwarded-For entry: the client writes it, so anyone could look
+  // like a new IP on every request and skip the limits.
   return (
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     request.headers.get("x-real-ip") ||
     server?.requestIP?.(request)?.address ||
     "unknown"

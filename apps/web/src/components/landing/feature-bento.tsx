@@ -40,7 +40,7 @@ const RAILS: RailData[] = [
     badge: "UPI QR",
     color: "text-blue-500 border-blue-500/30 bg-blue-500/10",
     activeColor:
-      "border-blue-500 bg-blue-500 text-white shadow-md shadow-blue-500/25",
+      "border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-500/25",
     bgGlow: "from-blue-500/10 to-transparent",
     merchant: "Nature Basket Provisions",
     amount: "₹1,450",
@@ -54,7 +54,7 @@ const RAILS: RailData[] = [
     badge: "Auto-VPA",
     color: "text-purple-500 border-purple-500/30 bg-purple-500/10",
     activeColor:
-      "border-purple-500 bg-purple-500 text-white shadow-md shadow-purple-500/25",
+      "border-purple-600 bg-purple-600 text-white shadow-md shadow-purple-500/25",
     bgGlow: "from-purple-500/10 to-transparent",
     merchant: "Swiggy Gourmet Feast",
     amount: "₹680",
@@ -68,7 +68,7 @@ const RAILS: RailData[] = [
     badge: "Transit",
     color: "text-sky-500 border-sky-500/30 bg-sky-500/10",
     activeColor:
-      "border-sky-500 bg-sky-500 text-white shadow-md shadow-sky-500/25",
+      "border-sky-700 bg-sky-700 text-white shadow-md shadow-sky-500/25",
     bgGlow: "from-sky-500/10 to-transparent",
     merchant: "Metro Transit Recharge",
     amount: "₹300",
@@ -82,7 +82,7 @@ const RAILS: RailData[] = [
     badge: "Rewards",
     color: "text-amber-500 border-amber-500/30 bg-amber-500/10",
     activeColor:
-      "border-amber-500 bg-amber-500 text-white shadow-md shadow-amber-500/25",
+      "border-amber-700 bg-amber-700 text-white shadow-md shadow-amber-500/25",
     bgGlow: "from-amber-500/10 to-transparent",
     merchant: "Blue Tokai Coffee Reserve",
     amount: "₹360",
@@ -96,7 +96,7 @@ const RAILS: RailData[] = [
     badge: "ATM Sync",
     color: "text-emerald-500 border-emerald-500/30 bg-emerald-500/10",
     activeColor:
-      "border-emerald-500 bg-emerald-500 text-white shadow-md shadow-emerald-500/25",
+      "border-emerald-700 bg-emerald-700 text-white shadow-md shadow-emerald-500/25",
     bgGlow: "from-emerald-500/10 to-transparent",
     merchant: "Local Kirana & Fruits",
     amount: "₹120",
@@ -224,7 +224,7 @@ export function FeatureBento() {
               >
                 <span>{rail.name}</span>
                 <span
-                  className={`text-[10px] font-medium opacity-80 ${isSelected ? "text-white" : ""}`}
+                  className={`text-[10px] font-medium ${isSelected ? "text-white" : ""}`}
                 >
                   ({rail.badge})
                 </span>
@@ -348,6 +348,7 @@ export function FeatureBento() {
               step={250}
               value={budgetSpend}
               onChange={(e) => setBudgetSpend(Number(e.target.value))}
+              aria-label="Amount spent this month"
               className="mt-3.5 w-full accent-primary cursor-pointer h-2 rounded-lg bg-muted"
             />
 
