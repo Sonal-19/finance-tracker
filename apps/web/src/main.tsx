@@ -3,6 +3,8 @@ import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
 
 import * as TanStackQueryProvider from "./integrations/tanstack-query/root-provider.tsx";
+import { startSync } from "./lib/offline/sync";
+import { listenForInstall } from "./lib/pwa";
 
 // Import the generated route tree
 import { routeTree } from "./routeTree.gen";
@@ -14,6 +16,9 @@ import "./styles.css";
 window.addEventListener("vite:preloadError", () => {
   window.location.reload();
 });
+
+// Catch the browser's install offer as early as possible (it fires once).
+listenForInstall();
 
 // Create a new router instance
 
@@ -42,7 +47,10 @@ if (rootElement && !rootElement.innerHTML) {
   const root = ReactDOM.createRoot(rootElement);
   root.render(
     <StrictMode>
-      <TanStackQueryProvider.Provider {...TanStackQueryProviderContext}>
+      <TanStackQueryProvider.Provider
+        {...TanStackQueryProviderContext}
+        onRestored={startSync}
+      >
         <RouterProvider router={router} />
       </TanStackQueryProvider.Provider>
     </StrictMode>,

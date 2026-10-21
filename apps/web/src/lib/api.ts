@@ -19,10 +19,19 @@ export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /** The envelope's `data` on an error (e.g. the saved row on a 409). */
+    readonly data: unknown = null,
   ) {
     super(message);
   }
+  /** No usable answer (offline, server down or erroring, proxy timeout):
+   * worth trying again later rather than treating as a refusal. */
+  get isNetwork() {
+    return this.status === 0 || this.status >= 500;
+  }
 }
+
+const OFFLINE_MESSAGE = "You're offline. This needs a connection.";
 
 type Envelope<T> = T extends { data: infer D } ? D : never;
 
@@ -34,20 +43,35 @@ type Envelope<T> = T extends { data: infer D } ? D : never;
 export async function call<R extends { data: unknown; error: unknown }>(
   p: Promise<R>,
 ): Promise<Envelope<NonNullable<R["data"]>>> {
-  const res = (await p) as unknown as {
+  let res: {
     data: { data: unknown } | null;
     error: { status: number; value: unknown } | null;
     status: number;
   };
+  try {
+    res = (await p) as unknown as typeof res;
+  } catch {
+    // fetch itself threw: no network at all.
+    throw new ApiError(OFFLINE_MESSAGE, 0);
+  }
   if (res.error) {
     const v = res.error.value as
-      | { message?: string; summary?: string }
+      | { message?: string; summary?: string; data?: unknown }
       | string;
+    const status = res.error.status ?? 0;
     const message =
       typeof v === "string"
         ? v
-        : (v?.message ?? v?.summary ?? `Request failed (${res.error.status})`);
-    throw new ApiError(message, res.error.status);
+        : (v?.message ?? v?.summary ?? `Request failed (${status})`);
+    throw new ApiError(
+      status === 0
+        ? OFFLINE_MESSAGE
+        : status >= 502 && typeof v !== "object"
+          ? "Can't reach the server right now. Try again in a moment."
+          : message,
+      status,
+      typeof v === "object" ? v?.data : null,
+    );
   }
   return (res.data?.data ?? null) as Envelope<NonNullable<R["data"]>>;
 }

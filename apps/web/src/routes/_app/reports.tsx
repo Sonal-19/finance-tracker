@@ -75,7 +75,7 @@ function ReportsPage() {
 
       {isLoading ? (
         <PageLoader />
-      ) : error ? (
+      ) : error && !data ? (
         <ErrorState error={error} />
       ) : data ? (
         <>

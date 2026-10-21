@@ -79,6 +79,8 @@ export const transfersTable = pgTable(
     amount: pg.bigint({ mode: "number" }).notNull(),
     date: pg.date({ mode: "string" }).notNull(),
     note: pg.text(),
+    /** Browser-made id for safe retries (see transactions.client_id). */
+    clientId: pg.uuid("client_id"),
     createdAt: pg
       .timestamp("created_at", { withTimezone: true })
       .defaultNow()
@@ -89,6 +91,9 @@ export const transfersTable = pgTable(
     // `amount` is in the key so per-account sums are index-only scans.
     index("transfers_from_account_idx").on(t.fromAccountId, t.amount),
     index("transfers_to_account_idx").on(t.toAccountId, t.amount),
+    uniqueIndex("transfers_client_uq")
+      .on(t.userId, t.clientId)
+      .where(sql`${t.clientId} is not null`),
   ],
 );
 

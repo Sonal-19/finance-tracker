@@ -3,6 +3,11 @@ import { IS_PROD } from "$/env";
 import { mailService } from "$/lib/services/mail-service";
 import { systemConfigService } from "$/lib/services/system-config-service";
 import { fail, ok } from "$/lib/utils";
+import {
+  cleanShortcuts,
+  resolveShortcuts,
+  shortcutProblems,
+} from "$/lib/utils/shortcuts";
 import { protectedAdmin } from "$/pre-processor";
 
 // NOTE TO FUTURE EDITORS: this schema is the admin page's write contract for
@@ -32,6 +37,12 @@ export const UpdateSystemConfigSchema = t.Object({
       MESSAGE: t.String({ maxLength: 500 }),
     }),
   ),
+  SHORTCUTS: t.Optional(
+    t.Object({
+      /** action id → keys; checked with shortcutProblems before saving */
+      DEFAULTS: t.Record(t.String(), t.String({ maxLength: 40 })),
+    }),
+  ),
 });
 
 export const systemConfigController = new Elysia({
@@ -53,6 +64,12 @@ export const systemConfigController = new Elysia({
           400,
           fail("Set up SMTP on the server before requiring an email code"),
         );
+      if (body.SHORTCUTS) {
+        const defaults = resolveShortcuts(body.SHORTCUTS.DEFAULTS, null);
+        const [problem] = Object.values(shortcutProblems(defaults));
+        if (problem) return status(400, fail(`Shortcuts: ${problem}`));
+        body.SHORTCUTS.DEFAULTS = cleanShortcuts(defaults);
+      }
       return ok(
         await systemConfigService.update(body, user.id),
         "System config saved",

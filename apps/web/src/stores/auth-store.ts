@@ -9,6 +9,8 @@ export type AppUser = {
   taggedExpenses: "manual" | "auto";
   role: "user" | "admin";
   monthlyBudget: number | null;
+  /** The user's own keyboard shortcut changes; null = the defaults. */
+  shortcuts?: Record<string, string> | null;
 };
 
 interface AuthState {

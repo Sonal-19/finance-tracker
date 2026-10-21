@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { LogOut, Monitor, Moon, Settings, Sun } from "lucide-react";
 import { toast } from "sonner";
+import { confirm } from "@/components/common/confirm-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useLogout } from "@/hooks/use-auth";
+import { pendingCount } from "@/lib/offline/sync";
 import type { AppUser } from "@/stores/auth-store";
 import { type Theme, useThemeStore } from "@/stores/theme-store";
 
@@ -42,6 +44,18 @@ export function useSignOut() {
   const logout = useLogout();
   const navigate = useNavigate();
   return async () => {
+    const unsynced = pendingCount();
+    if (
+      unsynced &&
+      !(await confirm({
+        title: `Log out with ${unsynced} unsynced change${unsynced > 1 ? "s" : ""}?`,
+        description:
+          "They haven't reached the server yet and will be lost. Connect to the internet first to keep them.",
+        confirmText: "Log out anyway",
+        destructive: true,
+      }))
+    )
+      return;
     await logout();
     toast.success("Logged out");
     navigate({ to: "/", replace: true });

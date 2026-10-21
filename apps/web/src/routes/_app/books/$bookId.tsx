@@ -47,8 +47,7 @@ function BookPage() {
   const [editing, setEditing] = useState<EditableBook | null>(null);
 
   if (isLoading) return <PageLoader />;
-  if (error || !data)
-    return <ErrorState error={error ?? new Error("Not found")} />;
+  if (!data) return <ErrorState error={error ?? new Error("Not found")} />;
   const { book: b, byCategory } = data;
   const separate = b.totals === "separate";
   const archived = b.status === "archived";

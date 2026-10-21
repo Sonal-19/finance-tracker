@@ -8,6 +8,7 @@ import {
 } from "$/lib/services/attachment-service";
 import { coreAuthService } from "$/lib/services/core-auth-service";
 import { publicUser } from "$/lib/services/session-service";
+import { systemConfigService } from "$/lib/services/system-config-service";
 import { userCacheService } from "$/lib/services/user-cache-service";
 import {
   isUniqueViolation,
@@ -19,6 +20,11 @@ import {
 } from "$/lib/services/username-service";
 import { fail, ok } from "$/lib/utils";
 import { tEnum } from "$/lib/utils/schema";
+import {
+  cleanShortcuts,
+  resolveShortcuts,
+  shortcutProblems,
+} from "$/lib/utils/shortcuts";
 import { protectedUser } from "$/pre-processor";
 
 export const profileController = new Elysia({
@@ -52,6 +58,17 @@ export const profileController = new Elysia({
           username = next;
         }
       }
+      let shortcuts: Record<string, string> | null | undefined;
+      if (body.shortcuts !== undefined) {
+        // Checked together with the admin's defaults they sit on top of.
+        const admin = systemConfigService.SYSTEM_CONFIG.SHORTCUTS.DEFAULTS;
+        const own = body.shortcuts && cleanShortcuts(body.shortcuts);
+        const [problem] = Object.values(
+          shortcutProblems(resolveShortcuts(admin, own)),
+        );
+        if (problem) return status(400, fail(problem));
+        shortcuts = own && Object.keys(own).length ? own : null;
+      }
       let updated: typeof usersTable.$inferSelect | undefined;
       try {
         [updated] = await db
@@ -68,6 +85,7 @@ export const profileController = new Elysia({
             ...(body.monthlyBudget !== undefined && {
               monthlyBudget: body.monthlyBudget,
             }),
+            ...(shortcuts !== undefined && { shortcuts }),
           })
           .where(eq(usersTable.id, user.id))
           .returning();
@@ -86,6 +104,10 @@ export const profileController = new Elysia({
         taggedExpenses: t.Optional(tEnum(taggedExpenseModes)),
         name: t.Optional(t.String({ minLength: 2, maxLength: 80 })),
         monthlyBudget: t.Optional(t.Nullable(t.Integer({ minimum: 0 }))),
+        /** The user's own shortcut changes; null = back to the defaults. */
+        shortcuts: t.Optional(
+          t.Nullable(t.Record(t.String(), t.String({ maxLength: 40 }))),
+        ),
       }),
     },
   )

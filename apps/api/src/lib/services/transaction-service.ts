@@ -71,6 +71,8 @@ export const txnSelect = {
   splitId: transactionsTable.splitId,
   sharedSplitId: transactionsTable.sharedSplitId,
   createdAt: transactionsTable.createdAt,
+  updatedAt: transactionsTable.updatedAt,
+  clientId: transactionsTable.clientId,
   /** Bills/receipts kept with it (answered from `attachments_transaction_idx`). */
   attachmentCount: sql<number>`(select count(*) from ${attachmentsTable} where ${attachmentsTable.transactionId} = ${transactionsTable.id})::int`,
   category: {

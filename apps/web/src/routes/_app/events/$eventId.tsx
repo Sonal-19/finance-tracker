@@ -37,8 +37,7 @@ function EventPage() {
   const [editing, setEditing] = useState<EditableEvent | null>(null);
 
   if (isLoading) return <PageLoader />;
-  if (error || !data)
-    return <ErrorState error={error ?? new Error("Not found")} />;
+  if (!data) return <ErrorState error={error ?? new Error("Not found")} />;
   const { event: e, byCategory, byDay } = data;
   const range = dateRangeLabel(e.startDate, e.endDate, shortDate);
   const pages = txns.data?.pages ?? [];

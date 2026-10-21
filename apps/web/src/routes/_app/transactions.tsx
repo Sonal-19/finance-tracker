@@ -481,6 +481,7 @@ function TransactionsPage() {
               placeholder="Search notes or categories"
               className="pl-9"
               aria-label="Search transactions"
+              data-search-input
             />
           </div>
           <Button
@@ -566,7 +567,7 @@ function TransactionsPage() {
 
       {query.isLoading ? (
         <PageLoader />
-      ) : query.error ? (
+      ) : query.error && !query.data ? (
         <ErrorState error={query.error} />
       ) : items.length === 0 ? (
         <EmptyState title="No transactions found">

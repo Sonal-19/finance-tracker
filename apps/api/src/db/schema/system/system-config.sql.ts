@@ -1,5 +1,6 @@
 import { pgTable } from "drizzle-orm/pg-core";
 import { FX_FALLBACK_USD_INR } from "$/env";
+import { DEFAULT_SHORTCUTS } from "$/lib/utils/shortcuts";
 
 // NOTE TO FUTURE EDITORS: this is the app's single runtime-editable config
 // object. Adding a key means touching every place below, in lockstep - see
@@ -31,6 +32,11 @@ export const SYSTEM_CONFIG = {
     /** USD→INR rate (rupees) used only when every exchange-rate source is
      * unreachable. Defaults to the FX_FALLBACK_USD_INR env value. */
     FALLBACK_USD_INR: FX_FALLBACK_USD_INR,
+  },
+  /** keyboard shortcuts everyone starts with (action id → keys, "" = none;
+   * syntax in lib/utils/shortcuts.ts). Users can change their own on top. */
+  SHORTCUTS: {
+    DEFAULTS: { ...DEFAULT_SHORTCUTS } as Record<string, string>,
   },
   /** banner shown to every logged-in user at the top of the app */
   NOTICE: {

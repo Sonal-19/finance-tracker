@@ -1,4 +1,10 @@
-import { ChevronRight, Paperclip, Repeat, Users } from "lucide-react";
+import {
+  ChevronRight,
+  CloudUpload,
+  Paperclip,
+  Repeat,
+  Users,
+} from "lucide-react";
 import { CategoryIcon } from "@/components/common/category-icon";
 import { useActiveBooks } from "@/hooks/use-books";
 import type { Txn } from "@/hooks/use-finance";
@@ -9,6 +15,7 @@ import {
   fromAmount,
   ymd,
 } from "@/lib/format";
+import type { SyncMark } from "@/lib/offline/outbox";
 import { cn } from "@/lib/utils";
 import { useTxnSheet } from "@/stores/txn-sheet-store";
 
@@ -41,6 +48,12 @@ export function TransactionRow({
             <Users
               className="size-3.5 text-muted-foreground"
               aria-label="Your share of a split"
+            />
+          )}
+          {(t as Txn & SyncMark)._sync && (
+            <CloudUpload
+              className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400"
+              aria-label="Saved on this device, waiting to sync"
             />
           )}
           {t.attachmentCount > 0 && (

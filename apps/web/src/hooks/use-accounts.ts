@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { savedToast } from "@/hooks/use-finance";
 import { api, call, callMsg } from "@/lib/api";
+import { formatAmount } from "@/lib/format";
+import { queueAddTransfer, queueDeleteTransfer } from "@/lib/offline/sync";
 
 /* ---------- accounts ---------- */
 
@@ -139,26 +142,22 @@ export type TransferInput = {
   note?: string | null;
 };
 
+/** Saved on this device first, synced in the background (works offline). */
 export function useAddTransfer() {
-  const invalidate = useInvalidateMoney();
   return useMutation({
-    mutationFn: (body: TransferInput) => callMsg(api.transfers.post(body)),
-    onSuccess: ({ message }) => {
-      toast.success(message);
-      invalidate();
-    },
+    mutationFn: async (body: TransferInput) => queueAddTransfer(body),
+    onSuccess: (t) =>
+      savedToast(
+        `Moved ${formatAmount(t.amount)} from ${t.from.name} to ${t.to.name}`,
+      ),
     onError,
   });
 }
 
 export function useDeleteTransfer() {
-  const invalidate = useInvalidateMoney();
   return useMutation({
-    mutationFn: (id: number) => callMsg(api.transfers({ id }).delete()),
-    onSuccess: ({ message }) => {
-      toast.success(message);
-      invalidate();
-    },
+    mutationFn: async (id: number) => queueDeleteTransfer(id),
+    onSuccess: () => savedToast("Transfer deleted"),
     onError,
   });
 }

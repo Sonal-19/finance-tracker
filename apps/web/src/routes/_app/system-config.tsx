@@ -1,6 +1,7 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { SectionCard } from "@/components/app/section-card";
+import { ShortcutEditor } from "@/components/app/shortcuts";
 import { Field } from "@/components/common/field";
 import { PageHeader } from "@/components/common/page-header";
 import { ErrorState, PageLoader } from "@/components/common/states";
@@ -14,6 +15,11 @@ import {
   useSaveSystemConfig,
   useSystemConfig,
 } from "@/hooks/use-passkeys";
+import {
+  DEFAULT_SHORTCUTS,
+  resolveShortcuts,
+  shortcutProblems,
+} from "$/lib/utils/shortcuts";
 
 export const Route = createFileRoute("/_app/system-config")({
   component: SystemConfigPage,
@@ -104,6 +110,8 @@ function SystemConfigForm({ config }: { config: SystemConfigData }) {
     maxPasskeysNum >= 0 &&
     maxPasskeysNum <= 1000;
   const fxFallbackOk = fxFallbackNum >= 1 && fxFallbackNum <= 10_000;
+  const shortcuts = resolveShortcuts(form.SHORTCUTS.DEFAULTS, null);
+  const shortcutsOk = !Object.keys(shortcutProblems(shortcuts)).length;
 
   const payload: SystemConfigData = {
     ...form,
@@ -199,9 +207,29 @@ function SystemConfigForm({ config }: { config: SystemConfigData }) {
         </Field>
       </SectionCard>
 
+      <SectionCard title="Keyboard shortcuts">
+        <p className="mb-4 text-sm text-muted-foreground">
+          The defaults for everyone. People can still change their own in
+          Settings; theirs win over these.
+        </p>
+        <ShortcutEditor
+          value={shortcuts}
+          base={DEFAULT_SHORTCUTS}
+          onChange={(next) =>
+            setForm((f) => ({ ...f, SHORTCUTS: { DEFAULTS: next } }))
+          }
+        />
+      </SectionCard>
+
       <Button
         type="submit"
-        disabled={!dirty || !maxPasskeysOk || !fxFallbackOk || save.isPending}
+        disabled={
+          !dirty ||
+          !maxPasskeysOk ||
+          !fxFallbackOk ||
+          !shortcutsOk ||
+          save.isPending
+        }
       >
         {save.isPending ? "Saving…" : "Save changes"}
       </Button>
