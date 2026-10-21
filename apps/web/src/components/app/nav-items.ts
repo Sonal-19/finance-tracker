@@ -79,15 +79,13 @@ type NavUser = { role?: string } | null | undefined;
 export const homeFor = (user: NavUser) =>
   user?.role === "admin" ? ADMIN_HOME.to : "/dashboard";
 
-export const navFor = (user: NavUser) =>
-  user?.role === "admin" ? [ADMIN_HOME, ...NAV, ...ADMIN_NAV] : [...NAV];
 export type NavItem = {
-  to: (typeof NAV | typeof ADMIN_NAV)[number]["to"];
+  to: (typeof NAV | typeof ADMIN_NAV)[number]["to"] | typeof ADMIN_HOME.to;
   label: string;
-  icon: (typeof NAV)[number]["icon"];
+  icon: (typeof NAV)[number]["icon"] | typeof ADMIN_HOME.icon;
   shortcut?: ShortcutAction;
 };
 
-export const navFor = (
-  user: { role?: string } | null | undefined,
-): NavItem[] => (user?.role === "admin" ? [...NAV, ...ADMIN_NAV] : [...NAV]);
+export const navFor = (user: NavUser): NavItem[] =>
+  user?.role === "admin" ? [ADMIN_HOME, ...NAV, ...ADMIN_NAV] : [...NAV];
+

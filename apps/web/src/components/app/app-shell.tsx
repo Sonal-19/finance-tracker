@@ -29,14 +29,10 @@ import { useSplitSheet } from "@/stores/split-sheet-store";
 import { useTxnSheet } from "@/stores/txn-sheet-store";
 import { useUiStore } from "@/stores/ui-store";
 import { BookSwitcher } from "./book-switcher";
-<<<<<<< HEAD
-import { homeFor, navFor } from "./nav-items";
-=======
 import { InstallButton } from "./install-app";
-import { navFor } from "./nav-items";
+import { homeFor, navFor } from "./nav-items";
 import { ShortcutKeys, ShortcutsDialog } from "./shortcuts";
 import { SyncStatus } from "./sync-status";
->>>>>>> 53f4da3d39971e6f7c5865a62d4274dc2f9c3f04
 import { Avatar, UserMenu, useSignOut } from "./user-menu";
 
 /** Every keyboard shortcut's effect. */
@@ -158,10 +154,6 @@ export function AppShell({
       )}
     >
       {/* Desktop / tablet sidebar */}
-      <aside className="sticky top-0 hidden h-dvh flex-col border-r bg-card md:flex">
-        <div className="px-5 py-5">
-          <Link to={homeFor(user)}>
-            <Logo />
       <aside
         className="sticky top-0 hidden h-dvh flex-col overflow-hidden border-r bg-card md:flex"
         data-collapsed={collapsed || undefined}
@@ -172,7 +164,7 @@ export function AppShell({
             collapsed ? "flex-col px-2" : "justify-between px-5",
           )}
         >
-          <Link to="/dashboard" aria-label="Dashboard">
+          <Link to={homeFor(user)} aria-label="Dashboard">
             {collapsed ? (
               <img src="/favicon.svg" alt="" className="size-8 rounded-lg" />
             ) : (
