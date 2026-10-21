@@ -21,6 +21,12 @@ class RateLimitService {
     return b.count <= limit;
   }
 
+  /** Whether `key` is already over `limit`, without counting a call. */
+  isOver(key: string, limit: number): boolean {
+    const b = this.#buckets.get(key);
+    return !!b && b.resetAt >= Date.now() && b.count >= limit;
+  }
+
   reset(key: string) {
     this.#buckets.delete(key);
   }

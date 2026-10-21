@@ -88,6 +88,21 @@ it with `usePublicConfig()`. Only expose what a stranger may see.
 - [ ] Form field in `system-config.tsx` (skip if not admin-editable)
 - [ ] `bun run typecheck` and `bun run lint` clean
 
+## Per-user settings
+
+A setting each user picks for themselves (not the admin for everyone) goes
+in `USER_CONFIG` (`db/schema/users/user-config.sql.ts`) instead, the same
+way: default with a doc comment, read through `userConfigService.get(id)`,
+validate in `UpdateUserConfigSchema` (`profile-controller.ts`), and add a
+control on the Settings page with `useUserConfig()` / `useSaveUserConfig()`.
+Don't add a column to `users` for it.
+
+Merging rules (both configs, `lib/utils/config.ts`): a stored value is fitted
+onto the defaults' shape, so unknown keys drop and new ones get their
+default. An empty object in the defaults (`{}`) is a free-form map (a
+palette, the user's shortcut changes) and is taken as stored. A patch
+replaces each key it sends within a group, and replaces a map group whole.
+
 ## Good to know
 
 - **Who is an admin:** `users.role = 'admin'`. Promote someone with

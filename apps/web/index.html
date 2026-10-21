@@ -26,16 +26,25 @@
       rel="stylesheet"
     />
     <script>
-      // Apply the saved theme before first paint (no flash).
+      // Apply the saved theme before first paint (no flash). Keep in step
+      // with applyTheme in src/stores/theme-store.ts.
       (() => {
         try {
-          const t =
-            JSON.parse(localStorage.getItem("ft-theme") || "{}").state?.theme ||
-            "system";
-          const dark =
-            t === "dark" ||
-            (t === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
-          if (dark) document.documentElement.classList.add("dark");
+          const s =
+            JSON.parse(localStorage.getItem("ft-theme") || "{}").state || {};
+          const t = s.theme || "system";
+          const mode =
+            t !== "system"
+              ? t
+              : matchMedia("(prefers-color-scheme: dark)").matches
+                ? s.systemDark || "dark"
+                : "light";
+          const root = document.documentElement;
+          if (mode !== "light") root.classList.add("dark");
+          root.dataset.theme = mode;
+          const vars = s.vars?.[mode];
+          if (vars)
+            for (const k in vars) root.style.setProperty(k, vars[k]);
         } catch {}
       })();
     </script>

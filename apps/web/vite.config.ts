@@ -22,7 +22,11 @@ export default defineConfig({
       // Registered from src/lib/pwa.ts so the app can offer "Reload to update".
       injectRegister: false,
       registerType: "prompt",
-      includeAssets: ["favicon.svg", "apple-touch-icon.png", "manifest.webmanifest"],
+      includeAssets: [
+        "favicon.svg",
+        "apple-touch-icon.png",
+        "manifest.webmanifest",
+      ],
       workbox: {
         // The whole app shell is precached, so it opens with no connection.
         globPatterns: ["**/*.{js,css,html,svg,png,webp,woff2,webmanifest}"],

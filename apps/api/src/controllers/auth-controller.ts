@@ -85,7 +85,8 @@ export const authController = new Elysia({
 })
   /** The slice of SYSTEM_CONFIG the logged-out pages and app shell need. */
   .get("/config", () => {
-    const { AUTH, NOTICE, SHORTCUTS } = systemConfigService.SYSTEM_CONFIG;
+    const { AUTH, NOTICE, SHORTCUTS, THEME } =
+      systemConfigService.SYSTEM_CONFIG;
     return ok({
       registrationEnabled: AUTH.REGISTRATION_ENABLED,
       registrationOtpRequired: AUTH.REGISTRATION_OTP_REQUIRED,
@@ -93,6 +94,8 @@ export const authController = new Elysia({
       notice: NOTICE.ENABLED && NOTICE.MESSAGE.trim() ? NOTICE.MESSAGE : null,
       /** The admin's default keyboard shortcuts (users override their own). */
       shortcuts: resolveShortcuts(SHORTCUTS.DEFAULTS, null),
+      /** The admin's colours (users override their own). */
+      theme: THEME,
     });
   })
   .get(

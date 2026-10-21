@@ -1,7 +1,12 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SectionCard } from "@/components/app/section-card";
 import { ShortcutEditor } from "@/components/app/shortcuts";
+import {
+  hasErrors,
+  ThemeEditor,
+  themeReport,
+} from "@/components/app/theme-editor";
 import { Field } from "@/components/common/field";
 import { PageHeader } from "@/components/common/page-header";
 import { ErrorState, PageLoader } from "@/components/common/states";
@@ -15,6 +20,7 @@ import {
   useSaveSystemConfig,
   useSystemConfig,
 } from "@/hooks/use-passkeys";
+import { useThemePreview } from "@/stores/theme-store";
 import {
   DEFAULT_SHORTCUTS,
   resolveShortcuts,
@@ -112,6 +118,16 @@ function SystemConfigForm({ config }: { config: SystemConfigData }) {
   const fxFallbackOk = fxFallbackNum >= 1 && fxFallbackNum <= 10_000;
   const shortcuts = resolveShortcuts(form.SHORTCUTS.DEFAULTS, null);
   const shortcutsOk = !Object.keys(shortcutProblems(shortcuts)).length;
+  const themeOk = !hasErrors(themeReport(form.THEME, null));
+  const themeDirty =
+    JSON.stringify(form.THEME) !== JSON.stringify(config.THEME);
+
+  // The colours being edited show across the app (under the admin's own).
+  const setPreview = useThemePreview((s) => s.setPreview);
+  useEffect(() => {
+    setPreview(themeDirty ? { admin: form.THEME } : null);
+  }, [themeDirty, form.THEME, setPreview]);
+  useEffect(() => () => setPreview(null), [setPreview]);
 
   const payload: SystemConfigData = {
     ...form,
@@ -221,10 +237,24 @@ function SystemConfigForm({ config }: { config: SystemConfigData }) {
         />
       </SectionCard>
 
+      <SectionCard title="Theme">
+        <p className="mb-4 text-sm text-muted-foreground">
+          The colours everyone starts with, per mode. People can pick their own
+          in Settings; theirs win over these. Text that would be unreadable
+          can't be saved.
+        </p>
+        <ThemeEditor
+          value={form.THEME}
+          below={null}
+          onChange={(next) => setForm((f) => ({ ...f, THEME: next }))}
+        />
+      </SectionCard>
+
       <Button
         type="submit"
         disabled={
           !dirty ||
+          !themeOk ||
           !maxPasskeysOk ||
           !fxFallbackOk ||
           !shortcutsOk ||

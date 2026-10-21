@@ -21,6 +21,8 @@ export type Draft<T = unknown> = {
 
 interface DraftState {
   drafts: Record<string, Draft>;
+  /** Whose drafts these are; another login drops them (`claimDevice`). */
+  ownerId: number | null;
   put: (key: string, draft: Partial<Draft> & { value: unknown }) => void;
   clear: (key: string) => void;
 }
@@ -32,6 +34,7 @@ export const useDraftStore = create<DraftState>()(
   persist(
     (set) => ({
       drafts: {},
+      ownerId: null,
       put: (key, draft) =>
         set((s) => ({
           drafts: {
@@ -48,13 +51,15 @@ export const useDraftStore = create<DraftState>()(
     {
       name: "drafts",
       storage: idbStorage(),
-      partialize: (s) => ({ drafts: s.drafts }) as DraftState,
+      partialize: (s) =>
+        ({ drafts: s.drafts, ownerId: s.ownerId }) as DraftState,
       merge: (persisted, current) => {
-        const drafts = (persisted as Partial<DraftState>)?.drafts ?? {};
+        const saved = persisted as Partial<DraftState> | undefined;
+        const drafts = saved?.drafts ?? {};
         const fresh = Object.fromEntries(
           Object.entries(drafts).filter(([, d]) => Date.now() - d.at < MAX_AGE),
         );
-        return { ...current, drafts: fresh };
+        return { ...current, drafts: fresh, ownerId: saved?.ownerId ?? null };
       },
     },
   ),

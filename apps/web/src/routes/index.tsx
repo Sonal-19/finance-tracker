@@ -29,7 +29,7 @@ import { FeatureBento } from "@/components/landing/feature-bento";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { formatAmount, formatAmountShort, toAmount } from "@/lib/format";
-import { useThemeStore } from "@/stores/theme-store";
+import { isDarkChoice, useThemeStore } from "@/stores/theme-store";
 
 export const Route = createFileRoute("/")({
   component: Landing,
@@ -1261,6 +1261,8 @@ function Landing() {
 
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
+  const systemDark = useThemeStore((s) => s.systemDark);
+  const isDark = isDarkChoice(theme, systemDark);
 
   if (!isLoading && user) return <Navigate to="/dashboard" replace />;
 
@@ -1280,11 +1282,7 @@ function Landing() {
     });
   };
 
-  const toggleTheme = () => {
-    if (theme === "dark") setTheme("light");
-    else if (theme === "light") setTheme("dark");
-    else setTheme("dark");
-  };
+  const toggleTheme = () => setTheme(isDark ? "light" : "dark");
 
   return (
     <div className="relative min-h-dvh bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary">
@@ -1308,7 +1306,7 @@ function Landing() {
               className="rounded-full size-8 sm:size-9 shrink-0 text-foreground/80 hover:text-foreground hover:bg-muted/80 transition-all duration-200 cursor-pointer"
               aria-label="Toggle theme"
             >
-              {theme === "dark" ? (
+              {isDark ? (
                 <Sun className="size-4 text-warning transition-transform duration-300 hover:rotate-45" />
               ) : (
                 <Moon className="size-4 text-primary transition-transform duration-300 hover:-rotate-12" />
@@ -1813,7 +1811,7 @@ function Landing() {
                 type="button"
                 onClick={() => setTheme("dark")}
                 className={`rounded px-1.5 py-0.5 ${
-                  theme === "dark"
+                  theme === "dark" || theme === "amoled"
                     ? "bg-primary text-primary-foreground font-bold"
                     : "hover:text-foreground"
                 }`}

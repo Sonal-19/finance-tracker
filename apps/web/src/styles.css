@@ -3,6 +3,10 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Fallbacks only: the live values are set on <html> by applyTheme
+   (src/stores/theme-store.ts) from lib/utils/theme.ts, the admin's colours
+   and the user's own. Regenerate these from themeCss when the base palettes
+   change. */
 :root {
   --background: #f5f7f9;
   --foreground: #0f172a;
@@ -12,24 +16,26 @@
   --popover-foreground: #0f172a;
   --primary: #0f766e;
   --primary-foreground: #ffffff;
-  --secondary: #eef2f5;
+  --secondary: #eceef1;
   --secondary-foreground: #0f172a;
-  --muted: #eef1f4;
-  --muted-foreground: #64748b;
-  --accent: #e6f4f2;
-  --accent-foreground: #0f5f58;
-  --destructive: #dc2626;
+  --muted: #eceef1;
+  --muted-foreground: #5b6676;
+  --accent: #e7f1f1;
+  --accent-foreground: #0f766e;
+  --destructive: #b91c1c;
   --destructive-foreground: #ffffff;
   --border: #e2e8f0;
-  --input: #d7dee7;
-  --ring: #14b8a6;
-  --income: #059669;
-  --expense: #e11d48;
-  --warning: #d97706;
-  --radius: 0.85rem;
+  --input: #d5dbe4;
+  --ring: #0f766e;
+  --income: #0f766e;
+  --expense: #c2410c;
+  --warning: #b45309;
   --chart-grid: #e2e8f0;
   --chart-income: #0d9488;
   --chart-expense: #ea580c;
+  --hero: #0f766e;
+  --hero-end: #0b534d;
+  --radius: 0.85rem;
 }
 
 .dark {
@@ -37,25 +43,59 @@
   --foreground: #e6edf3;
   --card: #121a21;
   --card-foreground: #e6edf3;
-  --popover: #151e26;
+  --popover: #182027;
   --popover-foreground: #e6edf3;
   --primary: #2dd4bf;
-  --primary-foreground: #04201d;
-  --secondary: #1b252e;
+  --primary-foreground: #07201d;
+  --secondary: #212930;
   --secondary-foreground: #e6edf3;
-  --muted: #1a232c;
+  --muted: #212930;
   --muted-foreground: #8b98a5;
-  --accent: #10302d;
-  --accent-foreground: #7ee7d8;
+  --accent: #16383a;
+  --accent-foreground: #2dd4bf;
   --destructive: #f87171;
-  --destructive-foreground: #1b0707;
+  --destructive-foreground: #251111;
   --border: #22303b;
-  --input: #2a3945;
+  --input: #323f4a;
   --ring: #2dd4bf;
-  --income: #34d399;
-  --expense: #fb7185;
+  --income: #5eead4;
+  --expense: #fb923c;
   --warning: #fbbf24;
   --chart-grid: #22303b;
+  --chart-income: #14b8a6;
+  --chart-expense: #f97316;
+  --hero: #1c8376;
+  --hero-end: #145c53;
+}
+
+:root[data-theme="amoled"] {
+  --background: #000000;
+  --foreground: #f5f5f5;
+  --card: #0a0a0a;
+  --card-foreground: #f5f5f5;
+  --popover: #111111;
+  --popover-foreground: #f5f5f5;
+  --primary: #2dd4bf;
+  --primary-foreground: #07201d;
+  --secondary: #1a1a1a;
+  --secondary-foreground: #f5f5f5;
+  --muted: #1a1a1a;
+  --muted-foreground: #a3a3a3;
+  --accent: #102a27;
+  --accent-foreground: #2dd4bf;
+  --destructive: #f87171;
+  --destructive-foreground: #251111;
+  --border: #262626;
+  --input: #373737;
+  --ring: #2dd4bf;
+  --income: #5eead4;
+  --expense: #fb923c;
+  --warning: #fbbf24;
+  --chart-grid: #262626;
+  --chart-income: #14b8a6;
+  --chart-expense: #f97316;
+  --hero: #1c8376;
+  --hero-end: #145c53;
 }
 
 @theme inline {
@@ -83,6 +123,8 @@
   --color-warning: var(--warning);
   --color-chart-income: var(--chart-income);
   --color-chart-expense: var(--chart-expense);
+  --color-hero: var(--hero);
+  --color-hero-end: var(--hero-end);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -186,15 +228,9 @@
   background: linear-gradient(
     135deg,
     var(--primary) 0%,
-    #14b8a6 50%,
-    #059669 100%
+    color-mix(in oklab, var(--primary) 55%, var(--income)) 50%,
+    var(--income) 100%
   );
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.dark .text-gradient-primary {
-  background: linear-gradient(135deg, #2dd4bf 0%, #38bdf8 50%, #34d399 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }

@@ -25,7 +25,12 @@ export const SHARE_ROW_LIMIT = 2000;
 export const UPI_ID_PATTERN =
   "^[a-zA-Z0-9._-]{2,256}@[a-zA-Z][a-zA-Z0-9]{1,63}$";
 
-export const newShareToken = () => randomBytes(16).toString("base64url");
+/** Characters in a new link's token: 6 base64url characters = 36 random
+ * bits (~69 billion). Short enough to type; guessing is held back by the
+ * per-IP miss limit in the public routes. Older 22-character links still work. */
+export const SHARE_TOKEN_LENGTH = 6;
+export const newShareToken = () =>
+  randomBytes(6).toString("base64url").slice(0, SHARE_TOKEN_LENGTH);
 export const newShareSecret = () => randomBytes(32).toString("hex");
 
 /** The owner's view of a link: no password hash, no cookie secret. */
@@ -195,11 +200,7 @@ export async function shareEntries(share: SelectBookShare, book: SelectBook) {
       .from(T)
       .innerJoin(categoriesTable, eq(categoriesTable.id, T.categoryId))
       .where(where)
-      .groupBy(
-        sql`to_char(${T.date}, 'YYYY-MM')`,
-        T.type,
-        categoriesTable.id,
-      ),
+      .groupBy(sql`to_char(${T.date}, 'YYYY-MM')`, T.type, categoriesTable.id),
   ]);
   const items = rows.slice(0, SHARE_ROW_LIMIT);
   const files =

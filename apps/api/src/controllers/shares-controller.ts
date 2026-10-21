@@ -32,6 +32,7 @@ import {
 } from "$/lib/services/share-service";
 import { storageService } from "$/lib/services/storage-service";
 import { userCacheService } from "$/lib/services/user-cache-service";
+import { isUniqueViolation } from "$/lib/services/username-service";
 import { csvEscape, fail, ok } from "$/lib/utils";
 import { formatAmount } from "$/lib/utils/money";
 import { today } from "$/lib/utils/period";
@@ -45,6 +46,7 @@ const tDate = t.String({ pattern: "^\\d{4}-\\d{2}-\\d{2}$" });
 const tSharePassword = t.String({ minLength: 4, maxLength: 64 });
 
 const shareBody = t.Object({
+  title: t.Optional(t.Nullable(t.String({ maxLength: 80 }))),
   message: t.Optional(t.Nullable(t.String({ maxLength: 300 }))),
   fromDate: t.Optional(t.Nullable(tDate)),
   toDate: t.Optional(t.Nullable(tDate)),
@@ -67,6 +69,7 @@ const BACKWARDS = "The end date is before the start date";
 /** Columns to write for the fields present in the body. */
 async function shareValues(body: ShareBody) {
   return {
+    ...(body.title !== undefined && { title: body.title?.trim() || null }),
     ...(body.message !== undefined && {
       message: body.message?.trim() || null,
     }),
@@ -119,17 +122,25 @@ export const sharesController = new Elysia({
       if (!book) return status(404, fail("Book not found"));
       if (backwardsPeriod(body)) return status(400, fail(BACKWARDS));
       const { bookId, ...rest } = body;
-      const [row] = await db
-        .insert(S)
-        .values({
-          secret: newShareSecret(),
-          ...(await shareValues(rest)),
-          userId: user.id,
-          bookId,
-          token: newShareToken(),
-        })
-        .returning();
-      return ok(serializeShare(row!), "Link created");
+      const values = {
+        secret: newShareSecret(),
+        ...(await shareValues(rest)),
+        userId: user.id,
+        bookId,
+      };
+      // Short tokens can collide (rarely): the unique index refuses it, so
+      // draw another.
+      for (let attempt = 0; ; attempt++) {
+        try {
+          const [row] = await db
+            .insert(S)
+            .values({ ...values, token: newShareToken() })
+            .returning();
+          return ok(serializeShare(row!), "Link created");
+        } catch (e) {
+          if (!isUniqueViolation(e) || attempt >= 4) throw e;
+        }
+      }
     },
     {
       body: t.Composite([
@@ -291,7 +302,20 @@ const UNLOCK_DAYS = 30;
 const CLAIM_LIMIT = 5;
 const CLAIM_WINDOW_MS = 60 * 60 * 1000;
 const NOT_FOUND = "This link doesn't exist or has expired";
-const tToken = t.Object({ token: t.String({ minLength: 10, maxLength: 64 }) });
+const tToken = t.Object({ token: t.String({ minLength: 6, maxLength: 64 }) });
+/** Wrong tokens one IP may try per window before every lookup from it
+ * answers "not found" (keeps 6-character tokens from being guessed). */
+const MISS_LIMIT = 30;
+const MISS_WINDOW_MS = 15 * 60 * 1000;
+
+/** `findShare`, counting misses per IP. */
+async function findShareFrom(token: string, ip: string) {
+  const key = `share-miss:${ip}`;
+  if (rateLimitService.isOver(key, MISS_LIMIT)) return null;
+  const found = await findShare(token);
+  if (!found) rateLimitService.hit(key, MISS_LIMIT, MISS_WINDOW_MS);
+  return found;
+}
 
 /** What anyone holding a link sees. No login: the token is the key, plus
  * the link's password (kept as an httpOnly cookie once entered). */
@@ -300,10 +324,11 @@ export const publicSharesController = new Elysia({
   prefix: "/public/shares",
 })
   .use(authProcessor)
+  .derive(({ request, server }) => ({ ip: clientIp(request, server) }))
   .get(
     "/:token",
-    async ({ params, cookie, auth, status }) => {
-      const found = await findShare(params.token);
+    async ({ params, ip, cookie, auth, status }) => {
+      const found = await findShareFrom(params.token, ip);
       if (!found) return status(404, fail(NOT_FOUND));
       const { share, book } = found;
       const owner = await userCacheService.get(share.userId);
@@ -316,7 +341,8 @@ export const publicSharesController = new Elysia({
         locked: false as const,
         ownerName,
         book: {
-          name: book.name,
+          // The link's own title hides the book's real name.
+          name: share.title ?? book.name,
           icon: book.icon,
           color: book.color,
           totals: book.totals,
@@ -341,14 +367,14 @@ export const publicSharesController = new Elysia({
   )
   .post(
     "/:token/unlock",
-    async ({ params, body, cookie, request, server, status }) => {
+    async ({ params, ip, body, cookie, request, server, status }) => {
       const key = `share-unlock:${params.token}:${clientIp(request, server)}`;
       if (!rateLimitService.hit(key, UNLOCK_LIMIT, UNLOCK_WINDOW_MS))
         return status(
           429,
           fail("Too many attempts. Try again in a few minutes."),
         );
-      const found = await findShare(params.token);
+      const found = await findShareFrom(params.token, ip);
       if (!found) return status(404, fail(NOT_FOUND));
       const { share } = found;
       if (
@@ -374,8 +400,8 @@ export const publicSharesController = new Elysia({
   )
   .post(
     "/:token/claims",
-    async ({ params, body, cookie, request, server, status }) => {
-      const found = await findShare(params.token);
+    async ({ params, ip, body, cookie, request, server, status }) => {
+      const found = await findShareFrom(params.token, ip);
       if (!found) return status(404, fail(NOT_FOUND));
       const { share } = found;
       if (!isUnlocked(share, cookie[shareCookieName(share)]?.value))
@@ -414,8 +440,8 @@ export const publicSharesController = new Elysia({
   )
   .get(
     "/:token/export.csv",
-    async ({ params, cookie, set, status }) => {
-      const found = await findShare(params.token);
+    async ({ params, ip, cookie, set, status }) => {
+      const found = await findShareFrom(params.token, ip);
       if (!found) return status(404, fail(NOT_FOUND));
       const { share, book } = found;
       if (!isUnlocked(share, cookie[shareCookieName(share)]?.value))
@@ -434,15 +460,15 @@ export const publicSharesController = new Elysia({
       );
       set.headers["Content-Type"] = "text/csv; charset=utf-8";
       set.headers["Content-Disposition"] =
-        `attachment; filename="${book.name.replace(/[^a-zA-Z0-9 _-]/g, "_")}-expenses.csv"`;
+        `attachment; filename="${(share.title ?? book.name).replace(/[^a-zA-Z0-9 _-]/g, "_")}-expenses.csv"`;
       return ["Date,Type,Category,Note,Amount (INR)", ...lines].join("\n");
     },
     { params: tToken },
   )
   .get(
     "/:token/attachments/:id/file",
-    async ({ params, cookie, status }) => {
-      const found = await findShare(params.token);
+    async ({ params, ip, cookie, status }) => {
+      const found = await findShareFrom(params.token, ip);
       if (!found) return status(404, fail(NOT_FOUND));
       const { share, book } = found;
       if (!isUnlocked(share, cookie[shareCookieName(share)]?.value))

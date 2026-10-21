@@ -285,14 +285,19 @@ export const transactionsController = new Elysia({
       const categoryId = body.categoryId ?? existing.category.id;
       const cat = await ownedCategory(user.id, categoryId, type);
       if (!cat.ok) return status(400, fail(cat.message));
+      // An entry may stay on an account or book archived since; only moving
+      // it onto one is refused.
       let accountId: number | undefined;
-      if (body.accountId !== undefined) {
+      if (
+        body.accountId !== undefined &&
+        body.accountId !== existing.account.id
+      ) {
         const account = await resolveAccountId(user.id, body.accountId);
         if (!account.ok) return status(400, fail(account.message));
         accountId = account.id;
       }
       let bookId: number | undefined;
-      if (body.bookId !== undefined) {
+      if (body.bookId !== undefined && body.bookId !== existing.book.id) {
         const book = await resolveBookId(user.id, body.bookId);
         if (!book.ok) return status(400, fail(book.message));
         bookId = book.id;

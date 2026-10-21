@@ -1,6 +1,7 @@
 import { pgTable } from "drizzle-orm/pg-core";
 import { FX_FALLBACK_USD_INR } from "$/env";
 import { DEFAULT_SHORTCUTS } from "$/lib/utils/shortcuts";
+import { DEFAULT_PRESET, type ThemeColors } from "$/lib/utils/theme";
 
 // NOTE TO FUTURE EDITORS: this is the app's single runtime-editable config
 // object. Adding a key means touching every place below, in lockstep - see
@@ -38,6 +39,15 @@ export const SYSTEM_CONFIG = {
   SHORTCUTS: {
     DEFAULTS: { ...DEFAULT_SHORTCUTS } as Record<string, string>,
   },
+  /** colours everyone starts with: a preset from lib/utils/theme.ts plus
+   * per-mode token changes (token → "#rrggbb"). Users can change their own
+   * on top; saves are refused if any text would be unreadable. */
+  THEME: {
+    PRESET: DEFAULT_PRESET as string,
+    LIGHT: {},
+    DARK: {},
+    AMOLED: {},
+  } as ThemeColors,
   /** banner shown to every logged-in user at the top of the app */
   NOTICE: {
     ENABLED: false,

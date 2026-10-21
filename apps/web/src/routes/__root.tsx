@@ -7,6 +7,7 @@ import {
 import { Toaster } from "sonner";
 import { ConfirmHost } from "@/components/common/confirm-dialog";
 import { useIsMobile } from "@/hooks/use-media-query";
+import { useThemeSync } from "@/hooks/use-user-config";
 import { useThemeStore } from "@/stores/theme-store";
 
 interface RouterContext {
@@ -15,6 +16,7 @@ interface RouterContext {
 
 function Root() {
   const isMobile = useIsMobile();
+  useThemeSync();
   const theme = useThemeStore((s) => s.theme);
   return (
     <>
@@ -24,7 +26,7 @@ function Root() {
         position={isMobile ? "top-center" : "bottom-right"}
         richColors
         closeButton
-        theme={theme}
+        theme={theme === "amoled" ? "dark" : theme}
         offset={
           isMobile
             ? { top: "calc(env(safe-area-inset-top) + 12px)" }

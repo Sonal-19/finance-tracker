@@ -1,7 +1,13 @@
 import { and, eq } from "drizzle-orm";
 import Elysia, { t } from "elysia";
 import { db } from "$/db";
-import { taggedExpenseModes, userBlocksTable, usersTable } from "$/db/schema";
+import {
+  DASHBOARD_ACCOUNTS,
+  DASHBOARD_HEROES,
+  taggedExpenseModes,
+  userBlocksTable,
+  usersTable,
+} from "$/db/schema";
 import {
   attachmentKeysOf,
   deleteStoredObjects,
@@ -10,6 +16,10 @@ import { coreAuthService } from "$/lib/services/core-auth-service";
 import { publicUser } from "$/lib/services/session-service";
 import { systemConfigService } from "$/lib/services/system-config-service";
 import { userCacheService } from "$/lib/services/user-cache-service";
+import {
+  type UserConfigPatch,
+  userConfigService,
+} from "$/lib/services/user-config-service";
 import {
   isUniqueViolation,
   normalizeUsername,
@@ -25,7 +35,44 @@ import {
   resolveShortcuts,
   shortcutProblems,
 } from "$/lib/utils/shortcuts";
+import {
+  cleanThemeColors,
+  DARK_STYLES,
+  THEME_CHOICES,
+  themeErrors,
+} from "$/lib/utils/theme";
 import { protectedUser } from "$/pre-processor";
+
+const tPalette = t.Record(t.String(), t.String({ maxLength: 9 }));
+
+// NOTE TO FUTURE EDITORS: the write contract for USER_CONFIG
+// (db/schema/users/user-config.sql.ts). A key missing here is stripped from
+// patches. Each group is optional; inside one, every key is optional too and
+// replaces the saved value as a whole.
+export const UpdateUserConfigSchema = t.Object({
+  /** action id → keys; only the differences from the admin's defaults */
+  SHORTCUTS: t.Optional(t.Record(t.String(), t.String({ maxLength: 40 }))),
+  THEME: t.Optional(
+    t.Partial(
+      t.Object({
+        MODE: tEnum(THEME_CHOICES),
+        SYSTEM_DARK: tEnum(DARK_STYLES),
+        PRESET: t.String({ maxLength: 20 }),
+        LIGHT: tPalette,
+        DARK: tPalette,
+        AMOLED: tPalette,
+      }),
+    ),
+  ),
+  DASHBOARD: t.Optional(
+    t.Partial(
+      t.Object({
+        HERO: tEnum(DASHBOARD_HEROES),
+        ACCOUNTS: tEnum(DASHBOARD_ACCOUNTS),
+      }),
+    ),
+  ),
+});
 
 export const profileController = new Elysia({
   name: "profile_controller",
@@ -58,19 +105,6 @@ export const profileController = new Elysia({
           username = next;
         }
       }
-      let shortcuts: Record<string, string> | null | undefined;
-      if (body.shortcuts !== undefined) {
-        // Checked together with the admin's defaults they sit on top of.
-        const admin = systemConfigService.SYSTEM_CONFIG.SHORTCUTS.DEFAULTS;
-        const own = body.shortcuts && cleanShortcuts(body.shortcuts);
-        // Strict here: new keys must fit around today's defaults. (Only a
-        // later change to the defaults gives way to them, in resolveShortcuts.)
-        const [problem] = Object.values(
-          shortcutProblems({ ...resolveShortcuts(admin, null), ...own }),
-        );
-        if (problem) return status(400, fail(problem));
-        shortcuts = own && Object.keys(own).length ? own : null;
-      }
       let updated: typeof usersTable.$inferSelect | undefined;
       try {
         [updated] = await db
@@ -87,7 +121,6 @@ export const profileController = new Elysia({
             ...(body.monthlyBudget !== undefined && {
               monthlyBudget: body.monthlyBudget,
             }),
-            ...(shortcuts !== undefined && { shortcuts }),
           })
           .where(eq(usersTable.id, user.id))
           .returning();
@@ -106,12 +139,46 @@ export const profileController = new Elysia({
         taggedExpenses: t.Optional(tEnum(taggedExpenseModes)),
         name: t.Optional(t.String({ minLength: 2, maxLength: 80 })),
         monthlyBudget: t.Optional(t.Nullable(t.Integer({ minimum: 0 }))),
-        /** The user's own shortcut changes; null = back to the defaults. */
-        shortcuts: t.Optional(
-          t.Nullable(t.Record(t.String(), t.String({ maxLength: 40 }))),
-        ),
       }),
     },
+  )
+  /** The user's preferences (shortcuts, theme, dashboard), defaults filled in. */
+  .get("/config", async ({ user }) => ok(await userConfigService.get(user.id)))
+  .patch(
+    "/config",
+    async ({ user, body, status }) => {
+      const patch: UserConfigPatch = { ...body };
+      const system = systemConfigService.SYSTEM_CONFIG;
+      if (body.SHORTCUTS) {
+        // Checked together with the admin's defaults they sit on top of.
+        // Strict here: new keys must fit around today's defaults. (Only a
+        // later change to the defaults gives way to them, in resolveShortcuts.)
+        const own = cleanShortcuts(body.SHORTCUTS);
+        const [problem] = Object.values(
+          shortcutProblems({
+            ...resolveShortcuts(system.SHORTCUTS.DEFAULTS, null),
+            ...own,
+          }),
+        );
+        if (problem) return status(400, fail(problem));
+        patch.SHORTCUTS = own;
+      }
+      if (body.THEME) {
+        const current = (await userConfigService.get(user.id)).THEME;
+        const colors = cleanThemeColors({ ...current, ...body.THEME });
+        const [problem] = themeErrors(system.THEME, colors);
+        if (problem) return status(400, fail(problem));
+        patch.THEME = {
+          ...body.THEME,
+          ...(body.THEME.PRESET !== undefined && { PRESET: colors.PRESET }),
+          ...(body.THEME.LIGHT && { LIGHT: colors.LIGHT }),
+          ...(body.THEME.DARK && { DARK: colors.DARK }),
+          ...(body.THEME.AMOLED && { AMOLED: colors.AMOLED }),
+        };
+      }
+      return ok(await userConfigService.update(user.id, patch), "Saved");
+    },
+    { body: UpdateUserConfigSchema },
   )
   .get("/blocks", async ({ user }) => {
     const rows = await db
@@ -186,6 +253,7 @@ export const profileController = new Elysia({
       const storedKeys = await attachmentKeysOf(user.id);
       await db.delete(usersTable).where(eq(usersTable.id, user.id));
       userCacheService.invalidate(user.id);
+      userConfigService.invalidate(user.id);
       deleteStoredObjects(storedKeys).catch(console.error);
       cookie?.token?.remove();
       return ok(null, "Account deleted");

@@ -18,7 +18,7 @@ export function useAuth() {
 
   useEffect(() => {
     if (data) {
-      claimDevice(data.id);
+      void claimDevice(data.id);
       setUser(data);
     } else if (is401) clearUser();
   }, [data, is401, setUser, clearUser]);
