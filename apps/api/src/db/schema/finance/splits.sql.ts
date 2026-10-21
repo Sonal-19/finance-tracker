@@ -5,6 +5,7 @@ import {
   pgTable,
   primaryKey,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { usersTable } from "../users/users.sql";
 import { accountsTable } from "./accounts.sql";
@@ -131,10 +132,18 @@ export const splitsTable = pgTable(
       .integer("book_id")
       .references(() => booksTable.id, { onDelete: "set null" }),
     note: pg.text(),
+    /** Browser-made id for safe retries (see transactions.client_id). */
+    clientId: pg.uuid("client_id"),
     createdAt: pg
       .timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
+    /** Compared with an offline edit's base to spot changes from elsewhere. */
+    updatedAt: pg
+      .timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
   }),
   (t) => [
     index("splits_user_date_idx").on(t.userId, t.date, t.id),
@@ -142,6 +151,9 @@ export const splitsTable = pgTable(
     index("splits_group_idx")
       .on(t.groupId)
       .where(sql`${t.groupId} is not null`),
+    uniqueIndex("splits_client_uq")
+      .on(t.userId, t.clientId)
+      .where(sql`${t.clientId} is not null`),
     index("splits_paid_by_idx")
       .on(t.paidByPersonId)
       .where(sql`${t.paidByPersonId} is not null`),
@@ -199,6 +211,8 @@ export const settlementsTable = pgTable(
     amount: pg.bigint({ mode: "number" }).notNull(),
     date: pg.date({ mode: "string" }).notNull(),
     note: pg.text(),
+    /** Browser-made id for safe retries (see transactions.client_id). */
+    clientId: pg.uuid("client_id"),
     createdAt: pg
       .timestamp("created_at", { withTimezone: true })
       .defaultNow()
@@ -207,6 +221,9 @@ export const settlementsTable = pgTable(
   (t) => [
     index("settlements_user_person_idx").on(t.userId, t.personId),
     index("settlements_person_idx").on(t.personId),
+    uniqueIndex("settlements_client_uq")
+      .on(t.userId, t.clientId)
+      .where(sql`${t.clientId} is not null`),
   ],
 );
 

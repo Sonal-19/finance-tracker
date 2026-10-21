@@ -8,6 +8,7 @@ import {
   txnTypes,
 } from "$/db/schema";
 import { resolveAccountId } from "$/lib/services/account-service";
+import { sweepOrphanAttachments } from "$/lib/services/attachment-service";
 import { resolveBookId } from "$/lib/services/book-service";
 import { foreignCurrencies, fxService } from "$/lib/services/fx-service";
 import {
@@ -16,12 +17,15 @@ import {
   ownedCategory,
   ownedEventId,
   selectTxns,
+  summarizeTransactions,
   type TxnFilters,
   txnWhere,
 } from "$/lib/services/transaction-service";
+import { isUniqueViolation } from "$/lib/services/username-service";
 import { csvEscape, fail, ok } from "$/lib/utils";
 import { amountOf } from "$/lib/utils/money";
 import { tEnum } from "$/lib/utils/schema";
+import { editVerdict, staleEdit, tClientId, tSyncMeta } from "$/lib/utils/sync";
 import { protectedUser } from "$/pre-processor";
 
 const tDate = t.String({ pattern: "^\\d{4}-\\d{2}-\\d{2}$" });
@@ -104,6 +108,22 @@ const txnBody = t.Object({
   note: t.Optional(t.Nullable(t.String({ maxLength: 500 }))),
 });
 
+/** The saved row for a create the client already sent once, if any. */
+async function txnByClientId(userId: number, clientId: string | undefined) {
+  if (!clientId) return null;
+  const [row] = await db
+    .select({ id: transactionsTable.id })
+    .from(transactionsTable)
+    .where(
+      and(
+        eq(transactionsTable.userId, userId),
+        eq(transactionsTable.clientId, clientId),
+      ),
+    )
+    .limit(1);
+  return row ? getTransaction(userId, row.id) : null;
+}
+
 const ymdOf = (d: string | Date) =>
   d instanceof Date ? d.toISOString().slice(0, 10) : d.slice(0, 10);
 
@@ -127,6 +147,32 @@ export const transactionsController = new Elysia({
         t.Object({
           limit: t.Optional(t.Numeric({ minimum: 1 })),
           offset: t.Optional(t.Numeric({ minimum: 0 })),
+        }),
+      ]),
+    },
+  )
+  /** Totals, daily bars and categories for everything the filters match. */
+  .get(
+    "/summary",
+    async ({ user, query, status }) => {
+      const { prevFrom, prevTo } = query;
+      if ((prevFrom === undefined) !== (prevTo === undefined))
+        return status(400, fail("Send both prevFrom and prevTo, or neither"));
+      return ok(
+        await summarizeTransactions(
+          user.id,
+          toFilters(query),
+          prevFrom && prevTo ? { from: prevFrom, to: prevTo } : undefined,
+        ),
+      );
+    },
+    {
+      query: t.Composite([
+        filterQuery,
+        t.Object({
+          /** Same filters over these dates, to compare against. */
+          prevFrom: t.Optional(tDate),
+          prevTo: t.Optional(tDate),
         }),
       ]),
     },
@@ -187,6 +233,8 @@ export const transactionsController = new Elysia({
   .post(
     "/",
     async ({ user, body, status }) => {
+      const again = await txnByClientId(user.id, body.clientId);
+      if (again) return ok(again, "Transaction added");
       const { currency = "INR", fxRate, ...rest } = body;
       // Independent lookups: one round of queries instead of five in a row.
       const [cat, account, book, event, money] = await Promise.all([
@@ -200,27 +248,39 @@ export const transactionsController = new Elysia({
       if (!account.ok) return status(400, fail(account.message));
       if (!book.ok) return status(400, fail(book.message));
       if (!event.ok) return status(400, fail(event.message));
-      const [row] = await db
-        .insert(transactionsTable)
-        .values({
-          ...rest,
-          accountId: account.id,
-          bookId: book.id,
-          eventId: event.id,
-          ...money,
-          note: body.note?.trim() || null,
-          userId: user.id,
-        })
-        .returning({ id: transactionsTable.id });
+      let row: { id: number } | undefined;
+      try {
+        [row] = await db
+          .insert(transactionsTable)
+          .values({
+            ...rest,
+            accountId: account.id,
+            bookId: book.id,
+            eventId: event.id,
+            ...money,
+            note: body.note?.trim() || null,
+            userId: user.id,
+          })
+          .returning({ id: transactionsTable.id });
+      } catch (e) {
+        // The same create raced in twice: answer with the one that won.
+        const won = isUniqueViolation(e)
+          ? await txnByClientId(user.id, body.clientId)
+          : null;
+        if (won) return ok(won, "Transaction added");
+        throw e;
+      }
       return ok(await getTransaction(user.id, row!.id), "Transaction added");
     },
-    { body: txnBody },
+    { body: t.Composite([txnBody, t.Object({ clientId: tClientId })]) },
   )
   .patch(
     "/:id",
     async ({ user, params, body, status }) => {
       const existing = await getTransaction(user.id, params.id);
       if (!existing) return status(404, fail("Transaction not found"));
+      const verdict = editVerdict(existing.updatedAt, body);
+      if (verdict === "stale") return status(409, staleEdit(existing));
       const type = body.type ?? existing.type;
       const categoryId = body.categoryId ?? existing.category.id;
       const cat = await ownedCategory(user.id, categoryId, type);
@@ -284,11 +344,20 @@ export const transactionsController = new Elysia({
           ),
         );
       return ok(
-        await getTransaction(user.id, params.id),
-        "Transaction updated",
+        {
+          ...(await getTransaction(user.id, params.id))!,
+          /** What this edit replaced when it won over a change made elsewhere. */
+          replaced: verdict === "overwrite" ? existing : null,
+        },
+        verdict === "overwrite"
+          ? "Transaction updated, replacing a change from another device"
+          : "Transaction updated",
       );
     },
-    { params: t.Object({ id: t.Numeric() }), body: t.Partial(txnBody) },
+    {
+      params: t.Object({ id: t.Numeric() }),
+      body: t.Composite([t.Partial(txnBody), t.Object(tSyncMeta)]),
+    },
   )
   .delete(
     "/:id",
@@ -303,6 +372,8 @@ export const transactionsController = new Elysia({
         )
         .returning();
       if (!row) return status(404, fail("Transaction not found"));
+      // Its files lost their transaction: remove them from storage, off the request.
+      sweepOrphanAttachments().catch(console.error);
       // Deleting your copy of a tagged split means "don't add it": remember that
       // so the owner's later edits don't bring it back.
       if (row.sharedSplitId)

@@ -18,6 +18,7 @@ import {
   validateUsername,
 } from "$/lib/services/username-service";
 import { fail, normalizeEmail, ok } from "$/lib/utils";
+import { resolveShortcuts } from "$/lib/utils/shortcuts";
 import { authProcessor } from "$/pre-processor";
 
 const LOGIN_LIMIT = 5;
@@ -63,12 +64,14 @@ export const authController = new Elysia({
 })
   /** The slice of SYSTEM_CONFIG the logged-out pages and app shell need. */
   .get("/config", () => {
-    const { AUTH, NOTICE } = systemConfigService.SYSTEM_CONFIG;
+    const { AUTH, NOTICE, SHORTCUTS } = systemConfigService.SYSTEM_CONFIG;
     return ok({
       registrationEnabled: AUTH.REGISTRATION_ENABLED,
       registrationOtpRequired: AUTH.REGISTRATION_OTP_REQUIRED,
       passkeyLoginEnabled: AUTH.PASSKEY_LOGIN_ENABLED,
       notice: NOTICE.ENABLED && NOTICE.MESSAGE.trim() ? NOTICE.MESSAGE : null,
+      /** The admin's default keyboard shortcuts (users override their own). */
+      shortcuts: resolveShortcuts(SHORTCUTS.DEFAULTS, null),
     });
   })
   .get(

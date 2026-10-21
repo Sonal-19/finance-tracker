@@ -9,6 +9,7 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
+import { InstallCard } from "@/components/app/install-app";
 import { SectionCard } from "@/components/app/section-card";
 import { StatCard } from "@/components/app/stat-card";
 import { CategoryDonut } from "@/components/charts/category-donut";
@@ -87,6 +88,7 @@ function Dashboard() {
 
   return (
     <div className="space-y-5">
+      <InstallCard />
       <div className="hidden justify-end gap-2 md:flex">
         <Button variant="outline" onClick={() => openNew("credit")}>
           <ArrowDownLeft className="text-income" /> Add income

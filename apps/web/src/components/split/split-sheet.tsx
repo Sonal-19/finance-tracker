@@ -1,4 +1,4 @@
-import { Check, Trash2, UserPlus } from "lucide-react";
+import { Check, History, Trash2, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   AccountPicker,
@@ -35,6 +35,7 @@ import {
 } from "@/lib/format";
 import { previewShares, SPLIT_METHODS, type SplitMethod } from "@/lib/split";
 import { cn } from "@/lib/utils";
+import { getDraft, useDraft, useDraftStore } from "@/stores/draft-store";
 import { useSplitSheet } from "@/stores/split-sheet-store";
 import { type EditablePerson, PersonSheet } from "./person-sheet";
 import { PersonAvatar } from "./split-common";
@@ -87,7 +88,15 @@ export function SplitSheet() {
   const editing = useSplit(open ? editId : null);
   const save = useSaveSplit();
   const del = useDeleteSplit();
-  const [form, setForm] = useState<Form>(blank);
+  // The form lives in the draft store: closing the sheet by accident keeps it.
+  const draftKey = editId ? `split:${editId}` : "split:new";
+  const putDraft = useDraftStore((s) => s.put);
+  const clearDraft = useDraftStore((s) => s.clear);
+  const { value: form, setValue: setForm } = useDraft<Form>(draftKey, blank());
+  const setFresh = (f: Form, base?: string) =>
+    putDraft(draftKey, { value: f, files: [], base });
+  /** Reopened with unsaved input from before. */
+  const [restored, setRestored] = useState(false);
   const [addPerson, setAddPerson] = useState<EditablePerson | null>(null);
   const [ready, setReady] = useState(false);
 
@@ -104,32 +113,54 @@ export function SplitSheet() {
       return;
     }
     if (ready) return;
+    setRestored(false);
     if (editId) {
       const s = editing.data;
       if (!s) return;
-      setForm({
-        description: s.description,
-        total: String(fromAmount(s.total)),
-        date: ymd(s.date),
-        groupId: s.group?.id ?? null,
-        paidBy: keyOf(s.paidBy?.id ?? null),
-        method: s.method,
-        selected: s.shares.map((x) => keyOf(x.personId)),
-        values: Object.fromEntries(
-          s.shares.map((x) => [
-            keyOf(x.personId),
-            x.value === null
-              ? ""
-              : String(s.method === "exact" ? fromAmount(x.amount) : x.value),
-          ]),
-        ),
-        categoryId: s.category?.id ?? null,
-        recordExpense: s.ownShare === "recorded",
-        accountId: s.accountId,
-        eventId: s.eventId,
-        bookId: s.bookId,
-        note: s.note ?? "",
-      });
+      const draft = getDraft<Form>(draftKey);
+      if (draft && draft.base === String(s.updatedAt)) {
+        setRestored(true);
+        setReady(true);
+        return;
+      }
+      setFresh(
+        {
+          description: s.description,
+          total: String(fromAmount(s.total)),
+          date: ymd(s.date),
+          groupId: s.group?.id ?? null,
+          paidBy: keyOf(s.paidBy?.id ?? null),
+          method: s.method,
+          selected: s.shares.map((x) => keyOf(x.personId)),
+          values: Object.fromEntries(
+            s.shares.map((x) => [
+              keyOf(x.personId),
+              x.value === null
+                ? ""
+                : String(s.method === "exact" ? fromAmount(x.amount) : x.value),
+            ]),
+          ),
+          categoryId: s.category?.id ?? null,
+          recordExpense: s.ownShare === "recorded",
+          accountId: s.accountId,
+          eventId: s.eventId,
+          bookId: s.bookId,
+          note: s.note ?? "",
+        },
+        String(s.updatedAt),
+      );
+      setReady(true);
+      return;
+    }
+    const draft = getDraft<Form>(draftKey);
+    const fromPage =
+      prefill.groupId || prefill.personId || prefill.fromTransaction;
+    if (
+      !fromPage &&
+      draft &&
+      (draft.value.description.trim() || draft.value.total)
+    ) {
+      setRestored(true);
       setReady(true);
       return;
     }
@@ -152,8 +183,9 @@ export function SplitSheet() {
       f.eventId = t.eventId;
       f.bookId = t.bookId;
     }
-    setForm(f);
+    setFresh(f);
     setReady(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, ready, editId, editing.data, prefill, groups, activeEvent]);
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) =>
@@ -240,7 +272,12 @@ export function SplitSheet() {
         note: form.note.trim() || null,
         fromTransactionId: prefill.fromTransaction?.id,
       },
-      { onSuccess: close },
+      {
+        onSuccess: () => {
+          clearDraft(draftKey);
+          close();
+        },
+      },
     );
   };
 
@@ -253,7 +290,13 @@ export function SplitSheet() {
       confirmText: "Delete",
       destructive: true,
     });
-    if (ok) del.mutate(editId, { onSuccess: close });
+    if (ok)
+      del.mutate(editId, {
+        onSuccess: () => {
+          clearDraft(draftKey);
+          close();
+        },
+      });
   };
 
   // Group members first, then everyone else.
@@ -284,6 +327,24 @@ export function SplitSheet() {
           <PageLoader />
         ) : (
           <form onSubmit={submit} className="space-y-5">
+            {restored && (
+              <div className="flex items-center gap-2 rounded-xl bg-muted px-3 py-2 text-sm">
+                <History className="size-4 shrink-0 text-primary" />
+                <span className="min-w-0 flex-1 text-muted-foreground">
+                  Picked up where you left off.
+                </span>
+                <button
+                  type="button"
+                  className="shrink-0 font-medium text-primary"
+                  onClick={() => {
+                    clearDraft(draftKey);
+                    setReady(false);
+                  }}
+                >
+                  Start over
+                </button>
+              </div>
+            )}
             <div className="grid grid-cols-[1fr_auto] gap-3">
               <Field label="What was it for?" htmlFor="split-desc">
                 <Input

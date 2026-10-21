@@ -13,6 +13,7 @@ import { fail, ok } from "$/lib/utils";
 import { amountOf, formatAmount } from "$/lib/utils/money";
 import { today } from "$/lib/utils/period";
 import { tEnum } from "$/lib/utils/schema";
+import { tClientId } from "$/lib/utils/sync";
 import { protectedUser } from "$/pre-processor";
 
 const tId = t.Object({ id: t.Numeric() });
@@ -279,16 +280,36 @@ const transfersController = new Elysia({
       if (!from || !to) return status(404, fail("Account not found"));
       if (from.status === "archived" || to.status === "archived")
         return status(400, fail("Archived accounts can't be used"));
-      await db.insert(transfersTable).values({
-        userId: user.id,
-        fromAccountId: from.id,
-        toAccountId: to.id,
-        amount: body.amount,
-        date: body.date ?? today(),
-        note: body.note?.trim() || null,
-      });
+      // A retried offline create with the same clientId is a no-op.
+      const [row] = await db
+        .insert(transfersTable)
+        .values({
+          userId: user.id,
+          fromAccountId: from.id,
+          toAccountId: to.id,
+          amount: body.amount,
+          date: body.date ?? today(),
+          note: body.note?.trim() || null,
+          clientId: body.clientId ?? null,
+        })
+        .onConflictDoNothing()
+        .returning({ id: transfersTable.id });
+      const id =
+        row?.id ??
+        (
+          await db
+            .select({ id: transfersTable.id })
+            .from(transfersTable)
+            .where(
+              and(
+                eq(transfersTable.userId, user.id),
+                eq(transfersTable.clientId, body.clientId!),
+              ),
+            )
+            .limit(1)
+        )[0]?.id;
       return ok(
-        null,
+        { id: id ?? null },
         `Moved ${formatAmount(body.amount)} from ${from.name} to ${to.name}`,
       );
     },
@@ -299,6 +320,7 @@ const transfersController = new Elysia({
         amount: t.Integer({ exclusiveMinimum: 0, maximum: 100_000_000_000 }),
         date: t.Optional(tDate),
         note: t.Optional(t.Nullable(t.String({ maxLength: 200 }))),
+        clientId: tClientId,
       }),
     },
   )

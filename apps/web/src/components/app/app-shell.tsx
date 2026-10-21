@@ -1,25 +1,103 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   ArrowLeftRight,
+  Keyboard,
   LayoutDashboard,
   LogOut,
   Megaphone,
   Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
   PieChart,
   Plus,
 } from "lucide-react";
-import type * as React from "react";
+import * as React from "react";
 import { Logo } from "@/components/common/logo";
 import { SplitSheet } from "@/components/split/split-sheet";
 import { TransactionSheet } from "@/components/transactions/transaction-sheet";
 import { Button } from "@/components/ui/button";
 import { usePublicConfig } from "@/hooks/use-passkeys";
+import {
+  bindingText,
+  useGlobalShortcuts,
+  useShortcutMap,
+} from "@/hooks/use-shortcuts";
+import { syncNow } from "@/lib/offline/sync";
 import { cn } from "@/lib/utils";
 import type { AppUser } from "@/stores/auth-store";
+import { useSplitSheet } from "@/stores/split-sheet-store";
 import { useTxnSheet } from "@/stores/txn-sheet-store";
+import { useUiStore } from "@/stores/ui-store";
 import { BookSwitcher } from "./book-switcher";
+<<<<<<< HEAD
 import { homeFor, navFor } from "./nav-items";
+=======
+import { InstallButton } from "./install-app";
+import { navFor } from "./nav-items";
+import { ShortcutKeys, ShortcutsDialog } from "./shortcuts";
+import { SyncStatus } from "./sync-status";
+>>>>>>> 53f4da3d39971e6f7c5865a62d4274dc2f9c3f04
 import { Avatar, UserMenu, useSignOut } from "./user-menu";
+
+/** Every keyboard shortcut's effect. */
+function useShortcutHandlers() {
+  const navigate = useNavigate();
+  const openNew = useTxnSheet((s) => s.openNew);
+  const openSplit = useSplitSheet((s) => s.openNew);
+  const toggleSidebar = useUiStore((s) => s.toggleSidebar);
+  const setShortcutsOpen = useUiStore((s) => s.setShortcutsOpen);
+  const go = (to: string) => () => navigate({ to });
+  useGlobalShortcuts(useShortcutMap(), {
+    addExpense: () => openNew("debit"),
+    addIncome: () => openNew("credit"),
+    addSplit: () => openSplit(),
+    goDashboard: go("/dashboard"),
+    goTransactions: go("/transactions"),
+    goReports: go("/reports"),
+    goAccounts: go("/accounts"),
+    goBooks: go("/books"),
+    goEvents: go("/events"),
+    goSplit: go("/split"),
+    goBudgets: go("/budgets"),
+    goGoals: go("/goals"),
+    goRecurring: go("/recurring"),
+    goCategories: go("/categories"),
+    goSettings: go("/settings"),
+    search: async () => {
+      if (!location.pathname.startsWith("/transactions"))
+        await navigate({ to: "/transactions" });
+      requestAnimationFrame(() =>
+        document
+          .querySelector<HTMLInputElement>("[data-search-input]")
+          ?.focus(),
+      );
+    },
+    toggleSidebar,
+    syncNow: () => void syncNow(),
+    showShortcuts: () => setShortcutsOpen(true),
+    submitForm: () => {
+      // The form in the open sheet, else the one being typed in.
+      const form =
+        document.querySelector<HTMLFormElement>(
+          '[role="dialog"][data-state="open"] form',
+        ) ?? (document.activeElement as HTMLInputElement | null)?.form;
+      form?.requestSubmit();
+    },
+  });
+}
+
+/** `?new=debit|credit` (the installed app's shortcuts) opens the add sheet. */
+function useLaunchAction() {
+  const openNew = useTxnSheet((s) => s.openNew);
+  React.useEffect(() => {
+    const url = new URL(window.location.href);
+    const type = url.searchParams.get("new");
+    if (type !== "debit" && type !== "credit") return;
+    openNew(type);
+    url.searchParams.delete("new");
+    history.replaceState(history.state, "", url);
+  }, [openNew]);
+}
 
 const TABS = [
   { to: "/dashboard", label: "Home", icon: LayoutDashboard },
@@ -60,47 +138,163 @@ export function AppShell({
   const morePaths =
     home === "/dashboard" ? MORE_PATHS : [...MORE_PATHS, "/dashboard"];
   const notice = usePublicConfig().data?.notice;
+  const collapsed = useUiStore((s) => s.sidebarCollapsed);
+  const toggleSidebar = useUiStore((s) => s.toggleSidebar);
+  const setShortcutsOpen = useUiStore((s) => s.setShortcutsOpen);
+  const keys = useShortcutMap();
+  /** "Label (G then D)" for a tooltip, or just the label with no shortcut. */
+  const withKeys = (label: string, binding?: string) =>
+    binding ? `${label} (${bindingText(binding)})` : label;
+  useShortcutHandlers();
+  useLaunchAction();
 
   return (
-    <div className="min-h-dvh md:grid md:grid-cols-[220px_1fr] lg:grid-cols-[250px_1fr]">
+    <div
+      className={cn(
+        "min-h-dvh md:grid md:transition-[grid-template-columns] md:duration-200",
+        collapsed
+          ? "md:grid-cols-[68px_1fr]"
+          : "md:grid-cols-[220px_1fr] lg:grid-cols-[268px_1fr]",
+      )}
+    >
       {/* Desktop / tablet sidebar */}
       <aside className="sticky top-0 hidden h-dvh flex-col border-r bg-card md:flex">
         <div className="px-5 py-5">
           <Link to={homeFor(user)}>
             <Logo />
+      <aside
+        className="sticky top-0 hidden h-dvh flex-col overflow-hidden border-r bg-card md:flex"
+        data-collapsed={collapsed || undefined}
+      >
+        <div
+          className={cn(
+            "flex items-center gap-2 py-5",
+            collapsed ? "flex-col px-2" : "justify-between px-5",
+          )}
+        >
+          <Link to="/dashboard" aria-label="Dashboard">
+            {collapsed ? (
+              <img src="/favicon.svg" alt="" className="size-8 rounded-lg" />
+            ) : (
+              <Logo />
+            )}
           </Link>
-        </div>
-        <div className="px-3">
-          <Button className="w-full" onClick={() => openNew()}>
-            <Plus /> Add transaction
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 text-muted-foreground"
+            onClick={toggleSidebar}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={withKeys(
+              `${collapsed ? "Expand" : "Collapse"} sidebar`,
+              keys.toggleSidebar,
+            )}
+          >
+            {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
           </Button>
         </div>
-        <nav className="mt-4 flex-1 space-y-0.5 overflow-y-auto px-3">
+        <div className={collapsed ? "px-2" : "px-3"}>
+          <Button
+            className="w-full"
+            size={collapsed ? "icon" : "default"}
+            onClick={() => openNew()}
+            aria-label="Add transaction"
+            title={withKeys("Add transaction", keys.addExpense)}
+          >
+            <Plus />
+            {!collapsed && (
+              <>
+                <span className="flex-1 text-left">Add transaction</span>
+                {keys.addExpense && (
+                  <ShortcutKeys
+                    binding={keys.addExpense}
+                    className="opacity-80 [&_kbd]:border-primary-foreground/30 [&_kbd]:bg-primary-foreground/15 [&_kbd]:text-primary-foreground"
+                  />
+                )}
+              </>
+            )}
+          </Button>
+        </div>
+        <nav
+          className={cn(
+            "mt-4 flex-1 space-y-0.5 overflow-y-auto",
+            collapsed ? "px-2" : "px-3",
+          )}
+        >
           {nav.map((n) => {
             const active = pathname.startsWith(n.to);
+            const binding = n.shortcut ? keys[n.shortcut] : "";
             return (
               <Link
                 key={n.to}
                 to={n.to}
+                title={
+                  collapsed || binding ? withKeys(n.label, binding) : undefined
+                }
+                aria-label={collapsed ? n.label : undefined}
+                aria-keyshortcuts={binding || undefined}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                  "group flex items-center gap-3 rounded-lg py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                  collapsed ? "justify-center px-0" : "px-3",
                   active && "bg-accent text-accent-foreground hover:bg-accent",
                 )}
               >
-                <n.icon className="size-4.5" />
-                {n.label}
+                <n.icon className="size-4.5 shrink-0" />
+                {!collapsed && (
+                  <>
+                    <span className="min-w-0 flex-1 truncate">{n.label}</span>
+                    {binding && (
+                      <ShortcutKeys
+                        binding={binding}
+                        compact
+                        className="hidden shrink-0 opacity-60 transition-opacity group-hover:opacity-100 lg:inline-flex"
+                      />
+                    )}
+                  </>
+                )}
               </Link>
             );
           })}
         </nav>
-        <div className="flex items-center gap-3 border-t p-4">
-          <Avatar name={user.name} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{user.name}</p>
-            <p className="truncate text-xs text-muted-foreground">
-              {user.email}
-            </p>
+        <div
+          className={cn(
+            "space-y-1 border-t",
+            collapsed ? "flex flex-col items-center p-2" : "p-3",
+          )}
+        >
+          <SyncStatus compact={collapsed} />
+          <div className={cn("flex gap-1", collapsed ? "flex-col" : "pt-1")}>
+            <InstallButton
+              compact={collapsed}
+              className={collapsed ? "" : "flex-1"}
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-9 shrink-0 text-muted-foreground"
+              onClick={() => setShortcutsOpen(true)}
+              aria-label="Keyboard shortcuts"
+              title={withKeys("Keyboard shortcuts", keys.showShortcuts)}
+            >
+              <Keyboard />
+            </Button>
           </div>
+        </div>
+        <div
+          className={cn(
+            "flex items-center gap-3 border-t",
+            collapsed ? "flex-col p-2" : "p-4",
+          )}
+        >
+          <Avatar name={user.name} />
+          {!collapsed && (
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">{user.name}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {user.email}
+              </p>
+            </div>
+          )}
           <Button
             variant="ghost"
             size="icon"
@@ -137,6 +331,9 @@ export function AppShell({
               👋
             </p>
             <div className="flex shrink-0 items-center gap-2">
+              <div className="md:hidden">
+                <SyncStatus compact />
+              </div>
               <BookSwitcher />
               <UserMenu user={user} />
             </div>
@@ -204,6 +401,7 @@ export function AppShell({
 
       <TransactionSheet />
       <SplitSheet />
+      <ShortcutsDialog />
     </div>
   );
 }

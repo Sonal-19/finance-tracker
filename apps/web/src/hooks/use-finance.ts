@@ -7,6 +7,8 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, call, callMsg } from "@/lib/api";
+import { useOutbox } from "@/lib/offline/outbox";
+import { queueDeleteTxn, queueSaveTxn, txnInputOf } from "@/lib/offline/sync";
 
 export type TxnType = "credit" | "debit";
 export type Period = "day" | "week" | "month" | "year" | "custom";
@@ -54,6 +56,45 @@ export const useTransactions = (filters: TxnFilters) =>
 export type Txn = NonNullable<
   ReturnType<typeof useTransactions>["data"]
 >["pages"][number]["items"][number];
+
+/** The transactions page shows one period at a time, this many per page. */
+export const TXN_PAGE_SIZE = 100;
+
+/** One numbered page (1-based) of the filtered transactions. */
+export const useTransactionsPage = (filters: TxnFilters, page: number) =>
+  useQuery({
+    queryKey: ["transactions", "page", filters, page],
+    queryFn: () =>
+      call(
+        api.transactions.get({
+          query: {
+            ...filters,
+            limit: TXN_PAGE_SIZE,
+            offset: (page - 1) * TXN_PAGE_SIZE,
+          },
+        }),
+      ),
+    placeholderData: keepPreviousData,
+  });
+
+/** Totals, daily totals and categories for everything the filters match. */
+export const useTransactionsSummary = (
+  filters: TxnFilters,
+  previous?: { from: string; to: string },
+) =>
+  useQuery({
+    queryKey: ["transactions", "summary", filters, previous],
+    queryFn: () =>
+      call(
+        api.transactions.summary.get({
+          query: { ...filters, prevFrom: previous?.from, prevTo: previous?.to },
+        }),
+      ),
+    placeholderData: keepPreviousData,
+  });
+export type TxnSummary = NonNullable<
+  ReturnType<typeof useTransactionsSummary>["data"]
+>;
 
 export const useSummary = (q: {
   period: Period;
@@ -148,6 +189,20 @@ function onError(e: Error) {
   toast.error(e.message);
 }
 
+/** Toast for a change that went into the outbox. */
+export function savedToast(
+  message: string,
+  opts?: Parameters<typeof toast.success>[1],
+) {
+  toast.success(message, {
+    ...opts,
+    description:
+      navigator.onLine && useOutbox.getState().online
+        ? opts?.description
+        : "Saved on this device. It syncs when you're back online.",
+  });
+}
+
 export type Currency = "INR" | "USD";
 
 export type TxnInput = {
@@ -165,53 +220,34 @@ export type TxnInput = {
   note?: string | null;
 };
 
+/** Saves straight away on this device and syncs in the background (works
+ * offline). `files` are attached once the entry reaches the server. */
 export function useSaveTransaction() {
-  const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: ({ id, ...body }: TxnInput & { id?: number }) =>
-      callMsg(
-        id ? api.transactions({ id }).patch(body) : api.transactions.post(body),
-      ),
-    onSuccess: ({ message }) => {
-      toast.success(message);
-      invalidate();
-    },
+    mutationFn: async ({
+      files,
+      ...input
+    }: TxnInput & { id?: number; files?: File[] }) => ({
+      data: queueSaveTxn(input, files),
+      message: input.id ? "Transaction updated" : "Transaction added",
+    }),
+    onSuccess: ({ message }) => savedToast(message),
     onError,
   });
 }
 
 export function useDeleteTransaction() {
-  const invalidate = useInvalidate();
-  const save = useSaveTransaction();
   return useMutation({
-    mutationFn: (id: number) => callMsg(api.transactions({ id }).delete()),
-    onSuccess: ({ data, message }) => {
-      invalidate();
-      if (!data) return;
-      toast.success(message, {
-        action: {
-          label: "Undo",
-          onClick: () =>
-            save.mutate({
-              type: data.type,
-              ...(data.originalCurrency === "USD" &&
-              data.originalAmount !== null
-                ? {
-                    amount: data.originalAmount,
-                    currency: "USD" as const,
-                    fxRate: data.fxRate ?? undefined,
-                  }
-                : { amount: data.amount }),
-              categoryId: data.categoryId,
-              date: String(data.date).slice(0, 10),
-              accountId: data.accountId,
-              bookId: data.bookId,
-              eventId: data.eventId,
-              note: data.note,
-            }),
-        },
-      });
-    },
+    mutationFn: async (id: number) => queueDeleteTxn(id),
+    onSuccess: (removed) =>
+      savedToast("Transaction deleted", {
+        action: removed
+          ? {
+              label: "Undo",
+              onClick: () => queueSaveTxn(txnInputOf(removed)),
+            }
+          : undefined,
+      }),
     onError,
   });
 }
@@ -290,6 +326,7 @@ export function useUpdateProfile() {
       username?: string;
       taggedExpenses?: "manual" | "auto";
       monthlyBudget?: number | null;
+      shortcuts?: Record<string, string> | null;
     }) => callMsg(api.profile.patch(b)),
     onSuccess: ({ message, data }) => {
       toast.success(message);

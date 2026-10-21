@@ -37,8 +37,7 @@ function GroupPage() {
   const [settle, setSettle] = useState<SettleTarget | null>(null);
 
   if (isLoading) return <PageLoader />;
-  if (error || !data)
-    return <ErrorState error={error ?? new Error("Not found")} />;
+  if (!data) return <ErrorState error={error ?? new Error("Not found")} />;
   const { group, members, splits } = data;
 
   return (

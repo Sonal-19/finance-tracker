@@ -1,5 +1,6 @@
-import { Loader2 } from "lucide-react";
+import { CloudOff, Loader2 } from "lucide-react";
 import type * as React from "react";
+import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 export function Spinner({ className }: { className?: string }) {
@@ -44,6 +45,17 @@ export function EmptyState({
 }
 
 export function ErrorState({ error }: { error: unknown }) {
+  // No connection and nothing saved on this device for this view yet.
+  if (error instanceof ApiError && error.isNetwork)
+    return (
+      <EmptyState
+        icon={<CloudOff className="size-6" />}
+        title="Not available offline yet"
+      >
+        This hasn't been opened on this device before. It loads once you're back
+        online. Anything you add meanwhile is saved and synced.
+      </EmptyState>
+    );
   return (
     <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">
       {(error as Error)?.message ?? "Something went wrong"}

@@ -83,8 +83,7 @@ function AccountPage() {
   }, [txns]);
 
   if (isLoading) return <PageLoader />;
-  if (error || !a)
-    return <ErrorState error={error ?? new Error("Not found")} />;
+  if (!a) return <ErrorState error={error ?? new Error("Not found")} />;
   const isCard = a.type === "credit_card";
   const pages = txns.data?.pages ?? [];
   const items = pages.flatMap((p) => p.items);

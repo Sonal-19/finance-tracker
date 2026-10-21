@@ -2,6 +2,7 @@ import { and, eq, inArray, type SQL, sql } from "drizzle-orm";
 import { type DB, db, type TX } from "$/db";
 import {
   booksTable,
+  paymentClaimsTable,
   recurringRulesTable,
   splitsTable,
   transactionsTable,
@@ -98,6 +99,7 @@ const summaryColumns = {
   spent: txnSum("debit"),
   received: txnSum("credit"),
   count: sql<number>`(select count(*) from ${T} t where ${ofBook("t.book_id")})::int`,
+  pendingClaims: sql<number>`(select count(*) from ${paymentClaimsTable} c where ${ofBook("c.book_id")} and c.status = 'pending')::int`,
   usage: sql<number>`(
     (select count(*) from ${T} t where ${ofBook("t.book_id")})
     + (select count(*) from ${R} r where ${ofBook("r.book_id")})
@@ -122,6 +124,8 @@ export async function bookSummaries(userId: number, bookId?: number) {
       /** Spent on someone's behalf and not yet received back. */
       outstanding: spent - received,
       count: r.count,
+      /** "I've paid" reports from share links waiting for a decision. */
+      pendingClaims: r.pendingClaims,
       /** Transactions, recurring rules and splits referencing this book. */
       usage: r.usage,
     };

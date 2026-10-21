@@ -1,6 +1,7 @@
-import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { ApiError, api, call } from "@/lib/api";
+import { claimDevice, forgetDevice } from "@/lib/offline/sync";
 import { useAuthStore } from "@/stores/auth-store";
 
 export const authQueryOptions = queryOptions({
@@ -16,8 +17,10 @@ export function useAuth() {
   const is401 = error instanceof ApiError && error.status === 401;
 
   useEffect(() => {
-    if (data) setUser(data);
-    else if (is401) clearUser();
+    if (data) {
+      claimDevice(data.id);
+      setUser(data);
+    } else if (is401) clearUser();
   }, [data, is401, setUser, clearUser]);
 
   const user = data ?? (is401 ? null : cached);
@@ -32,11 +35,10 @@ export function useAuth() {
 }
 
 export function useLogout() {
-  const qc = useQueryClient();
   const clearUser = useAuthStore((s) => s.clearUser);
   return async () => {
-    await api.auth.logout.post();
+    await api.auth.logout.post().catch(() => {});
     clearUser();
-    qc.clear();
+    await forgetDevice();
   };
 }

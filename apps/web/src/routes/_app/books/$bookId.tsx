@@ -3,6 +3,7 @@ import {
   Archive,
   ArchiveRestore,
   ArrowLeft,
+  CircleCheck,
   HandCoins,
   Pencil,
   Plus,
@@ -12,6 +13,8 @@ import {
 import { useState } from "react";
 import { SectionCard } from "@/components/app/section-card";
 import { BookSheet, type EditableBook } from "@/components/books/book-sheet";
+import { PaymentClaims } from "@/components/books/payment-claims";
+import { ShareLinks } from "@/components/books/share-links";
 import { CategoryDonut } from "@/components/charts/category-donut";
 import { CategoryIcon } from "@/components/common/category-icon";
 import { confirm } from "@/components/common/confirm-dialog";
@@ -44,11 +47,12 @@ function BookPage() {
   const [editing, setEditing] = useState<EditableBook | null>(null);
 
   if (isLoading) return <PageLoader />;
-  if (error || !data)
-    return <ErrorState error={error ?? new Error("Not found")} />;
+  if (!data) return <ErrorState error={error ?? new Error("Not found")} />;
   const { book: b, byCategory } = data;
   const separate = b.totals === "separate";
   const archived = b.status === "archived";
+  /** Everything spent on someone's behalf has come back. */
+  const settled = separate && b.spent > 0 && b.outstanding <= 0;
   const pages = txns.data?.pages ?? [];
   const items = pages.flatMap((p) => p.items);
   const dayTotals = Object.assign({}, ...pages.map((p) => p.dayTotals));
@@ -109,8 +113,13 @@ function BookPage() {
         {separate ? (
           <>
             <div className="mt-5 text-center">
-              <p className="text-sm text-muted-foreground">
+              <p className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
                 {b.outstanding < 0 ? "Received extra" : "Yet to get back"}
+                {settled && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-income/10 px-2 py-0.5 text-xs font-semibold text-income">
+                    <CircleCheck className="size-3.5" /> Paid
+                  </span>
+                )}
               </p>
               <p className="tabular text-3xl font-bold">
                 {formatAmount(Math.abs(b.outstanding))}
@@ -168,6 +177,22 @@ function BookPage() {
             <Button onClick={() => openNew("debit", { bookId: b.id })}>
               <Plus /> Add expense
             </Button>
+            {separate && b.outstanding > 0 && (
+              <Button
+                variant="secondary"
+                className="col-span-2"
+                onClick={() =>
+                  openNew("credit", {
+                    bookId: b.id,
+                    amount: b.outstanding,
+                    note: "Paid in full",
+                    categoryName: "Refund",
+                  })
+                }
+              >
+                <CircleCheck /> Mark as paid · {formatAmount(b.outstanding)}
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -177,6 +202,10 @@ function BookPage() {
           <CategoryDonut rows={byCategory} compact />
         </SectionCard>
       )}
+
+      {b.pendingClaims > 0 && <PaymentClaims bookId={b.id} />}
+
+      <ShareLinks bookId={b.id} />
 
       <section className="space-y-2">
         <h2 className="font-semibold">Transactions</h2>

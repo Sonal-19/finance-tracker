@@ -1,6 +1,7 @@
 import Elysia from "elysia";
 import { accountControllers } from "./accounts-controller";
 import { adminController } from "./admin-controller";
+import { attachmentsController } from "./attachments-controller";
 import { authController } from "./auth-controller";
 import { booksController } from "./books-controller";
 import { budgetsController } from "./budgets-controller";
@@ -12,6 +13,7 @@ import { passkeysController } from "./passkeys-controller";
 import { profileController } from "./profile-controller";
 import { recurringController } from "./recurring-controller";
 import { reportsController } from "./reports-controller";
+import { publicSharesController, sharesController } from "./shares-controller";
 import { splitControllers } from "./splits-controller";
 import { systemConfigController } from "./system-config-controller";
 import { transactionsController } from "./transactions-controller";
@@ -31,7 +33,9 @@ const userControllers = new Elysia({ name: "user_controllers" })
   .use(splitControllers)
   .use(accountControllers)
   .use(eventsController)
-  .use(booksController);
+  .use(booksController)
+  .use(attachmentsController)
+  .use(sharesController);
 
 /** Admin-only routes, grouped for the same reason as above. */
 const adminControllers = new Elysia({ name: "admin_controllers" })
@@ -43,5 +47,6 @@ export const mainController = new Elysia({
   prefix: "/api",
 })
   .use(authController)
+  .use(publicSharesController)
   .use(userControllers)
   .use(adminControllers);

@@ -3,8 +3,10 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { LogOut, Monitor, Moon, Sun } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { InstallButton } from "@/components/app/install-app";
 import { PasskeysCard } from "@/components/app/passkeys-card";
 import { SectionCard } from "@/components/app/section-card";
+import { ShortcutEditor } from "@/components/app/shortcuts";
 import { useSignOut } from "@/components/app/user-menu";
 import { Field } from "@/components/common/field";
 import { PageHeader } from "@/components/common/page-header";
@@ -17,9 +19,13 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/use-auth";
 import { useUpdateProfile } from "@/hooks/use-finance";
+import { useAdminShortcuts, useShortcutMap } from "@/hooks/use-shortcuts";
 import { api, call, callMsg } from "@/lib/api";
+import { canOfferInstall, isStandalone, usePwa } from "@/lib/pwa";
 import { useAuthStore } from "@/stores/auth-store";
 import { useThemeStore } from "@/stores/theme-store";
+import { useUiStore } from "@/stores/ui-store";
+import { type ShortcutMap, shortcutProblems } from "$/lib/utils/shortcuts";
 
 export const Route = createFileRoute("/_app/settings")({
   component: SettingsPage,
@@ -167,6 +173,10 @@ function SettingsPage() {
           ]}
         />
       </SectionCard>
+
+      <ShortcutsCard />
+
+      <AppCard />
 
       <PasskeysCard />
 
@@ -379,5 +389,92 @@ function BlockedUsers() {
         </div>
       ))}
     </div>
+  );
+}
+
+/** The user's own keyboard shortcuts, on top of the admin's defaults. */
+function ShortcutsCard() {
+  const admin = useAdminShortcuts();
+  const current = useShortcutMap();
+  const update = useUpdateProfile();
+  const setShortcutsOpen = useUiStore((s) => s.setShortcutsOpen);
+  const [draft, setDraft] = useState<ShortcutMap | null>(null);
+  const value = draft ?? current;
+  const dirty = !!draft && JSON.stringify(draft) !== JSON.stringify(current);
+  const valid = !Object.keys(shortcutProblems(value)).length;
+  const custom = Object.keys(value).some(
+    (k) => value[k as keyof ShortcutMap] !== admin[k as keyof ShortcutMap],
+  );
+
+  const save = (next: ShortcutMap) => {
+    // Only what differs from the defaults is stored, so later changes to
+    // the defaults still reach every other action.
+    const own = Object.fromEntries(
+      Object.entries(next).filter(
+        ([k, v]) => v !== admin[k as keyof ShortcutMap],
+      ),
+    );
+    update.mutate(
+      { shortcuts: Object.keys(own).length ? own : null },
+      { onSuccess: () => setDraft(null) },
+    );
+  };
+
+  return (
+    <div id="shortcuts" className="scroll-mt-20">
+      <SectionCard
+        title="Keyboard shortcuts"
+        action={
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShortcutsOpen(true)}
+          >
+            Cheat sheet
+          </Button>
+        }
+      >
+        <ShortcutEditor value={value} base={admin} onChange={setDraft} />
+        <div className="mt-4 flex flex-wrap justify-end gap-2">
+          {custom && (
+            <Button
+              variant="ghost"
+              disabled={update.isPending}
+              onClick={() => save(admin)}
+            >
+              Use defaults
+            </Button>
+          )}
+          {dirty && (
+            <Button variant="outline" onClick={() => setDraft(null)}>
+              Cancel
+            </Button>
+          )}
+          <Button
+            disabled={!dirty || !valid || update.isPending}
+            onClick={() => draft && save(draft)}
+          >
+            Save shortcuts
+          </Button>
+        </div>
+      </SectionCard>
+    </div>
+  );
+}
+
+/** Install as an app (or confirm it already is). */
+function AppCard() {
+  const available = usePwa(canOfferInstall);
+  return (
+    <SectionCard title="App">
+      <p className="mb-3 text-sm text-muted-foreground">
+        {isStandalone()
+          ? "You're using the installed app. It opens straight to your dashboard and works with no connection."
+          : available
+            ? "Install Finance Tracker to open it like any other app, from your home screen or dock. It keeps working offline and syncs when you're back."
+            : "Works offline in this browser. To install it, use a browser that supports installing web apps (Chrome, Edge, or Safari on iPhone and Mac)."}
+      </p>
+      <InstallButton className="sm:w-auto" />
+    </SectionCard>
   );
 }

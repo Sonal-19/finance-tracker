@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import Elysia, { t } from "elysia";
 import { db } from "$/db";
 import {
+  attachmentsTable,
   categoriesTable,
   ownShareModes,
   peopleTable,
@@ -34,6 +35,7 @@ import {
 } from "$/lib/services/split-service";
 import { ownedEventId } from "$/lib/services/transaction-service";
 import {
+  isUniqueViolation,
   normalizeUsername,
   usernameService,
 } from "$/lib/services/username-service";
@@ -41,6 +43,7 @@ import { fail, ok } from "$/lib/utils";
 import { amountOf, formatAmount } from "$/lib/utils/money";
 import { today } from "$/lib/utils/period";
 import { tEnum } from "$/lib/utils/schema";
+import { editVerdict, staleEdit, tClientId, tSyncMeta } from "$/lib/utils/sync";
 import { protectedUser } from "$/pre-processor";
 
 const tDate = t.String({ pattern: "^\\d{4}-\\d{2}-\\d{2}$" });
@@ -121,6 +124,8 @@ async function hydrateSplits(userId: number, rows: SplitRow[]) {
       accountId: r.accountId,
       eventId: r.eventId,
       bookId: r.bookId,
+      clientId: r.clientId,
+      updatedAt: r.updatedAt,
       category: cat
         ? { id: cat.id, name: cat.name, icon: cat.icon, color: cat.color }
         : null,
@@ -598,6 +603,21 @@ async function prepareSplit(userId: number, body: SplitBody) {
   return { total, shares: result.shares, myShare };
 }
 
+/** The saved split for a create the client already sent once, if any. */
+async function splitByClientId(userId: number, clientId: string | undefined) {
+  if (!clientId) return null;
+  const [row] = await db
+    .select()
+    .from(splitsTable)
+    .where(
+      and(eq(splitsTable.userId, userId), eq(splitsTable.clientId, clientId)),
+    )
+    .limit(1);
+  if (!row) return null;
+  const [split] = await hydrateSplits(userId, [row]);
+  return split ?? null;
+}
+
 async function getSplit(userId: number, id: number) {
   const [row] = await db
     .select()
@@ -748,6 +768,8 @@ const splitsController = new Elysia({
   .post(
     "/",
     async ({ user, body, status }) => {
+      const again = await splitByClientId(user.id, body.clientId);
+      if (again) return ok(again, "Expense split");
       const prep = await prepareSplit(user.id, body);
       if ("error" in prep) return status(400, fail(prep.error!));
 
@@ -773,45 +795,92 @@ const splitsController = new Elysia({
         if (body.bookId === undefined) bookId = src.bookId;
       }
 
-      const id = await db.transaction(async (tx) => {
-        const [split] = await tx
-          .insert(splitsTable)
-          .values({
-            userId: user.id,
-            groupId: body.groupId ?? null,
-            description: body.description.trim(),
-            total: prep.total,
-            date: body.date,
-            paidByPersonId: body.paidByPersonId ?? null,
-            method: body.method,
-            categoryId: body.categoryId ?? null,
-            ownShare: body.ownShare ?? "recorded",
-            accountId,
-            eventId,
-            bookId,
-            note: body.note?.trim() || null,
-          })
-          .returning();
-        await tx
-          .insert(splitSharesTable)
-          .values(prep.shares.map((s) => ({ ...s, splitId: split!.id })));
-        if (body.fromTransactionId)
+      const id = await db
+        .transaction(async (tx) => {
+          const [split] = await tx
+            .insert(splitsTable)
+            .values({
+              userId: user.id,
+              groupId: body.groupId ?? null,
+              description: body.description.trim(),
+              total: prep.total,
+              date: body.date,
+              paidByPersonId: body.paidByPersonId ?? null,
+              method: body.method,
+              categoryId: body.categoryId ?? null,
+              ownShare: body.ownShare ?? "recorded",
+              accountId,
+              eventId,
+              bookId,
+              note: body.note?.trim() || null,
+              clientId: body.clientId ?? null,
+            })
+            .returning();
           await tx
-            .delete(transactionsTable)
-            .where(eq(transactionsTable.id, body.fromTransactionId));
-        await syncShareTransaction(tx, split!, prep.myShare);
-        await syncSharedTransactions(tx, split!);
-        return split!.id;
-      });
+            .insert(splitSharesTable)
+            .values(prep.shares.map((s) => ({ ...s, splitId: split!.id })));
+          // Bills attached to the original transaction move to the split's
+          // "your share" row (when there is one) instead of being lost.
+          const carried = body.fromTransactionId
+            ? await tx
+                .select({ id: attachmentsTable.id })
+                .from(attachmentsTable)
+                .where(
+                  and(
+                    eq(attachmentsTable.transactionId, body.fromTransactionId),
+                    eq(attachmentsTable.userId, user.id),
+                  ),
+                )
+            : [];
+          if (body.fromTransactionId)
+            await tx
+              .delete(transactionsTable)
+              .where(eq(transactionsTable.id, body.fromTransactionId));
+          await syncShareTransaction(tx, split!, prep.myShare);
+          if (carried.length) {
+            const [share] = await tx
+              .select({ id: transactionsTable.id })
+              .from(transactionsTable)
+              .where(
+                and(
+                  eq(transactionsTable.splitId, split!.id),
+                  eq(transactionsTable.userId, user.id),
+                ),
+              )
+              .limit(1);
+            if (share)
+              await tx
+                .update(attachmentsTable)
+                .set({ transactionId: share.id })
+                .where(
+                  inArray(
+                    attachmentsTable.id,
+                    carried.map((c) => c.id),
+                  ),
+                );
+          }
+          await syncSharedTransactions(tx, split!);
+          return split!.id;
+        })
+        .catch(async (e) => {
+          // The same create raced in twice: answer with the one that won.
+          const won = isUniqueViolation(e)
+            ? await splitByClientId(user.id, body.clientId)
+            : null;
+          if (won) return won.id;
+          throw e;
+        });
       return ok(await getSplit(user.id, id), "Expense split");
     },
-    { body: splitBody },
+    { body: t.Composite([splitBody, t.Object({ clientId: tClientId })]) },
   )
   .put(
     "/:id",
     async ({ user, params, body, status }) => {
       const existing = await getSplit(user.id, params.id);
       if (!existing) return status(404, fail("Split not found"));
+      const verdict = editVerdict(existing.updatedAt, body);
+      if (verdict === "stale") return status(409, staleEdit(existing));
       const prep = await prepareSplit(user.id, body);
       if ("error" in prep) return status(400, fail(prep.error!));
       await db.transaction(async (tx) => {
@@ -842,9 +911,24 @@ const splitsController = new Elysia({
         await syncShareTransaction(tx, split!, prep.myShare);
         await syncSharedTransactions(tx, split!);
       });
-      return ok(await getSplit(user.id, params.id), "Split updated");
+      return ok(
+        {
+          ...(await getSplit(user.id, params.id))!,
+          /** What this edit replaced when it won over a change made elsewhere. */
+          replaced: verdict === "overwrite" ? existing : null,
+        },
+        verdict === "overwrite"
+          ? "Split updated, replacing a change from another device"
+          : "Split updated",
+      );
     },
-    { params: tId, body: t.Omit(splitBody, ["fromTransactionId"]) },
+    {
+      params: tId,
+      body: t.Composite([
+        t.Omit(splitBody, ["fromTransactionId"]),
+        t.Object(tSyncMeta),
+      ]),
+    },
   )
   .delete(
     "/:id",
@@ -877,17 +961,37 @@ const settlementsController = new Elysia({
       if (!person) return status(404, fail("Person not found"));
       if (body.groupId && !(await ownedGroup(user.id, body.groupId)))
         return status(404, fail("Group not found"));
-      await db.insert(settlementsTable).values({
-        userId: user.id,
-        personId: person.id,
-        groupId: body.groupId ?? null,
-        direction: body.direction,
-        amount: body.amount,
-        date: body.date ?? today(),
-        note: body.note?.trim() || null,
-      });
+      // A retried offline create with the same clientId is a no-op.
+      const [row] = await db
+        .insert(settlementsTable)
+        .values({
+          userId: user.id,
+          personId: person.id,
+          groupId: body.groupId ?? null,
+          direction: body.direction,
+          amount: body.amount,
+          date: body.date ?? today(),
+          note: body.note?.trim() || null,
+          clientId: body.clientId ?? null,
+        })
+        .onConflictDoNothing()
+        .returning({ id: settlementsTable.id });
+      const id =
+        row?.id ??
+        (
+          await db
+            .select({ id: settlementsTable.id })
+            .from(settlementsTable)
+            .where(
+              and(
+                eq(settlementsTable.userId, user.id),
+                eq(settlementsTable.clientId, body.clientId!),
+              ),
+            )
+            .limit(1)
+        )[0]?.id;
       return ok(
-        null,
+        { id: id ?? null },
         body.direction === "received"
           ? `Recorded ${formatAmount(body.amount)} from ${person.name}`
           : `Recorded ${formatAmount(body.amount)} paid to ${person.name}`,
@@ -901,6 +1005,7 @@ const settlementsController = new Elysia({
         amount: t.Integer({ exclusiveMinimum: 0, maximum: 100_000_000_000 }),
         date: t.Optional(tDate),
         note: t.Optional(t.Nullable(t.String({ maxLength: 200 }))),
+        clientId: tClientId,
       }),
     },
   )

@@ -8,38 +8,46 @@ import { VitePWA } from "vite-plugin-pwa";
 const API = "http://localhost:4300";
 
 export default defineConfig({
+  define: {
+    // Busts the offline query cache when a new build ships.
+    __APP_VERSION__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     tanstackRouter({ target: "react", autoCodeSplitting: true }),
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: "autoUpdate",
-      includeAssets: ["favicon.svg", "apple-touch-icon.png"],
-      manifest: {
-        name: "Finance Tracker",
-        short_name: "Finance",
-        description: "Track income, expenses, budgets and savings goals.",
-        theme_color: "#0f766e",
-        background_color: "#f7f8fa",
-        display: "standalone",
-        orientation: "portrait",
-        start_url: "/dashboard",
-        scope: "/",
-        icons: [
-          { src: "pwa-192.png", sizes: "192x192", type: "image/png" },
-          { src: "pwa-512.png", sizes: "512x512", type: "image/png" },
+      // The manifest is hand-written in public/manifest.webmanifest.
+      manifest: false,
+      // Registered from src/lib/pwa.ts so the app can offer "Reload to update".
+      injectRegister: false,
+      registerType: "prompt",
+      includeAssets: ["favicon.svg", "apple-touch-icon.png", "manifest.webmanifest"],
+      workbox: {
+        // The whole app shell is precached, so it opens with no connection.
+        globPatterns: ["**/*.{js,css,html,svg,png,webp,woff2,webmanifest}"],
+        globIgnores: ["images/**"],
+        navigateFallback: "/index.html",
+        navigateFallbackDenylist: [/^\/api/, /^\/s\//],
+        cleanupOutdatedCaches: true,
+        // API data is kept offline by the app (IndexedDB), not the worker.
+        runtimeCaching: [
           {
-            src: "pwa-512.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "maskable",
+            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "google-fonts",
+              expiration: { maxEntries: 20, maxAgeSeconds: 365 * 24 * 3600 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            urlPattern: ({ url, sameOrigin }) =>
+              sameOrigin && url.pathname.startsWith("/images/"),
+            handler: "StaleWhileRevalidate",
+            options: { cacheName: "images", expiration: { maxEntries: 30 } },
           },
         ],
-      },
-      workbox: {
-        navigateFallback: "/index.html",
-        navigateFallbackDenylist: [/^\/api/],
-        runtimeCaching: [],
       },
     }),
   ],

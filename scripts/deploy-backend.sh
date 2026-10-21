@@ -31,10 +31,6 @@ if ! nc -z 127.0.0.1 "$TUNNEL_PORT" 2>/dev/null; then
   TUNNEL_PID="$(pgrep -f "ssh -f -N .*-L $TUNNEL_PORT:127.0.0.1:5432" | head -1)"
 fi
 trap '[ -n "$TUNNEL_PID" ] && kill "$TUNNEL_PID" 2>/dev/null || true' EXIT
-# Idempotent data migrations go first: db:push drops columns that left the
-# schema, so anything they held must already be moved.
-(cd apps/api && DATABASE_URL="$PROD_DB_URL" bun run db:migrate-statuses)
-(cd apps/api && DATABASE_URL="$PROD_DB_URL" bun run db:backfill-books)
 (cd apps/api && DATABASE_URL="$PROD_DB_URL" bun run db:push)
 [ -n "$TUNNEL_PID" ] && kill "$TUNNEL_PID" 2>/dev/null || true
 log "✅ Database schema up to date"
@@ -55,6 +51,6 @@ ssh "$REMOTE" bash <<REMOTE_EOF
   curl -fsS http://127.0.0.1:$PORT/health && echo
 REMOTE_EOF
 
-log "✅ Backend deployed: https://tracker.com.u4.lol/api/"
+log "✅ Backend deployed: https://ft.u4.lol/api/"
 echo "  Logs:   ssh $REMOTE 'tail -f $REMOTE_DIR/server.log'"
 echo "  Attach: ssh $REMOTE -t 'tmux attach -t $SESSION'"

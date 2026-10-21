@@ -1,5 +1,5 @@
 import { format, subDays } from "date-fns";
-import { ArrowRightLeft, Pencil, Trash2, Users } from "lucide-react";
+import { ArrowRightLeft, History, Pencil, Trash2, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   AccountPicker,
@@ -12,6 +12,7 @@ import { confirm } from "@/components/common/confirm-dialog";
 import { DateInput } from "@/components/common/date-input";
 import { ResponsiveSheet } from "@/components/common/responsive-sheet";
 import { Segmented } from "@/components/common/segmented";
+import { AttachmentsField } from "@/components/transactions/attachments-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +20,7 @@ import { useActiveAccounts, useActiveEvent } from "@/hooks/use-accounts";
 import { useActiveBooks, useBookScope } from "@/hooks/use-books";
 import {
   type Currency,
+  type Txn,
   type TxnType,
   useCategories,
   useDeleteTransaction,
@@ -33,7 +35,9 @@ import {
   todayStr,
   ymd,
 } from "@/lib/format";
+import { useOutbox } from "@/lib/offline/outbox";
 import { cn } from "@/lib/utils";
+import { getDraft, useDraft, useDraftStore } from "@/stores/draft-store";
 import { useSplitSheet } from "@/stores/split-sheet-store";
 import { useTxnSheet } from "@/stores/txn-sheet-store";
 
@@ -53,6 +57,34 @@ type Form = {
 
 const SYMBOL: Record<Currency, string> = { INR: "₹", USD: "$" };
 
+/** Has the user typed anything worth keeping? */
+const isDirty = (f: Form) => f.amount !== "" || f.note.trim() !== "";
+
+/** The form for editing a saved row. */
+function formOf(editing: Txn): Form {
+  return {
+    type: editing.type,
+    categoryId: editing.category.id,
+    date: ymd(editing.date),
+    note: editing.note ?? "",
+    accountId: editing.account.id,
+    bookId: editing.book.id,
+    eventId: editing.event?.id ?? null,
+    // Foreign entries reopen in their currency with the rate they were saved at.
+    ...(editing.originalCurrency === "USD" && editing.originalAmount !== null
+      ? {
+          currency: "USD" as const,
+          amount: String(fromAmount(editing.originalAmount)),
+          fxRate: editing.fxRate ? String(editing.fxRate) : "",
+        }
+      : {
+          currency: "INR" as const,
+          amount: String(fromAmount(editing.amount)),
+          fxRate: "",
+        }),
+  };
+}
+
 export function TransactionSheet() {
   const { open, editing, defaultType, prefill, close } = useTxnSheet();
   const openSplitNew = useSplitSheet((s) => s.openNew);
@@ -65,12 +97,16 @@ export function TransactionSheet() {
   const save = useSaveTransaction();
   const del = useDeleteTransaction();
 
+  const online = useOutbox((s) => s.online);
+
   const blank = (type: TxnType): Form => ({
     type,
-    amount: "",
-    categoryId: null,
+    amount: prefill.amount ? String(fromAmount(prefill.amount)) : "",
+    categoryId:
+      categories.find((c) => c.type === type && c.name === prefill.categoryName)
+        ?.id ?? null,
     date: todayStr(),
-    note: "",
+    note: prefill.note ?? "",
     currency: "INR",
     fxRate: "",
     accountId: prefill.accountId ?? defaultAccount?.id ?? null,
@@ -79,49 +115,86 @@ export function TransactionSheet() {
     // While an event is live, new entries are tagged to it (can be removed).
     eventId: prefill.eventId ?? activeEvent?.id ?? null,
   });
-  const [form, setForm] = useState<Form>(blank(defaultType));
+  // The form lives in the draft store, so closing the sheet by accident
+  // (tap outside, swipe down, back button) keeps everything typed so far.
+  const draftKey = editing ? `txn:${editing.id}` : "txn:new";
+  const putDraft = useDraftStore((s) => s.put);
+  const clearDraft = useDraftStore((s) => s.clear);
+  const {
+    value: form,
+    setValue: setForm,
+    files: pendingFiles,
+    setFiles: setPendingFiles,
+  } = useDraft<Form>(draftKey, editing ? formOf(editing) : blank(defaultType));
+  /** The sheet reopened with unsaved input from before. */
+  const [restored, setRestored] = useState(false);
+
+  const startOver = () => {
+    putDraft(draftKey, {
+      value: editing ? formOf(editing) : blank(defaultType),
+      files: [],
+      base: editing ? String(editing.updatedAt) : undefined,
+    });
+    setRestored(false);
+  };
 
   useEffect(() => {
     if (!open) return;
     setEditingRate(false);
-    setForm(
-      editing
-        ? {
-            type: editing.type,
-            categoryId: editing.category.id,
-            date: ymd(editing.date),
-            note: editing.note ?? "",
-            accountId: editing.account.id,
-            bookId: editing.book.id,
-            eventId: editing.event?.id ?? null,
-            // Foreign entries reopen in their currency with the rate they were saved at.
-            ...(editing.originalCurrency === "USD" &&
-            editing.originalAmount !== null
-              ? {
-                  currency: "USD" as const,
-                  amount: String(fromAmount(editing.originalAmount)),
-                  fxRate: editing.fxRate ? String(editing.fxRate) : "",
-                }
-              : {
-                  currency: "INR" as const,
-                  amount: String(fromAmount(editing.amount)),
-                  fxRate: "",
-                }),
-          }
-        : blank(defaultType),
-    );
+    const draft = getDraft<Form>(draftKey);
+    if (editing) {
+      // Resume an unsaved edit only if the row hasn't changed since.
+      if (draft && draft.base === String(editing.updatedAt)) {
+        setRestored(
+          JSON.stringify(draft.value) !== JSON.stringify(formOf(editing)) ||
+            draft.files.length > 0,
+        );
+        return;
+      }
+    } else if (
+      draft &&
+      !Object.keys(prefill).length &&
+      (isDirty(draft.value) || draft.files.length)
+    ) {
+      // Opened from a specific page (prefill) starts fresh; otherwise resume.
+      setRestored(true);
+      return;
+    }
+    startOver();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editing, defaultType]);
 
+  const closeSheet = () => {
+    // An edit that was opened and left untouched needs no draft.
+    if (editing && !restored) {
+      const d = getDraft<Form>(draftKey);
+      if (
+        d &&
+        !d.files.length &&
+        JSON.stringify(d.value) === JSON.stringify(formOf(editing))
+      )
+        clearDraft(draftKey);
+    }
+    close();
+  };
+
   // Accounts may load after the sheet opens: fall back to the default account.
   useEffect(() => {
+    // Checked again inside the update: on the render the sheet opens, `form`
+    // here is still the previous one, and an edit must keep its own account.
     if (open && form.accountId === null && defaultAccount)
-      setForm((f) => ({ ...f, accountId: defaultAccount.id }));
+      setForm((f) =>
+        f.accountId === null ? { ...f, accountId: defaultAccount.id } : f,
+      );
   }, [open, form.accountId, defaultAccount]);
 
   useEffect(() => {
     if (open && form.bookId === null && defaultBook)
-      setForm((f) => ({ ...f, bookId: scope.bookId ?? defaultBook.id }));
+      setForm((f) =>
+        f.bookId === null
+          ? { ...f, bookId: scope.bookId ?? defaultBook.id }
+          : f,
+      );
   }, [open, form.bookId, defaultBook, scope.bookId]);
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) =>
@@ -146,6 +219,7 @@ export function TransactionSheet() {
     save.mutate(
       {
         id: editing?.id,
+        files: pendingFiles,
         type: form.type,
         amount,
         currency: form.currency,
@@ -157,7 +231,14 @@ export function TransactionSheet() {
         eventId: form.eventId,
         note: form.note.trim() || null,
       },
-      { onSuccess: close },
+      {
+        // Saved on this device; files follow once it reaches the server.
+        onSuccess: () => {
+          clearDraft(draftKey);
+          setRestored(false);
+          close();
+        },
+      },
     );
   };
 
@@ -169,7 +250,13 @@ export function TransactionSheet() {
       confirmText: "Delete",
       destructive: true,
     });
-    if (ok) del.mutate(editing.id, { onSuccess: close });
+    if (ok)
+      del.mutate(editing.id, {
+        onSuccess: () => {
+          clearDraft(draftKey);
+          close();
+        },
+      });
   };
 
   const today = todayStr();
@@ -205,6 +292,11 @@ export function TransactionSheet() {
             Only your share of this shared bill counts as your expense. To
             change the amount, people or category, edit the split.
           </p>
+          <AttachmentsField
+            transactionId={editing.id}
+            pending={pendingFiles}
+            onPendingChange={setPendingFiles}
+          />
           <Button
             size="lg"
             className="w-full"
@@ -223,10 +315,25 @@ export function TransactionSheet() {
   return (
     <ResponsiveSheet
       open={open}
-      onOpenChange={(o) => !o && close()}
+      onOpenChange={(o) => !o && closeSheet()}
       title={editing ? "Edit transaction" : "Add transaction"}
     >
       <form onSubmit={submit} className="space-y-5">
+        {restored && (
+          <div className="flex items-center gap-2 rounded-xl bg-muted px-3 py-2 text-sm">
+            <History className="size-4 shrink-0 text-primary" />
+            <span className="min-w-0 flex-1 text-muted-foreground">
+              Picked up where you left off.
+            </span>
+            <button
+              type="button"
+              className="shrink-0 font-medium text-primary"
+              onClick={startOver}
+            >
+              Start over
+            </button>
+          </div>
+        )}
         {editing && editing.type === "debit" && (
           <button
             type="button"
@@ -473,6 +580,15 @@ export function TransactionSheet() {
             onChange={(e) => set("note", e.target.value)}
           />
         </div>
+
+        <AttachmentsField
+          // Offline (or a row not synced yet), files wait with the entry.
+          transactionId={
+            editing && editing.id > 0 && online ? editing.id : undefined
+          }
+          pending={pendingFiles}
+          onPendingChange={setPendingFiles}
+        />
 
         <div className="flex gap-2 pt-1">
           {editing && (

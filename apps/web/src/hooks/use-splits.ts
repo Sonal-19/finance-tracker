@@ -1,6 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { savedToast } from "@/hooks/use-finance";
 import { api, call, callMsg } from "@/lib/api";
+import {
+  queueAddSettlement,
+  queueDeleteSettlement,
+  queueDeleteSplit,
+  queueSaveSplit,
+} from "@/lib/offline/sync";
 import type { Relation, SplitMethod } from "@/lib/split";
 
 /* ---------- queries ---------- */
@@ -38,12 +45,18 @@ export const useSplits = () =>
   });
 export type Split = NonNullable<ReturnType<typeof useSplits>["data"]>[number];
 
-export const useSplit = (id: number | null) =>
-  useQuery({
+export function useSplit(id: number | null) {
+  const qc = useQueryClient();
+  return useQuery({
     queryKey: ["splits", id],
     queryFn: () => call(api.splits({ id: id! }).get()),
-    enabled: !!id,
+    // A split made offline (negative id) exists only in the cached list.
+    enabled: !!id && id > 0,
+    initialData: () =>
+      qc.getQueryData<Split[]>(["splits", "list"])?.find((s) => s.id === id),
+    initialDataUpdatedAt: 0,
   });
+}
 
 export const useSplitSummary = () =>
   useQuery({
@@ -160,33 +173,22 @@ export type SplitInput = {
   fromTransactionId?: number;
 };
 
+/** Saved on this device first, synced in the background (works offline). */
 export function useSaveSplit() {
-  const invalidate = useInvalidateSplits();
   return useMutation({
-    mutationFn: async ({
-      id,
-      fromTransactionId,
-      ...body
-    }: SplitInput & { id?: number }) => {
-      if (id) return callMsg(api.splits({ id }).put(body));
-      return callMsg(api.splits.post({ ...body, fromTransactionId }));
-    },
-    onSuccess: ({ message }) => {
-      toast.success(message);
-      invalidate();
-    },
+    mutationFn: async (input: SplitInput & { id?: number }) => ({
+      data: queueSaveSplit(input),
+      message: input.id ? "Split updated" : "Expense split",
+    }),
+    onSuccess: ({ message }) => savedToast(message),
     onError,
   });
 }
 
 export function useDeleteSplit() {
-  const invalidate = useInvalidateSplits();
   return useMutation({
-    mutationFn: (id: number) => callMsg(api.splits({ id }).delete()),
-    onSuccess: ({ message }) => {
-      toast.success(message);
-      invalidate();
-    },
+    mutationFn: async (id: number) => queueDeleteSplit(id),
+    onSuccess: () => savedToast("Split deleted"),
     onError,
   });
 }
@@ -201,25 +203,25 @@ export type SettlementInput = {
 };
 
 export function useAddSettlement() {
-  const invalidate = useInvalidateSplits();
+  const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: SettlementInput) => callMsg(api.settlements.post(body)),
-    onSuccess: ({ message }) => {
-      toast.success(message);
-      invalidate();
+    mutationFn: async (body: SettlementInput) => {
+      const name = qc
+        .getQueryData<Person[]>(["people"])
+        ?.find((p) => p.id === body.personId)?.name;
+      queueAddSettlement(body, name);
+      return name;
     },
+    onSuccess: (name) =>
+      savedToast(name ? `Payment with ${name} recorded` : "Payment recorded"),
     onError,
   });
 }
 
 export function useDeleteSettlement() {
-  const invalidate = useInvalidateSplits();
   return useMutation({
-    mutationFn: (id: number) => callMsg(api.settlements({ id }).delete()),
-    onSuccess: ({ message }) => {
-      toast.success(message);
-      invalidate();
-    },
+    mutationFn: async (id: number) => queueDeleteSettlement(id),
+    onSuccess: () => savedToast("Payment removed"),
     onError,
   });
 }

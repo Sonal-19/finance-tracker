@@ -25,4 +25,4 @@ log "📂 Step 1/2: Syncing hashed assets..."
 log "📄 Step 2/2: Syncing root files..."
 rsync -av --delete --exclude="assets/" --exclude=".DS_Store" "$BUILD_DIR/" "$REMOTE:$REMOTE_FINAL"
 
-log "✅ Frontend deployed: https://tracker.com.u4.lol"
+log "✅ Frontend deployed: https://ft.u4.lol"

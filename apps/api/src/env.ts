@@ -37,12 +37,27 @@ export const FX_FALLBACK_USD_INR = Number(
 /** WebAuthn relying party. `RP_ID` must equal the browser's hostname exactly
  * (no scheme/port); a passkey registered for one RP_ID is useless on another. */
 export const RP_ID =
-  process.env.RP_ID || (IS_PROD ? "tracker.com.u4.lol" : "localhost");
+  process.env.RP_ID || (IS_PROD ? "ft.u4.lol" : "localhost");
 
 /** Exact origins a passkey ceremony may come from. `null` (dev only) means
  * any `http://localhost:*` origin. */
 export const RP_ALLOWED_ORIGINS: string[] | null = process.env.RP_ORIGINS
   ? process.env.RP_ORIGINS.split(",")
   : IS_PROD
-    ? ["https://tracker.com.u4.lol"]
+    ? ["https://ft.u4.lol"]
     : null;
+
+/** Object storage for attachments (Cloudflare R2 or any S3). With any of
+ * these missing, files go to `LOCAL_STORAGE_DIR` on disk instead. */
+export const S3_ACCESS_KEY_ID = process.env.S3_ACCESS_KEY_ID || "";
+export const S3_SECRET_ACCESS_KEY = process.env.S3_SECRET_ACCESS_KEY || "";
+export const S3_ENDPOINT = process.env.S3_ENDPOINT || "";
+export const S3_BUCKET = process.env.S3_BUCKET || "";
+export const S3_REGION = process.env.S3_REGION || "auto";
+export const S3_CONFIGURED = !!(
+  S3_ACCESS_KEY_ID &&
+  S3_SECRET_ACCESS_KEY &&
+  S3_ENDPOINT &&
+  S3_BUCKET
+);
+export const LOCAL_STORAGE_DIR = process.env.LOCAL_STORAGE_DIR || "./storage";

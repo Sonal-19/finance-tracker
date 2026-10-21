@@ -4,14 +4,39 @@
     {
       "name": "api",
       "runtimeExecutable": "bun",
-      "runtimeArgs": ["run", "--cwd", "apps/api", "dev"],
+      "runtimeArgs": [
+        "run",
+        "--cwd",
+        "apps/api",
+        "dev"
+      ],
       "port": 4300
     },
     {
       "name": "web",
       "runtimeExecutable": "bun",
-      "runtimeArgs": ["run", "--cwd", "apps/web", "dev"],
+      "runtimeArgs": [
+        "run",
+        "--cwd",
+        "apps/web",
+        "dev"
+      ],
       "port": 3300
+    },
+    {
+      "name": "web-prod",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": [
+        "run",
+        "--cwd",
+        "apps/web",
+        "serve",
+        "--",
+        "--port",
+        "3301",
+        "--strictPort"
+      ],
+      "port": 3301
     }
   ]
 }

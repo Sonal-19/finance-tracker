@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, pgTable } from "drizzle-orm/pg-core";
+import { index, pgTable, uniqueIndex } from "drizzle-orm/pg-core";
 import { usersTable } from "../users/users.sql";
 import { accountsTable } from "./accounts.sql";
 import { booksTable } from "./books.sql";
@@ -56,6 +56,10 @@ export const transactionsTable = pgTable(
     recurringId: pg
       .integer("recurring_id")
       .references(() => recurringRulesTable.id, { onDelete: "set null" }),
+    /** Id the browser gave this entry when it was made (possibly offline).
+     * A retried create with the same id returns the saved row instead of
+     * adding a duplicate. */
+    clientId: pg.uuid("client_id"),
     createdAt: pg
       .timestamp("created_at", { withTimezone: true })
       .defaultNow()
@@ -87,6 +91,9 @@ export const transactionsTable = pgTable(
     index("transactions_shared_split_idx")
       .on(t.sharedSplitId, t.userId)
       .where(sql`${t.sharedSplitId} is not null`),
+    uniqueIndex("transactions_client_uq")
+      .on(t.userId, t.clientId)
+      .where(sql`${t.clientId} is not null`),
     index("transactions_recurring_idx")
       .on(t.recurringId)
       .where(sql`${t.recurringId} is not null`),

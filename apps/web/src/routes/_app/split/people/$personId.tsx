@@ -52,8 +52,7 @@ function PersonPage() {
   const [settle, setSettle] = useState<SettleTarget | null>(null);
 
   if (isLoading) return <PageLoader />;
-  if (error || !data)
-    return <ErrorState error={error ?? new Error("Not found")} />;
+  if (!data) return <ErrorState error={error ?? new Error("Not found")} />;
   const { person, balance, activity } = data;
   const net = balance.net;
   const first = person.name.split(" ")[0];
