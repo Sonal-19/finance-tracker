@@ -88,6 +88,13 @@ export function bindingKeys(binding: string): string[][] {
     );
 }
 
+/** A binding as plain text for tooltips: "g d" → "G then D". */
+export function bindingText(binding: string) {
+  return bindingKeys(binding)
+    .map((keys) => keys.join(isMac ? "" : "+"))
+    .join(" then ");
+}
+
 const isTyping = (el: EventTarget | null) => {
   const t = el as HTMLElement | null;
   if (!t?.tagName) return false;

@@ -8,12 +8,15 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useLogout } from "@/hooks/use-auth";
+import { useShortcutMap } from "@/hooks/use-shortcuts";
 import { pendingCount } from "@/lib/offline/sync";
 import type { AppUser } from "@/stores/auth-store";
 import { type Theme, useThemeStore } from "@/stores/theme-store";
+import { ShortcutKeys } from "./shortcuts";
 
 export function initials(name: string) {
   return name
@@ -71,6 +74,7 @@ const THEMES: { value: Theme; label: string; icon: typeof Sun }[] = [
 export function UserMenu({ user }: { user: AppUser }) {
   const signOut = useSignOut();
   const { theme, setTheme } = useThemeStore();
+  const keys = useShortcutMap();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -104,6 +108,11 @@ export function UserMenu({ user }: { user: AppUser }) {
         <DropdownMenuItem asChild>
           <Link to="/settings">
             <Settings /> Settings
+            {keys.goSettings && (
+              <DropdownMenuShortcut className="hidden tracking-normal md:inline-flex">
+                <ShortcutKeys binding={keys.goSettings} compact />
+              </DropdownMenuShortcut>
+            )}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem variant="destructive" onClick={signOut}>

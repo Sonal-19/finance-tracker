@@ -35,13 +35,16 @@ export function Kbd({
   );
 }
 
-/** A binding drawn as keycaps: "g d" → G then D. */
+/** A binding drawn as keycaps: "g d" → G then D. `compact` draws smaller
+ * keys without the "then", for menus. */
 export function ShortcutKeys({
   binding,
   className,
+  compact,
 }: {
   binding: string;
   className?: string;
+  compact?: boolean;
 }) {
   const steps = bindingKeys(binding);
   if (!steps.length)
@@ -51,10 +54,17 @@ export function ShortcutKeys({
       </span>
     );
   return (
-    <span className={cn("inline-flex items-center gap-1", className)}>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1",
+        compact &&
+          "gap-0.5 [&_kbd]:h-4.5 [&_kbd]:min-w-4.5 [&_kbd]:rounded [&_kbd]:px-1 [&_kbd]:text-[10px]",
+        className,
+      )}
+    >
       {steps.map((keys, i) => (
         <Fragment key={i}>
-          {i > 0 && (
+          {i > 0 && !compact && (
             <span className="text-[11px] text-muted-foreground">then</span>
           )}
           {keys.map((k) => (

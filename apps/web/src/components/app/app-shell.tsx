@@ -17,7 +17,11 @@ import { SplitSheet } from "@/components/split/split-sheet";
 import { TransactionSheet } from "@/components/transactions/transaction-sheet";
 import { Button } from "@/components/ui/button";
 import { usePublicConfig } from "@/hooks/use-passkeys";
-import { useGlobalShortcuts, useShortcutMap } from "@/hooks/use-shortcuts";
+import {
+  bindingText,
+  useGlobalShortcuts,
+  useShortcutMap,
+} from "@/hooks/use-shortcuts";
 import { syncNow } from "@/lib/offline/sync";
 import { cn } from "@/lib/utils";
 import type { AppUser } from "@/stores/auth-store";
@@ -129,6 +133,9 @@ export function AppShell({
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const setShortcutsOpen = useUiStore((s) => s.setShortcutsOpen);
   const keys = useShortcutMap();
+  /** "Label (G then D)" for a tooltip, or just the label with no shortcut. */
+  const withKeys = (label: string, binding?: string) =>
+    binding ? `${label} (${bindingText(binding)})` : label;
   useShortcutHandlers();
   useLaunchAction();
 
@@ -138,7 +145,7 @@ export function AppShell({
         "min-h-dvh md:grid md:transition-[grid-template-columns] md:duration-200",
         collapsed
           ? "md:grid-cols-[68px_1fr]"
-          : "md:grid-cols-[220px_1fr] lg:grid-cols-[250px_1fr]",
+          : "md:grid-cols-[220px_1fr] lg:grid-cols-[268px_1fr]",
       )}
     >
       {/* Desktop / tablet sidebar */}
@@ -165,7 +172,10 @@ export function AppShell({
             className="size-8 text-muted-foreground"
             onClick={toggleSidebar}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            title={`${collapsed ? "Expand" : "Collapse"} sidebar${keys.toggleSidebar ? ` (${keys.toggleSidebar})` : ""}`}
+            title={withKeys(
+              `${collapsed ? "Expand" : "Collapse"} sidebar`,
+              keys.toggleSidebar,
+            )}
           >
             {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
           </Button>
@@ -176,7 +186,7 @@ export function AppShell({
             size={collapsed ? "icon" : "default"}
             onClick={() => openNew()}
             aria-label="Add transaction"
-            title={`Add transaction${keys.addExpense ? ` (${keys.addExpense})` : ""}`}
+            title={withKeys("Add transaction", keys.addExpense)}
           >
             <Plus />
             {!collapsed && (
@@ -200,20 +210,35 @@ export function AppShell({
         >
           {nav.map((n) => {
             const active = pathname.startsWith(n.to);
+            const binding = n.shortcut ? keys[n.shortcut] : "";
             return (
               <Link
                 key={n.to}
                 to={n.to}
-                title={collapsed ? n.label : undefined}
+                title={
+                  collapsed || binding ? withKeys(n.label, binding) : undefined
+                }
                 aria-label={collapsed ? n.label : undefined}
+                aria-keyshortcuts={binding || undefined}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                  "group flex items-center gap-3 rounded-lg py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
                   collapsed ? "justify-center px-0" : "px-3",
                   active && "bg-accent text-accent-foreground hover:bg-accent",
                 )}
               >
                 <n.icon className="size-4.5 shrink-0" />
-                {!collapsed && n.label}
+                {!collapsed && (
+                  <>
+                    <span className="min-w-0 flex-1 truncate">{n.label}</span>
+                    {binding && (
+                      <ShortcutKeys
+                        binding={binding}
+                        compact
+                        className="hidden shrink-0 opacity-60 transition-opacity group-hover:opacity-100 lg:inline-flex"
+                      />
+                    )}
+                  </>
+                )}
               </Link>
             );
           })}
@@ -236,7 +261,7 @@ export function AppShell({
               className="size-9 shrink-0 text-muted-foreground"
               onClick={() => setShortcutsOpen(true)}
               aria-label="Keyboard shortcuts"
-              title={`Keyboard shortcuts${keys.showShortcuts ? ` (${keys.showShortcuts})` : ""}`}
+              title={withKeys("Keyboard shortcuts", keys.showShortcuts)}
             >
               <Keyboard />
             </Button>
