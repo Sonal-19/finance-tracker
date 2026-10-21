@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useRef, useState } from "react";
+import { homeFor } from "@/components/app/nav-items";
 import { Logo } from "@/components/common/logo";
 import { AnimatedHero } from "@/components/landing/animated-hero";
 import { AuthCard, type AuthMode } from "@/components/landing/auth-card";
@@ -1262,7 +1263,7 @@ function Landing() {
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
 
-  if (!isLoading && user) return <Navigate to="/dashboard" replace />;
+  if (!isLoading && user) return <Navigate to={homeFor(user)} replace />;
 
   const scrollToAuth = (m: AuthMode) => {
     setMode(m);

@@ -1,5 +1,6 @@
 import Elysia from "elysia";
 import { accountControllers } from "./accounts-controller";
+import { adminController } from "./admin-controller";
 import { authController } from "./auth-controller";
 import { booksController } from "./books-controller";
 import { budgetsController } from "./budgets-controller";
@@ -33,9 +34,9 @@ const userControllers = new Elysia({ name: "user_controllers" })
   .use(booksController);
 
 /** Admin-only routes, grouped for the same reason as above. */
-const adminControllers = new Elysia({ name: "admin_controllers" }).use(
-  systemConfigController,
-);
+const adminControllers = new Elysia({ name: "admin_controllers" })
+  .use(adminController)
+  .use(systemConfigController);
 
 export const mainController = new Elysia({
   name: "router",
