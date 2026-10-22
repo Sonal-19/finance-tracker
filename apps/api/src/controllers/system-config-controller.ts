@@ -8,6 +8,11 @@ import {
   resolveShortcuts,
   shortcutProblems,
 } from "$/lib/utils/shortcuts";
+import {
+  cleanThemeColors,
+  DEFAULT_PRESET,
+  themeErrors,
+} from "$/lib/utils/theme";
 import { protectedAdmin } from "$/pre-processor";
 
 // NOTE TO FUTURE EDITORS: this schema is the admin page's write contract for
@@ -43,6 +48,16 @@ export const UpdateSystemConfigSchema = t.Object({
       DEFAULTS: t.Record(t.String(), t.String({ maxLength: 40 })),
     }),
   ),
+  THEME: t.Optional(
+    t.Object({
+      /** a preset id from lib/utils/theme.ts */
+      PRESET: t.String({ maxLength: 20 }),
+      /** token → "#rrggbb"; checked with themeErrors before saving */
+      LIGHT: t.Record(t.String(), t.String({ maxLength: 9 })),
+      DARK: t.Record(t.String(), t.String({ maxLength: 9 })),
+      AMOLED: t.Record(t.String(), t.String({ maxLength: 9 })),
+    }),
+  ),
 });
 
 export const systemConfigController = new Elysia({
@@ -69,6 +84,12 @@ export const systemConfigController = new Elysia({
         const [problem] = Object.values(shortcutProblems(defaults));
         if (problem) return status(400, fail(`Shortcuts: ${problem}`));
         body.SHORTCUTS.DEFAULTS = cleanShortcuts(defaults);
+      }
+      if (body.THEME) {
+        const colors = cleanThemeColors(body.THEME);
+        const [problem] = themeErrors(colors);
+        if (problem) return status(400, fail(`Theme: ${problem}`));
+        body.THEME = { ...colors, PRESET: colors.PRESET || DEFAULT_PRESET };
       }
       return ok(
         await systemConfigService.update(body, user.id),

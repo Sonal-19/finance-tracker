@@ -88,4 +88,3 @@ export type NavItem = {
 
 export const navFor = (user: NavUser): NavItem[] =>
   user?.role === "admin" ? [ADMIN_HOME, ...NAV, ...ADMIN_NAV] : [...NAV];
-

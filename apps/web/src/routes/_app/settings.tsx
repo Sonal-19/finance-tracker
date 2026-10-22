@@ -1,12 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { LogOut, Monitor, Moon, Sun } from "lucide-react";
-import { useState } from "react";
+import { LogOut, Monitor, Moon, MoonStar, Sun } from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { InstallButton } from "@/components/app/install-app";
 import { PasskeysCard } from "@/components/app/passkeys-card";
 import { SectionCard } from "@/components/app/section-card";
 import { ShortcutEditor } from "@/components/app/shortcuts";
+import {
+  EMPTY_THEME,
+  hasErrors,
+  ThemeEditor,
+  themeReport,
+} from "@/components/app/theme-editor";
 import { useSignOut } from "@/components/app/user-menu";
 import { Field } from "@/components/common/field";
 import { PageHeader } from "@/components/common/page-header";
@@ -19,13 +25,20 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/use-auth";
 import { useUpdateProfile } from "@/hooks/use-finance";
+import { usePublicConfig } from "@/hooks/use-passkeys";
 import { useAdminShortcuts, useShortcutMap } from "@/hooks/use-shortcuts";
+import {
+  useSaveUserConfig,
+  useThemeChoice,
+  useUserConfig,
+} from "@/hooks/use-user-config";
 import { api, call, callMsg } from "@/lib/api";
 import { canOfferInstall, isStandalone, usePwa } from "@/lib/pwa";
 import { useAuthStore } from "@/stores/auth-store";
-import { useThemeStore } from "@/stores/theme-store";
+import { modeOf, useThemePreview } from "@/stores/theme-store";
 import { useUiStore } from "@/stores/ui-store";
 import { type ShortcutMap, shortcutProblems } from "$/lib/utils/shortcuts";
+import type { ThemeChoice, ThemeColors } from "$/lib/utils/theme";
 
 export const Route = createFileRoute("/_app/settings")({
   component: SettingsPage,
@@ -36,7 +49,6 @@ function SettingsPage() {
   const update = useUpdateProfile();
   const [name, setName] = useState(user?.name ?? "");
   const [username, setUsername] = useState(user?.username ?? "");
-  const { theme, setTheme } = useThemeStore();
   const signOut = useSignOut();
   const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -141,38 +153,9 @@ function SettingsPage() {
         <BlockedUsers />
       </SectionCard>
 
-      <SectionCard title="Appearance">
-        <Segmented
-          value={theme}
-          onChange={setTheme}
-          options={[
-            {
-              value: "light",
-              label: (
-                <span className="flex items-center gap-1.5">
-                  <Sun className="size-4" /> Light
-                </span>
-              ),
-            },
-            {
-              value: "dark",
-              label: (
-                <span className="flex items-center gap-1.5">
-                  <Moon className="size-4" /> Dark
-                </span>
-              ),
-            },
-            {
-              value: "system",
-              label: (
-                <span className="flex items-center gap-1.5">
-                  <Monitor className="size-4" /> System
-                </span>
-              ),
-            },
-          ]}
-        />
-      </SectionCard>
+      <AppearanceCard />
+
+      <DashboardCard />
 
       <ShortcutsCard />
 
@@ -396,7 +379,7 @@ function BlockedUsers() {
 function ShortcutsCard() {
   const admin = useAdminShortcuts();
   const current = useShortcutMap();
-  const update = useUpdateProfile();
+  const update = useSaveUserConfig();
   const setShortcutsOpen = useUiStore((s) => s.setShortcutsOpen);
   const [draft, setDraft] = useState<ShortcutMap | null>(null);
   const value = draft ?? current;
@@ -414,10 +397,7 @@ function ShortcutsCard() {
         ([k, v]) => v !== admin[k as keyof ShortcutMap],
       ),
     );
-    update.mutate(
-      { shortcuts: Object.keys(own).length ? own : null },
-      { onSuccess: () => setDraft(null) },
-    );
+    update.mutate({ SHORTCUTS: own }, { onSuccess: () => setDraft(null) });
   };
 
   return (
@@ -459,6 +439,165 @@ function ShortcutsCard() {
         </div>
       </SectionCard>
     </div>
+  );
+}
+
+const MODES: { value: ThemeChoice; label: string; icon: typeof Sun }[] = [
+  { value: "light", label: "Light", icon: Sun },
+  { value: "dark", label: "Dark", icon: Moon },
+  { value: "amoled", label: "AMOLED", icon: MoonStar },
+  { value: "system", label: "System", icon: Monitor },
+];
+
+/** Light / dark / AMOLED, and the user's own colours over the admin's. */
+function AppearanceCard() {
+  const { theme, systemDark, setTheme, setSystemDark } = useThemeChoice();
+  const admin = usePublicConfig().data?.theme ?? {};
+  const config = useUserConfig().data;
+  const save = useSaveUserConfig();
+  const setPreview = useThemePreview((s) => s.setPreview);
+  const saved: ThemeColors = config
+    ? {
+        PRESET: config.THEME.PRESET,
+        LIGHT: config.THEME.LIGHT,
+        DARK: config.THEME.DARK,
+        AMOLED: config.THEME.AMOLED,
+      }
+    : EMPTY_THEME;
+  const [draft, setDraft] = useState<ThemeColors | null>(null);
+  const value = draft ?? saved;
+  const dirty = !!draft && JSON.stringify(draft) !== JSON.stringify(saved);
+  const report = themeReport(value, admin);
+  const custom =
+    !!value.PRESET ||
+    [value.LIGHT, value.DARK, value.AMOLED].some((p) => Object.keys(p).length);
+
+  // The colours being edited show across the whole app until saved.
+  useEffect(() => {
+    setPreview(dirty ? { user: draft } : null);
+  }, [dirty, draft, setPreview]);
+  useEffect(() => () => setPreview(null), [setPreview]);
+
+  const saveColors = (next: ThemeColors) =>
+    save.mutate({ THEME: next }, { onSuccess: () => setDraft(null) });
+
+  return (
+    <SectionCard title="Appearance">
+      <div className="space-y-5">
+        <div className="space-y-3">
+          <Segmented
+            className="w-full"
+            value={theme}
+            onChange={setTheme}
+            options={MODES.map((m) => ({
+              value: m.value,
+              label: (
+                <span className="flex items-center justify-center gap-1.5">
+                  <m.icon className="size-4" /> {m.label}
+                </span>
+              ),
+            }))}
+          />
+          <p className="text-xs text-muted-foreground">
+            AMOLED is true black: the most contrast, and unlit pixels save
+            battery on OLED screens.
+          </p>
+          {theme === "system" && (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm">When the system is dark, use</span>
+              <Segmented
+                size="sm"
+                value={systemDark}
+                onChange={setSystemDark}
+                options={[
+                  { value: "dark", label: "Dark" },
+                  { value: "amoled", label: "AMOLED" },
+                ]}
+              />
+            </div>
+          )}
+        </div>
+        <div className="border-t pt-4">
+          <ThemeEditor
+            value={value}
+            onChange={setDraft}
+            below={admin}
+            initialMode={modeOf(theme, systemDark)}
+          />
+        </div>
+        <div className="flex flex-wrap justify-end gap-2">
+          {custom && (
+            <Button
+              variant="ghost"
+              disabled={save.isPending}
+              onClick={() => saveColors(EMPTY_THEME)}
+            >
+              Use defaults
+            </Button>
+          )}
+          {dirty && (
+            <Button variant="outline" onClick={() => setDraft(null)}>
+              Cancel
+            </Button>
+          )}
+          <Button
+            disabled={!dirty || hasErrors(report) || save.isPending}
+            onClick={() => draft && saveColors(draft)}
+          >
+            Save colours
+          </Button>
+        </div>
+      </div>
+    </SectionCard>
+  );
+}
+
+/** What the dashboard leads with, and where the balances strip goes. */
+function DashboardCard() {
+  const config = useUserConfig().data;
+  const save = useSaveUserConfig();
+  if (!config) return null;
+  const { HERO, ACCOUNTS } = config.DASHBOARD;
+  return (
+    <SectionCard title="Dashboard">
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-sm">
+            <span className="block font-medium">Top card</span>
+            <span className="block text-muted-foreground">
+              What the dashboard opens with.
+            </span>
+          </span>
+          <Segmented
+            size="sm"
+            value={HERO}
+            onChange={(v) => save.mutate({ DASHBOARD: { HERO: v } })}
+            options={[
+              { value: "spending", label: "Spending" },
+              { value: "balance", label: "Total balance" },
+            ]}
+          />
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-sm">
+            <span className="block font-medium">Payment method balances</span>
+            <span className="block text-muted-foreground">
+              The row of balances per account.
+            </span>
+          </span>
+          <Segmented
+            size="sm"
+            value={ACCOUNTS}
+            onChange={(v) => save.mutate({ DASHBOARD: { ACCOUNTS: v } })}
+            options={[
+              { value: "top", label: "Top" },
+              { value: "bottom", label: "Bottom" },
+              { value: "hidden", label: "Hidden" },
+            ]}
+          />
+        </div>
+      </div>
+    </SectionCard>
   );
 }
 

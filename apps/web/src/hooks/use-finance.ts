@@ -326,7 +326,6 @@ export function useUpdateProfile() {
       username?: string;
       taggedExpenses?: "manual" | "auto";
       monthlyBudget?: number | null;
-      shortcuts?: Record<string, string> | null;
     }) => callMsg(api.profile.patch(b)),
     onSuccess: ({ message, data }) => {
       toast.success(message);

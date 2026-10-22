@@ -205,7 +205,7 @@ function BookPage() {
 
       {b.pendingClaims > 0 && <PaymentClaims bookId={b.id} />}
 
-      <ShareLinks bookId={b.id} />
+      <ShareLinks bookId={b.id} bookName={b.name} />
 
       <section className="space-y-2">
         <h2 className="font-semibold">Transactions</h2>

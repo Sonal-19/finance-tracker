@@ -1,6 +1,7 @@
 import { registerSW } from "virtual:pwa-register";
 import { toast } from "sonner";
 import { create } from "zustand";
+import { useOutbox } from "./offline/outbox";
 
 /** Chromium's install offer (`beforeinstallprompt`); not in TS's DOM lib. */
 type InstallPromptEvent = Event & {
@@ -48,6 +49,12 @@ export async function installApp() {
 
 let listening = false;
 
+/** Nothing is waiting to sync, so a reload can't cut anything short. */
+function syncIdle() {
+  const s = useOutbox.getState();
+  return s.hydrated && !s.syncing && !s.ops.some((o) => o.status === "pending");
+}
+
 /** Call once at startup: the install offer fires early and only once. */
 export function listenForInstall() {
   if (listening) return;
@@ -65,7 +72,20 @@ export function listenForInstall() {
 
   const updateSW = registerSW({
     onNeedRefresh() {
-      usePwa.setState({ needRefresh: true, update: () => void updateSW(true) });
+      const apply = () => void updateSW(true);
+      usePwa.setState({ needRefresh: true, update: apply });
+      // Switch to the new build while nobody is looking: the app went to the
+      // background (or already is) and everything has synced.
+      const applyUnseen = () => {
+        if (document.visibilityState === "hidden" && syncIdle()) apply();
+      };
+      document.addEventListener("visibilitychange", applyUnseen);
+      if (document.visibilityState === "hidden" && syncIdle()) {
+        apply();
+        return;
+      }
+      // In use right now: offer it, and it still applies itself once they
+      // leave the app.
       toast("A new version is ready", {
         description: "Reload to get the latest. Unsynced changes are kept.",
         duration: Number.POSITIVE_INFINITY,
@@ -76,9 +96,22 @@ export function listenForInstall() {
       toast.success("Ready to work offline");
     },
     onRegisteredSW(_url, registration) {
-      // Long-lived tabs and installed apps check for a new build hourly.
-      if (registration)
-        setInterval(() => void registration.update(), 60 * 60_000);
+      if (!registration) return;
+      // Asks for sw.js only (a few KB of static file, never the API), and at
+      // most once a minute however often these fire.
+      let lastCheck = Date.now();
+      const check = () => {
+        if (!navigator.onLine || Date.now() - lastCheck < 60_000) return;
+        lastCheck = Date.now();
+        registration.update().catch(() => {});
+      };
+      // Back online, or back to the app (phones pause installed apps rather
+      // than closing them), and hourly for tabs left open.
+      window.addEventListener("online", check);
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") check();
+      });
+      setInterval(check, 60 * 60_000);
     },
   });
 }

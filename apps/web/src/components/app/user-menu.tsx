@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { LogOut, Monitor, Moon, Settings, Sun } from "lucide-react";
+import { LogOut, Monitor, Moon, MoonStar, Settings, Sun } from "lucide-react";
 import { toast } from "sonner";
 import { confirm } from "@/components/common/confirm-dialog";
 import {
@@ -13,9 +13,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useLogout } from "@/hooks/use-auth";
 import { useShortcutMap } from "@/hooks/use-shortcuts";
+import { useThemeChoice } from "@/hooks/use-user-config";
 import { pendingCount } from "@/lib/offline/sync";
 import type { AppUser } from "@/stores/auth-store";
-import { type Theme, useThemeStore } from "@/stores/theme-store";
+import type { Theme } from "@/stores/theme-store";
 import { ShortcutKeys } from "./shortcuts";
 
 export function initials(name: string) {
@@ -68,12 +69,13 @@ export function useSignOut() {
 const THEMES: { value: Theme; label: string; icon: typeof Sun }[] = [
   { value: "light", label: "Light", icon: Sun },
   { value: "dark", label: "Dark", icon: Moon },
-  { value: "system", label: "System", icon: Monitor },
+  { value: "amoled", label: "AMOLED", icon: MoonStar },
+  { value: "system", label: "Auto", icon: Monitor },
 ];
 
 export function UserMenu({ user }: { user: AppUser }) {
   const signOut = useSignOut();
-  const { theme, setTheme } = useThemeStore();
+  const { theme, setTheme } = useThemeChoice();
   const keys = useShortcutMap();
   return (
     <DropdownMenu>
@@ -83,7 +85,7 @@ export function UserMenu({ user }: { user: AppUser }) {
       >
         <Avatar name={user.name} />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-60">
+      <DropdownMenuContent align="end" className="w-64">
         <DropdownMenuLabel>
           <p className="truncate">{user.name}</p>
           <p className="truncate text-xs font-normal text-muted-foreground">

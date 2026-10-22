@@ -31,6 +31,7 @@ if ! nc -z 127.0.0.1 "$TUNNEL_PORT" 2>/dev/null; then
   TUNNEL_PID="$(pgrep -f "ssh -f -N .*-L $TUNNEL_PORT:127.0.0.1:5432" | head -1)"
 fi
 trap '[ -n "$TUNNEL_PID" ] && kill "$TUNNEL_PID" 2>/dev/null || true' EXIT
+(cd apps/api && DATABASE_URL="$PROD_DB_URL" bun run db:move-user-config)
 (cd apps/api && DATABASE_URL="$PROD_DB_URL" bun run db:push)
 [ -n "$TUNNEL_PID" ] && kill "$TUNNEL_PID" 2>/dev/null || true
 log "✅ Database schema up to date"

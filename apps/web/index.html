@@ -25,17 +25,48 @@
       href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <script>
-      // Apply the saved theme before first paint (no flash).
+      // Signed out on "/": fetch the first hero photo now, not once the app's
+      // JS has run. Keep in step with FIRST_HERO in landing-image.ts.
       (() => {
         try {
-          const t =
-            JSON.parse(localStorage.getItem("ft-theme") || "{}").state?.theme ||
-            "system";
-          const dark =
-            t === "dark" ||
-            (t === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
-          if (dark) document.documentElement.classList.add("dark");
+          if (location.pathname !== "/") return;
+          if (JSON.parse(localStorage.getItem("ft-user") || "{}").state?.user)
+            return;
+          const l = document.createElement("link");
+          l.rel = "preload";
+          l.as = "image";
+          l.fetchPriority = "high";
+          l.imageSrcset =
+            "/images/piggy-bank-640.webp 640w, /images/piggy-bank.webp 1200w";
+          l.imageSizes = "(min-width: 1024px) 50vw, 100vw";
+          document.head.appendChild(l);
+        } catch {}
+      })();
+    </script>
+    <script>
+      // Apply the saved theme before first paint (no flash). Keep in step
+      // with applyTheme in src/stores/theme-store.ts.
+      (() => {
+        try {
+          const s =
+            JSON.parse(localStorage.getItem("ft-theme") || "{}").state || {};
+          const t = s.theme || "system";
+          const mode =
+            t !== "system"
+              ? t
+              : matchMedia("(prefers-color-scheme: dark)").matches
+                ? s.systemDark || "dark"
+                : "light";
+          const root = document.documentElement;
+          if (mode !== "light") root.classList.add("dark");
+          root.dataset.theme = mode;
+          const vars = s.vars?.[mode];
+          if (vars)
+            for (const k in vars) root.style.setProperty(k, vars[k]);
         } catch {}
       })();
     </script>

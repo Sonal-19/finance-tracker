@@ -83,7 +83,9 @@ export function buildTxn(
     splitId: base?.splitId ?? null,
     sharedSplitId: base?.sharedSplitId ?? null,
     createdAt: base?.createdAt ?? nowIso(),
-    updatedAt: nowIso(),
+    // The server's version this edit started from, never this device's clock:
+    // it's the base the next edit's conflict check is sent with.
+    updatedAt: base?.updatedAt ?? nowIso(),
     clientId: base?.clientId ?? clientId ?? null,
     attachmentCount: base?.attachmentCount ?? 0,
     category: cat
@@ -198,7 +200,7 @@ export function buildSplit(
     eventId: body.eventId ?? null,
     bookId: body.bookId ?? null,
     clientId: base?.clientId ?? null,
-    updatedAt: nowIso(),
+    updatedAt: base?.updatedAt ?? nowIso(),
     category: cat
       ? { id: cat.id, name: cat.name, icon: cat.icon, color: cat.color }
       : null,
@@ -507,8 +509,13 @@ export function patchTxnQuery(
   };
 }
 
-/** Every cached transaction id → row, to find what an edit or delete replaces. */
+const time = (d: unknown) => new Date(String(d)).getTime() || 0;
+
+/** The freshest cached copy of a transaction, to find what an edit or delete
+ * replaces. Lists that aren't on screen aren't refetched after a sync, so
+ * they can hold an older copy: the newest `updatedAt` wins. */
 export function findTxn(qc: QueryClient, id: number): Txn | null {
+  let best: Txn | null = null;
   for (const [, data] of qc.getQueriesData<unknown>({
     queryKey: ["transactions"],
   })) {
@@ -517,10 +524,11 @@ export function findTxn(qc: QueryClient, id: number): Txn | null {
       ((data as TxnPage)?.items ? [data as TxnPage] : []);
     for (const p of pages) {
       const hit = p.items.find((t) => t.id === id);
-      if (hit) return hit;
+      if (hit && (!best || time(hit.updatedAt) > time(best.updatedAt)))
+        best = hit;
     }
   }
-  return null;
+  return best;
 }
 
 /* ----------------------------- transfers ----------------------------- */
@@ -579,11 +587,11 @@ export function patchSplitQuery(
 
 export function findSplit(qc: QueryClient, id: number): Split | null {
   const detail = qc.getQueryData<Split>(["splits", id]);
-  if (detail) return detail;
-  return (
+  const listed =
     qc.getQueryData<Split[]>(["splits", "list"])?.find((s) => s.id === id) ??
-    null
-  );
+    null;
+  if (!detail || !listed) return detail ?? listed;
+  return time(listed.updatedAt) > time(detail.updatedAt) ? listed : detail;
 }
 
 /* ------------------------------ applying ------------------------------ */

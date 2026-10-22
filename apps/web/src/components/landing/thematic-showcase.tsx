@@ -18,6 +18,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { formatAmount, toAmount } from "@/lib/format";
+import { landingImage } from "./landing-image";
 
 type ThematicTab = "notebook" | "wallet" | "bank" | "piggy";
 
@@ -327,7 +328,10 @@ export function ThematicShowcase() {
                   {/* 3D Image Showcase with Animated Floating Overlay */}
                   <div className="relative mt-6 overflow-hidden rounded-2xl border border-border/80 shadow-lg">
                     <img
-                      src="/images/hero-notebook-pen.jpg"
+                      {...landingImage("hero-notebook-pen")}
+                      sizes="(min-width: 1024px) 45vw, 100vw"
+                      loading="lazy"
+                      decoding="async"
                       alt="3D Notebook and Pen Financial Ledger"
                       className="h-64 sm:h-80 w-full object-cover transition-transform duration-700 hover:scale-105"
                     />
@@ -547,7 +551,10 @@ export function ThematicShowcase() {
 
                   <div className="relative mt-6 overflow-hidden rounded-2xl border border-border/80 shadow-lg">
                     <img
-                      src="/images/smart-wallet.jpg"
+                      {...landingImage("smart-wallet")}
+                      sizes="(min-width: 1024px) 45vw, 100vw"
+                      loading="lazy"
+                      decoding="async"
                       alt="3D Smart Leather Wallet with Indian Currency Notes"
                       className="h-64 sm:h-80 w-full object-cover transition-transform duration-700 hover:scale-105"
                     />
@@ -736,7 +743,10 @@ export function ThematicShowcase() {
 
                   <div className="relative mt-6 overflow-hidden rounded-2xl border border-border/80 shadow-lg">
                     <img
-                      src="/images/bank-vault.jpg"
+                      {...landingImage("bank-vault")}
+                      sizes="(min-width: 1024px) 45vw, 100vw"
+                      loading="lazy"
+                      decoding="async"
                       alt="3D Digital Bank Vault with Glowing Security Shield"
                       className="h-64 sm:h-80 w-full object-cover transition-transform duration-700 hover:scale-105"
                     />
@@ -904,7 +914,10 @@ export function ThematicShowcase() {
 
                   <div className="relative mt-6 overflow-hidden rounded-2xl border border-border/80 shadow-lg">
                     <img
-                      src="/images/piggy-bank.jpg"
+                      {...landingImage("piggy-bank")}
+                      sizes="(min-width: 1024px) 45vw, 100vw"
+                      loading="lazy"
+                      decoding="async"
                       alt="3D Golden Emerald Piggy Bank with Floating Rupee Coins"
                       className="h-64 sm:h-80 w-full object-cover transition-transform duration-700 hover:scale-105"
                     />

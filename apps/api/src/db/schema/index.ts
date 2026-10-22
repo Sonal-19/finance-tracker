@@ -15,4 +15,5 @@ export * from "./system/system-config-history.sql";
 export * from "./users/auths.sql";
 export * from "./users/email-otps.sql";
 export * from "./users/passkeys.sql";
+export * from "./users/user-config.sql";
 export * from "./users/users.sql";

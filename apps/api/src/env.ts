@@ -36,8 +36,7 @@ export const FX_FALLBACK_USD_INR = Number(
 
 /** WebAuthn relying party. `RP_ID` must equal the browser's hostname exactly
  * (no scheme/port); a passkey registered for one RP_ID is useless on another. */
-export const RP_ID =
-  process.env.RP_ID || (IS_PROD ? "ft.u4.lol" : "localhost");
+export const RP_ID = process.env.RP_ID || (IS_PROD ? "ft.u4.lol" : "localhost");
 
 /** Exact origins a passkey ceremony may come from. `null` (dev only) means
  * any `http://localhost:*` origin. */

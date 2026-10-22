@@ -42,6 +42,9 @@ export const bookSharesTable = pgTable(
       .references(() => booksTable.id, { onDelete: "cascade" }),
     /** The unguessable part of the link. */
     token: pg.text().notNull().unique(),
+    /** The heading the viewer sees in place of the book's real name;
+     * null = the book's name. */
+    title: pg.text(),
     /** A line shown to the viewer above the entries. */
     message: pg.text(),
     /** Only entries on or after this date are shown; null = the whole book. */

@@ -30,9 +30,6 @@ export const usersTable = pgTable("users", (pg) => ({
     .default("manual"),
   passwordHash: pg.text("password_hash").notNull(),
   role: userRoleEnum("role").notNull().default("user"),
-  /** The user's own keyboard shortcut changes (action id → keys, "" = off)
-   * over the admin's defaults; null = none. See lib/utils/shortcuts.ts. */
-  shortcuts: pg.jsonb("shortcuts").$type<Record<string, string>>(),
   /** Overall monthly spending budget; null = not set. */
   monthlyBudget: pg.bigint("monthly_budget", { mode: "number" }),
   createdAt: pg

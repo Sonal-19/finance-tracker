@@ -5,31 +5,9 @@ import {
   systemConfigHistoryTable,
   systemConfigTable,
 } from "$/db/schema";
-
-type DeepPartial<T> = T extends object
-  ? { [K in keyof T]?: DeepPartial<T[K]> }
-  : T;
+import { applyPatch, type DeepPartial, deepMerge } from "$/lib/utils/config";
 
 export type SystemConfigPatch = DeepPartial<SystemConfig>;
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/** Recursively merges `override` onto `base`, keyed on `base`'s shape, so a
- * persisted row that predates a newly added nested key doesn't wipe it out
- * (a shallow spread would replace the whole nested object with the stale
- * copy). Keys the code no longer knows about are dropped. */
-function deepMerge<T>(base: T, override: unknown): T {
-  if (!isPlainObject(base) || !isPlainObject(override)) {
-    return override === undefined ? base : (override as T);
-  }
-  const result: Record<string, unknown> = { ...base };
-  for (const key of Object.keys(base)) {
-    result[key] = deepMerge(base[key], override[key]);
-  }
-  return result as T;
-}
 
 /**
  * Runtime-editable config, loaded once at boot (like CoreAuthService's
@@ -62,7 +40,7 @@ class SystemConfigService {
 
   async update(patch: SystemConfigPatch, modifiedBy: number) {
     const before = this.#config;
-    const after = deepMerge(before, patch);
+    const after = applyPatch(SYSTEM_CONFIG, before, patch);
     await db.transaction(async (tx) => {
       await tx
         .insert(systemConfigTable)

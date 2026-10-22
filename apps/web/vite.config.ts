@@ -22,7 +22,11 @@ export default defineConfig({
       // Registered from src/lib/pwa.ts so the app can offer "Reload to update".
       injectRegister: false,
       registerType: "prompt",
-      includeAssets: ["favicon.svg", "apple-touch-icon.png", "manifest.webmanifest"],
+      includeAssets: [
+        "favicon.svg",
+        "apple-touch-icon.png",
+        "manifest.webmanifest",
+      ],
       workbox: {
         // The whole app shell is precached, so it opens with no connection.
         globPatterns: ["**/*.{js,css,html,svg,png,webp,woff2,webmanifest}"],
@@ -32,15 +36,6 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         // API data is kept offline by the app (IndexedDB), not the worker.
         runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "google-fonts",
-              expiration: { maxEntries: 20, maxAgeSeconds: 365 * 24 * 3600 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
           {
             urlPattern: ({ url, sameOrigin }) =>
               sameOrigin && url.pathname.startsWith("/images/"),

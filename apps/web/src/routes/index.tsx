@@ -21,16 +21,16 @@ import {
   Zap,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { homeFor } from "@/components/app/nav-items";
 import { Logo } from "@/components/common/logo";
 import { AnimatedHero } from "@/components/landing/animated-hero";
-import { AuthCard, type AuthMode } from "@/components/landing/auth-card";
+import type { AuthMode } from "@/components/landing/auth-card";
 import { FeatureBento } from "@/components/landing/feature-bento";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { formatAmount, formatAmountShort, toAmount } from "@/lib/format";
-import { useThemeStore } from "@/stores/theme-store";
+import { isDarkChoice, useThemeStore } from "@/stores/theme-store";
 
 export const Route = createFileRoute("/")({
   component: Landing,
@@ -724,6 +724,7 @@ function PaymentSlipSimulator() {
                     step={250}
                     value={simSpend}
                     onChange={(e) => setSimSpend(Number(e.target.value))}
+                    aria-label="Monthly spending"
                     className="w-full accent-primary cursor-pointer"
                   />
                   <div className="flex justify-between text-[11px] font-medium text-muted-foreground">
@@ -985,6 +986,7 @@ function WealthCalculator({ onStartFree }: WealthCalculatorProps) {
                 step={5000}
                 value={income}
                 onChange={(e) => setIncome(Number(e.target.value))}
+                aria-label="Monthly in-hand income"
                 className="mt-3 w-full accent-primary cursor-pointer h-2 rounded-lg bg-muted"
               />
 
@@ -1029,6 +1031,7 @@ function WealthCalculator({ onStartFree }: WealthCalculatorProps) {
                 step={5}
                 value={savingsRate}
                 onChange={(e) => setSavingsRate(Number(e.target.value))}
+                aria-label="Target savings rate"
                 className="mt-3 w-full accent-emerald-500 cursor-pointer h-2 rounded-lg bg-muted"
               />
 
@@ -1251,6 +1254,54 @@ function WealthCalculator({ onStartFree }: WealthCalculatorProps) {
 /*                               MAIN COMPONENT                               */
 /* -------------------------------------------------------------------------- */
 
+const loadAuthCard = () => import("@/components/landing/auth-card");
+const AuthCard = lazy(() =>
+  loadAuthCard().then((m) => ({ default: m.AuthCard })),
+);
+
+/** The sign-in card sits far down the page, so its code (~50 KB) stays off
+ * the first load: it is fetched once the page is idle, or as soon as the
+ * section comes near (a "Sign up" button scrolls straight to it). */
+function LazyAuthCard(props: {
+  mode: AuthMode;
+  onModeChange: (m: AuthMode) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const seen = new IntersectionObserver(
+      ([e]) => e?.isIntersecting && setShow(true),
+      { rootMargin: "800px 0px" },
+    );
+    seen.observe(el);
+    const idle = window.requestIdleCallback ?? ((f) => setTimeout(f, 2000));
+    const prefetch = () => idle(() => void loadAuthCard());
+    if (document.readyState === "complete") prefetch();
+    else window.addEventListener("load", prefetch, { once: true });
+    return () => {
+      seen.disconnect();
+      window.removeEventListener("load", prefetch);
+    };
+  }, []);
+
+  // Holds the card's space so nothing jumps when it arrives.
+  const placeholder = <div className="min-h-[560px]" />;
+  return (
+    <div ref={ref}>
+      {show ? (
+        <Suspense fallback={placeholder}>
+          <AuthCard {...props} />
+        </Suspense>
+      ) : (
+        placeholder
+      )}
+    </div>
+  );
+}
+
 function Landing() {
   const { user, isLoading } = useAuth();
   const [mode, setMode] = useState<AuthMode>("register");
@@ -1262,6 +1313,8 @@ function Landing() {
 
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
+  const systemDark = useThemeStore((s) => s.systemDark);
+  const isDark = isDarkChoice(theme, systemDark);
 
   if (!isLoading && user) return <Navigate to={homeFor(user)} replace />;
 
@@ -1285,11 +1338,7 @@ function Landing() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const toggleTheme = () => {
-    if (theme === "dark") setTheme("light");
-    else if (theme === "light") setTheme("dark");
-    else setTheme("dark");
-  };
+  const toggleTheme = () => setTheme(isDark ? "light" : "dark");
 
   return (
     <div className="relative min-h-dvh bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary">
@@ -1320,7 +1369,7 @@ function Landing() {
               className="rounded-full size-8 sm:size-9 shrink-0 text-foreground/80 hover:text-foreground hover:bg-muted/80 transition-all duration-200 cursor-pointer"
               aria-label="Toggle theme"
             >
-              {theme === "dark" ? (
+              {isDark ? (
                 <Sun className="size-4 text-warning transition-transform duration-300 hover:rotate-45" />
               ) : (
                 <Moon className="size-4 text-primary transition-transform duration-300 hover:-rotate-12" />
@@ -1338,8 +1387,8 @@ function Landing() {
 
             <Button
               size="sm"
-              onClick={() => scrollToAuth("register")}
-              className="hidden sm:block h-8 sm:h-9 bg-[#22c55e] hover:bg-[#16a34a] px-3 sm:px-4 text-xs sm:text-sm font-bold text-white shadow-md shadow-emerald-500/25 shrink-0 rounded-full transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+              onClick={() => scrollToAuth("login")}
+              className="hidden sm:block h-8 sm:h-9 bg-[#22c55e] hover:bg-[#16a34a] px-3 sm:px-4 text-xs sm:text-sm font-bold text-[#052e16] shadow-md shadow-emerald-500/25 shrink-0 rounded-full transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
             >
               <span>Get started free</span>
             </Button>
@@ -1347,7 +1396,7 @@ function Landing() {
             <Button
               size="sm"
               onClick={() => scrollToAuth("register")}
-              className="sm:hidden h-8 sm:h-9 bg-[#22c55e] hover:bg-[#16a34a] px-3 sm:px-4 text-xs sm:text-sm font-bold text-white shadow-md shadow-emerald-500/25 shrink-0 rounded-full transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+              className="sm:hidden h-8 sm:h-9 bg-[#22c55e] hover:bg-[#16a34a] px-3 sm:px-4 text-xs sm:text-sm font-bold text-[#052e16] shadow-md shadow-emerald-500/25 shrink-0 rounded-full transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
             >
               <span>Get started</span>
             </Button>
@@ -1537,7 +1586,7 @@ function Landing() {
             {/* The Solution */}
             <div className="rounded-3xl border-2 border-[#22c55e]/50 bg-emerald-500/5 p-6 sm:p-8 flex flex-col justify-between shadow-xl shadow-emerald-500/10">
               <div>
-                <span className="rounded-full bg-[#22c55e] text-white px-3 py-1 text-xs font-extrabold shadow-sm">
+                <span className="rounded-full bg-[#22c55e] text-[#052e16] px-3 py-1 text-xs font-extrabold shadow-sm">
                   ✓ Finance Tracker
                 </span>
                 <h3 className="mt-4 text-lg font-bold text-foreground">
@@ -1567,7 +1616,7 @@ function Landing() {
         className="relative scroll-mt-20 border-t border-border/70 bg-gradient-to-b from-card/30 via-background to-card/10 py-3 sm:py-10"
       >
         <div className="mx-auto max-w-3xl px-4">
-          <AuthCard mode={mode} onModeChange={setMode} />
+          <LazyAuthCard mode={mode} onModeChange={setMode} />
         </div>
       </section>
 
@@ -1748,7 +1797,7 @@ function Landing() {
             <button
               type="button"
               onClick={() => scrollToAuth("register")}
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-[#22c55e] hover:bg-[#16a34a] px-8 py-3.5 sm:py-4 text-sm sm:text-base font-bold text-white shadow-xl shadow-emerald-500/25 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-[#22c55e] hover:bg-[#16a34a] px-8 py-3.5 sm:py-4 text-sm sm:text-base font-bold text-[#052e16] shadow-xl shadow-emerald-500/25 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
             >
               <span>Create free account</span>
               <ArrowRight className="size-4 stroke-[2.5]" />
@@ -1836,7 +1885,7 @@ function Landing() {
                 type="button"
                 onClick={() => setTheme("dark")}
                 className={`rounded px-1.5 py-0.5 ${
-                  theme === "dark"
+                  theme === "dark" || theme === "amoled"
                     ? "bg-primary text-primary-foreground font-bold"
                     : "hover:text-foreground"
                 }`}

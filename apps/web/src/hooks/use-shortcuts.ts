@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, useMemo } from "react";
-import { useAuth } from "@/hooks/use-auth";
 import { usePublicConfig } from "@/hooks/use-passkeys";
+import { useUserConfig } from "@/hooks/use-user-config";
 import {
   resolveShortcuts,
   type ShortcutAction,
@@ -14,7 +14,7 @@ export const isMac =
 /** The keys in effect: code defaults → admin defaults → the user's own. */
 export function useShortcutMap(): ShortcutMap {
   const admin = usePublicConfig().data?.shortcuts;
-  const own = useAuth().user?.shortcuts;
+  const own = useUserConfig().data?.SHORTCUTS;
   return useMemo(() => resolveShortcuts(admin, own), [admin, own]);
 }
 

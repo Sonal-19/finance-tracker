@@ -14,6 +14,8 @@ export const shareUrl = (token: string) =>
   `${window.location.origin}/s/${token}`;
 
 export type ShareInput = {
+  /** Shown instead of the book's name; null = the book's name. */
+  title?: string | null;
   message?: string | null;
   fromDate?: string | null;
   toDate?: string | null;

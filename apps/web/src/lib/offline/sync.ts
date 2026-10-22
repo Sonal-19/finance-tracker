@@ -5,6 +5,8 @@ import type { SettlementInput, Split, SplitInput } from "@/hooks/use-splits";
 import { queryClient as qc } from "@/integrations/tanstack-query/root-provider";
 import { ApiError, api, call, callMsg } from "@/lib/api";
 import { formatAmount } from "@/lib/format";
+import { useBookStore } from "@/stores/book-store";
+import { useDraftStore } from "@/stores/draft-store";
 import { clearOfflineStore } from "./idb";
 import {
   applyChange,
@@ -300,8 +302,29 @@ function target(id: number) {
   return real;
 }
 
-const editMeta = (op: Op, base: string | null | undefined) =>
-  op.force || !base ? {} : { baseUpdatedAt: base, editedAt: op.at };
+/** Conflict check for an edit: the version it started from is the newer of
+ * the row it was made on and this device's own last confirmed write (a
+ * second edit made before the first one's refetch landed is still ours). */
+function editMeta(op: Op, entity: "txn" | "split", id: number, seen?: string) {
+  const own = outbox().confirmed[`${entity}:${id}`];
+  const base =
+    own && (!seen || new Date(own).getTime() > new Date(seen).getTime())
+      ? own
+      : seen;
+  return op.force || !base ? {} : { baseUpdatedAt: base, editedAt: op.at };
+}
+
+/** Remembers the version the server gave a write this device made. */
+function rememberVersion(
+  entity: "txn" | "split",
+  id: number,
+  updatedAt: unknown,
+) {
+  if (!updatedAt) return;
+  useOutbox.setState((s) => ({
+    confirmed: { ...s.confirmed, [`${entity}:${id}`]: String(updatedAt) },
+  }));
+}
 
 /** Sends one op. Returns follow-up ops to run next (e.g. file uploads). */
 async function send(op: Op): Promise<OpData | null> {
@@ -311,6 +334,7 @@ async function send(op: Op): Promise<OpData | null> {
         api.transactions.post({ ...op.body, clientId: op.opId }),
       );
       mapId(op.tempId, data!.id);
+      rememberVersion("txn", data!.id, data!.updatedAt);
       return op.files?.length
         ? { kind: "txn.files", id: data!.id, files: op.files }
         : null;
@@ -318,10 +342,12 @@ async function send(op: Op): Promise<OpData | null> {
     case "txn.update": {
       const id = target(op.id);
       const { data } = await callMsg(
-        api
-          .transactions({ id })
-          .patch({ ...op.body, ...editMeta(op, String(op.prev.updatedAt)) }),
+        api.transactions({ id }).patch({
+          ...op.body,
+          ...editMeta(op, "txn", id, String(op.prev.updatedAt)),
+        }),
       );
+      rememberVersion("txn", id, data?.updatedAt);
       if (data?.replaced) conflictReplaced(op, data.replaced as Txn);
       return op.files?.length
         ? { kind: "txn.files", id, files: op.files }
@@ -374,7 +400,10 @@ async function send(op: Op): Promise<OpData | null> {
           clientId: op.opId,
         }),
       );
-      if (data?.id) mapId(op.tempId, data.id);
+      if (data?.id) {
+        mapId(op.tempId, data.id);
+        rememberVersion("split", data.id, data.updatedAt);
+      }
       return null;
     }
     case "split.update": {
@@ -383,9 +412,15 @@ async function send(op: Op): Promise<OpData | null> {
       const data = await call(
         api.splits({ id }).put({
           ...body,
-          ...editMeta(op, op.prev ? String(op.prev.updatedAt) : null),
+          ...editMeta(
+            op,
+            "split",
+            id,
+            op.prev ? String(op.prev.updatedAt) : undefined,
+          ),
         }),
       );
+      rememberVersion("split", id, data?.updatedAt);
       if (data?.replaced)
         toast.info("Your edit replaced a change made on another device", {
           description: op.label,
@@ -552,17 +587,30 @@ export async function flush() {
     }
   } finally {
     running = false;
-    outbox().set({ syncing: false, inFlight: null });
+    outbox().set({ syncing: false, inFlight: null, confirmed: stillNeeded() });
   }
   if (sent || !outbox().lastSyncedAt) await refresh();
+}
+
+/** Confirmed versions are only needed while the cache may still show an
+ * older copy: keep the latest few hundred. */
+function stillNeeded() {
+  const entries = Object.entries(outbox().confirmed);
+  return entries.length > 300
+    ? Object.fromEntries(
+        entries.sort(([, a], [, b]) => b.localeCompare(a)).slice(0, 300),
+      )
+    : outbox().confirmed;
 }
 
 /** Pulls fresh data for everything on screen (after pushing changes). */
 export async function refresh() {
   await Promise.all([
     ...MONEY_KEYS.map((k) => qc.invalidateQueries({ queryKey: [k] })),
-    // App-wide settings (shortcut defaults, notice) the admin may have changed.
+    // App-wide settings (shortcut defaults, notice) the admin may have changed,
+    // and the user's own (theme, shortcuts) from their other devices.
     qc.invalidateQueries({ queryKey: ["auth", "config"] }),
+    qc.invalidateQueries({ queryKey: ["profile", "config"] }),
   ]);
   if (!outbox().ops.some((o) => o.status === "pending"))
     outbox().set({ lastSyncedAt: Date.now() });
@@ -669,12 +717,50 @@ export const pendingCount = () => outbox().ops.length;
 
 /* ============================ device data ============================ */
 
+/** Everything kept on this device that belongs to whoever is signed in:
+ * half-filled forms and the picked book. */
+function resetPerUserStores(ownerId: number | null) {
+  useDraftStore.setState({ drafts: {}, ownerId });
+  useBookStore.setState({ bookId: null });
+}
+
+/** Resolves once the stores kept in IndexedDB have loaded, so the owner
+ * check below compares against the saved owner, not the empty default. */
+const hydrated = () =>
+  Promise.all(
+    [useOutbox, useDraftStore].map(
+      (store) =>
+        new Promise<void>((resolve) => {
+          if (store.persist.hasHydrated()) resolve();
+          else {
+            const unsub = store.persist.onFinishHydration(() => {
+              unsub();
+              resolve();
+            });
+          }
+        }),
+    ),
+  );
+
 /** Called with the logged-in user: data kept for someone else is dropped. */
-export function claimDevice(userId: number) {
+export async function claimDevice(userId: number) {
+  await hydrated();
   const { ownerId } = outbox();
+  const draftOwner = useDraftStore.getState().ownerId;
+  if (draftOwner !== userId) {
+    // Drafts saved before they had an owner belong to this device's user.
+    if (draftOwner === null && ownerId === userId)
+      useDraftStore.setState({ ownerId: userId });
+    else resetPerUserStores(userId);
+  }
   if (ownerId === userId) return;
   if (ownerId !== null) {
-    useOutbox.setState({ ops: [], idMap: {}, lastSyncedAt: null });
+    useOutbox.setState({
+      ops: [],
+      idMap: {},
+      confirmed: {},
+      lastSyncedAt: null,
+    });
     qc.removeQueries({ predicate: (q) => q.queryKey[0] !== "auth" });
   }
   useOutbox.setState({ ownerId: userId });
@@ -682,7 +768,14 @@ export function claimDevice(userId: number) {
 
 /** Logout: nothing about this account stays on the device. */
 export async function forgetDevice() {
-  useOutbox.setState({ ops: [], idMap: {}, ownerId: null, lastSyncedAt: null });
+  useOutbox.setState({
+    ops: [],
+    idMap: {},
+    confirmed: {},
+    ownerId: null,
+    lastSyncedAt: null,
+  });
+  resetPerUserStores(null);
   qc.clear();
   await clearOfflineStore();
 }

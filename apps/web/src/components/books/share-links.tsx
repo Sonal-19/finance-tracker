@@ -49,6 +49,7 @@ async function copyLink(token: string) {
 }
 
 type Form = {
+  title: string;
   message: string;
   fromDate: string;
   toDate: string;
@@ -63,12 +64,14 @@ type Form = {
 
 function ShareSheet({
   bookId,
+  bookName,
   open,
   editing,
   lastUpi,
   onClose,
 }: {
   bookId: number;
+  bookName: string;
   open: boolean;
   editing: Share | null;
   /** UPI details of the user's latest link, to start a new one with. */
@@ -77,6 +80,7 @@ function ShareSheet({
 }) {
   const save = useSaveShare();
   const [form, setForm] = useState<Form>({
+    title: "",
     message: "",
     fromDate: "",
     toDate: "",
@@ -94,6 +98,7 @@ function ShareSheet({
   useEffect(() => {
     if (!open) return;
     setForm({
+      title: editing?.title ?? "",
       message: editing?.message ?? "",
       fromDate: editing?.fromDate ?? "",
       toDate: editing?.toDate ?? "",
@@ -122,6 +127,7 @@ function ShareSheet({
       {
         id: editing?.id,
         bookId,
+        title: form.title.trim() || null,
         message: form.message.trim() || null,
         fromDate: form.fromDate || null,
         toDate: form.toDate || null,
@@ -154,6 +160,20 @@ function ShareSheet({
       description="Anyone with the link can see this book's entries. They can't change anything."
     >
       <form onSubmit={submit} className="space-y-4">
+        <Field
+          label="Title (optional)"
+          htmlFor="share-title"
+          hint="Shown instead of the book's name. Empty = the book's name."
+        >
+          <Input
+            id="share-title"
+            maxLength={80}
+            placeholder={bookName}
+            value={form.title}
+            onChange={(e) => set("title", e.target.value)}
+          />
+        </Field>
+
         <Field
           label="Message (optional)"
           htmlFor="share-message"
@@ -331,7 +351,13 @@ function ShareSheet({
 }
 
 /** A book's public links: create, copy, edit, delete. */
-export function ShareLinks({ bookId }: { bookId: number }) {
+export function ShareLinks({
+  bookId,
+  bookName,
+}: {
+  bookId: number;
+  bookName: string;
+}) {
   const { data: all = [] } = useShares();
   const del = useDeleteShare();
   const [sheet, setSheet] = useState<{ open: boolean; editing: Share | null }>({
@@ -371,7 +397,9 @@ export function ShareLinks({ bookId }: { bookId: number }) {
               </span>
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-1.5 truncate text-sm font-medium">
-                  {s.message || `Link from ${shortDate(s.createdAt)}`}
+                  {s.title ||
+                    s.message ||
+                    `Link from ${shortDate(s.createdAt)}`}
                   {s.expired && (
                     <span className="rounded-full bg-destructive/10 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
                       EXPIRED
@@ -444,6 +472,7 @@ export function ShareLinks({ bookId }: { bookId: number }) {
       )}
       <ShareSheet
         bookId={bookId}
+        bookName={bookName}
         open={sheet.open}
         editing={sheet.editing}
         lastUpi={all.find((s) => s.upiId)}

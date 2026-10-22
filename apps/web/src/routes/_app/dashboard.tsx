@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { format } from "date-fns";
+import { format, getDaysInMonth } from "date-fns";
 import {
   AlertTriangle,
   ArrowDownLeft,
@@ -30,6 +30,7 @@ import {
   useTransactions,
 } from "@/hooks/use-finance";
 import { useSplitSummary } from "@/hooks/use-splits";
+import { useUserConfig } from "@/hooks/use-user-config";
 import {
   formatAmount,
   formatAmountShort,
@@ -58,6 +59,9 @@ function Dashboard() {
   const accounts = useActiveAccounts();
   const activeEvent = useActiveEvent();
   const openNew = useTxnSheet((s) => s.openNew);
+  const layout = useUserConfig().data?.DASHBOARD;
+  const hero = layout?.HERO ?? "spending";
+  const accountsAt = layout?.ACCOUNTS ?? "bottom";
 
   if (month.isLoading) return <PageLoader />;
   const m = month.data;
@@ -85,6 +89,12 @@ function Dashboard() {
   const upcoming = (recurring.data ?? [])
     .filter((r) => r.status === "active")
     .slice(0, 4);
+  const accountsStrip = accounts.list.length > 0 && (
+    <AccountsStrip
+      accounts={accounts.list}
+      total={balance.data?.balance ?? 0}
+    />
+  );
 
   return (
     <div className="space-y-5">
@@ -98,77 +108,27 @@ function Dashboard() {
         </Button>
       </div>
 
-      {/* Hero balance card */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-teal-600 to-teal-800 p-5 text-white shadow-lg shadow-teal-900/20 sm:p-6 dark:from-teal-700 dark:to-teal-950">
-        <div className="absolute -top-10 -right-10 size-40 rounded-full bg-white/10" />
-        <div className="absolute -right-4 -bottom-16 size-40 rounded-full bg-white/5" />
-        <Link to="/accounts" className="relative block">
-          <p className="text-sm text-white/80">
-            Total balance
-            {accounts.list.length > 0 &&
-              ` · ${accounts.list.length} payment method${accounts.list.length > 1 ? "s" : ""}`}{" "}
-            →
-          </p>
-          <p className="tabular mt-1 break-all text-[1.75rem] leading-tight font-bold sm:text-4xl">
-            {formatAmount(balance.data?.balance ?? 0)}
-          </p>
-        </Link>
-        <div className="mt-5 grid grid-cols-3 gap-2 text-sm sm:gap-3">
-          <div>
-            <p className="flex items-center gap-1 text-white/75">
-              <ArrowDownLeft className="size-3.5" /> Income
-            </p>
-            <p className="tabular font-semibold">
-              <HeroAmount value={m?.current.income ?? 0} />
-            </p>
-          </div>
-          <div>
-            <p className="flex items-center gap-1 text-white/75">
-              <ArrowUpRight className="size-3.5" /> Spent
-            </p>
-            <p className="tabular font-semibold">
-              <HeroAmount value={m?.current.expense ?? 0} />
-            </p>
-          </div>
-          <div>
-            <p className="text-white/75">Saved</p>
-            <p className="tabular font-semibold">{pct(m?.savingsRate)}</p>
-          </div>
-        </div>
-        <p className="mt-3 text-xs text-white/70">
-          {format(new Date(), "MMMM yyyy")} · Today spent{" "}
-          {formatAmount(todaySummary.data?.current.expense ?? 0)}
-        </p>
-      </div>
-
-      {/* Accounts at a glance */}
-      {accounts.list.length > 1 && (
-        <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:px-0">
-          {accounts.list.map((a) => (
-            <Link
-              key={a.id}
-              to="/accounts/$accountId"
-              params={{ accountId: String(a.id) }}
-              className="flex min-w-40 shrink-0 items-center gap-2.5 rounded-2xl border bg-card p-3 active:bg-muted"
-            >
-              <CategoryIcon icon={a.icon} color={a.color} size="sm" />
-              <span className="min-w-0">
-                <span className="block truncate text-xs text-muted-foreground">
-                  {a.name}
-                </span>
-                <span
-                  className={cn(
-                    "tabular block text-sm font-semibold",
-                    a.balance < 0 && "text-expense",
-                  )}
-                >
-                  {formatAmount(a.balance)}
-                </span>
-              </span>
-            </Link>
-          ))}
-        </div>
+      {hero === "balance" ? (
+        <BalanceHero
+          balance={balance.data?.balance ?? 0}
+          accountCount={accounts.list.length}
+          income={m?.current.income ?? 0}
+          expense={m?.current.expense ?? 0}
+          savingsRate={m?.savingsRate}
+          today={todaySummary.data?.current.expense ?? 0}
+        />
+      ) : (
+        <SpendingHero
+          expense={m?.current.expense ?? 0}
+          previous={m?.previous.expense}
+          income={m?.current.income ?? 0}
+          savingsRate={m?.savingsRate}
+          today={todaySummary.data?.current.expense ?? 0}
+          budget={overall?.budget ?? null}
+        />
       )}
+
+      {accountsAt === "top" && accountsStrip}
 
       {/* Live event: new transactions are auto-tagged */}
       {activeEvent && (
@@ -438,6 +398,8 @@ function Dashboard() {
           )}
         </div>
       </div>
+
+      {accountsAt === "bottom" && accountsStrip}
     </div>
   );
 }
@@ -474,6 +436,212 @@ function BudgetAlert({
           : `${Math.round((spent / budget) * 100)}% used — ${formatAmount(budget - spent)} left`}
       </p>
     </div>
+  );
+}
+
+const heroClass =
+  "relative overflow-hidden rounded-3xl bg-gradient-to-br from-hero to-hero-end p-5 text-white shadow-lg shadow-black/10 sm:p-6";
+
+function HeroDecor() {
+  return (
+    <>
+      <div className="absolute -top-10 -right-10 size-40 rounded-full bg-white/10" />
+      <div className="absolute -right-4 -bottom-16 size-40 rounded-full bg-white/5" />
+    </>
+  );
+}
+
+/** The default top card: what this month has cost so far. */
+function SpendingHero({
+  expense,
+  previous,
+  income,
+  savingsRate,
+  today,
+  budget,
+}: {
+  expense: number;
+  previous: number | undefined;
+  income: number;
+  savingsRate: number | null | undefined;
+  today: number;
+  budget: number | null;
+}) {
+  const now = new Date();
+  const daysLeft = getDaysInMonth(now) - now.getDate();
+  return (
+    <div className={heroClass}>
+      <HeroDecor />
+      <Link to="/reports" className="relative block">
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-sm text-white/80">
+            Spent in {format(now, "MMMM")} →
+          </p>
+          {!!previous && (
+            <span
+              className="tabular shrink-0 rounded-full bg-white/15 px-2 py-0.5 text-xs font-medium"
+              title={`All of last month: ${formatAmount(previous)}`}
+            >
+              Last month {formatAmountShort(previous)}
+            </span>
+          )}
+        </div>
+        <p className="tabular mt-1 break-all text-[1.75rem] leading-tight font-bold sm:text-4xl">
+          {formatAmount(expense)}
+        </p>
+      </Link>
+      {budget ? (
+        <div className="relative mt-4 space-y-1.5">
+          <div className="h-2 overflow-hidden rounded-full bg-white/20">
+            <div
+              className="h-full rounded-full bg-white"
+              style={{ width: `${Math.min(100, (expense / budget) * 100)}%` }}
+            />
+          </div>
+          <p className="text-xs text-white/80">
+            {expense <= budget
+              ? `${formatAmount(budget - expense)} left of ${formatAmount(budget)} · ${daysLeft} day${daysLeft === 1 ? "" : "s"} to go`
+              : `${formatAmount(expense - budget)} over the ${formatAmount(budget)} budget`}
+          </p>
+        </div>
+      ) : null}
+      <div className="relative mt-5 grid grid-cols-3 gap-2 text-sm sm:gap-3">
+        <div>
+          <p className="text-white/75">Today</p>
+          <p className="tabular font-semibold">
+            <HeroAmount value={today} />
+          </p>
+        </div>
+        <div>
+          <p className="flex items-center gap-1 text-white/75">
+            <ArrowDownLeft className="size-3.5" /> Income
+          </p>
+          <p className="tabular font-semibold">
+            <HeroAmount value={income} />
+          </p>
+        </div>
+        <div>
+          <p className="text-white/75">Saved</p>
+          <p className="tabular font-semibold">{pct(savingsRate)}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** The other top card (Settings → Dashboard): money across payment methods. */
+function BalanceHero({
+  balance,
+  accountCount,
+  income,
+  expense,
+  savingsRate,
+  today,
+}: {
+  balance: number;
+  accountCount: number;
+  income: number;
+  expense: number;
+  savingsRate: number | null | undefined;
+  today: number;
+}) {
+  return (
+    <div className={heroClass}>
+      <HeroDecor />
+      <Link to="/accounts" className="relative block">
+        <p className="text-sm text-white/80">
+          Total balance
+          {accountCount > 0 &&
+            ` · ${accountCount} payment method${accountCount > 1 ? "s" : ""}`}{" "}
+          →
+        </p>
+        <p className="tabular mt-1 break-all text-[1.75rem] leading-tight font-bold sm:text-4xl">
+          {formatAmount(balance)}
+        </p>
+      </Link>
+      <div className="relative mt-5 grid grid-cols-3 gap-2 text-sm sm:gap-3">
+        <div>
+          <p className="flex items-center gap-1 text-white/75">
+            <ArrowDownLeft className="size-3.5" /> Income
+          </p>
+          <p className="tabular font-semibold">
+            <HeroAmount value={income} />
+          </p>
+        </div>
+        <div>
+          <p className="flex items-center gap-1 text-white/75">
+            <ArrowUpRight className="size-3.5" /> Spent
+          </p>
+          <p className="tabular font-semibold">
+            <HeroAmount value={expense} />
+          </p>
+        </div>
+        <div>
+          <p className="text-white/75">Saved</p>
+          <p className="tabular font-semibold">{pct(savingsRate)}</p>
+        </div>
+      </div>
+      <p className="relative mt-3 text-xs text-white/70">
+        {format(new Date(), "MMMM yyyy")} · Today spent {formatAmount(today)}
+      </p>
+    </div>
+  );
+}
+
+/** Balance per payment method, scrolling sideways, with the total. */
+function AccountsStrip({
+  accounts,
+  total,
+}: {
+  accounts: ReturnType<typeof useActiveAccounts>["list"];
+  total: number;
+}) {
+  return (
+    <section className="space-y-2">
+      <Link
+        to="/accounts"
+        className="flex items-baseline justify-between gap-2 text-sm"
+      >
+        <span className="font-semibold">Payment methods</span>
+        <span className="text-muted-foreground">
+          Total{" "}
+          <span
+            className={cn(
+              "tabular font-semibold text-foreground",
+              total < 0 && "text-expense",
+            )}
+          >
+            {formatAmount(total)}
+          </span>{" "}
+          →
+        </span>
+      </Link>
+      <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:px-0">
+        {accounts.map((a) => (
+          <Link
+            key={a.id}
+            to="/accounts/$accountId"
+            params={{ accountId: String(a.id) }}
+            className="flex min-w-40 shrink-0 items-center gap-2.5 rounded-2xl border bg-card p-3 active:bg-muted"
+          >
+            <CategoryIcon icon={a.icon} color={a.color} size="sm" />
+            <span className="min-w-0">
+              <span className="block truncate text-xs text-muted-foreground">
+                {a.name}
+              </span>
+              <span
+                className={cn(
+                  "tabular block text-sm font-semibold",
+                  a.balance < 0 && "text-expense",
+                )}
+              >
+                {formatAmount(a.balance)}
+              </span>
+            </span>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 

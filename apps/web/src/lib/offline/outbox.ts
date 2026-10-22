@@ -54,6 +54,9 @@ interface OutboxState {
   ops: Op[];
   /** Temporary (negative) id → id the server gave it. */
   idMap: Record<string, number>;
+  /** `kind:id` → the `updatedAt` the server gave this device's own last
+   * write of that row, so the next edit isn't taken for someone else's. */
+  confirmed: Record<string, string>;
   /** Whose changes these are; another login clears them. */
   ownerId: number | null;
   /** Last time this device had everything pushed and fresh data pulled. */
@@ -72,6 +75,7 @@ export const useOutbox = create<OutboxState>()(
     (set) => ({
       ops: [],
       idMap: {},
+      confirmed: {},
       ownerId: null,
       lastSyncedAt: null,
       online: typeof navigator === "undefined" ? true : navigator.onLine,
@@ -88,6 +92,7 @@ export const useOutbox = create<OutboxState>()(
         ({
           ops: s.ops,
           idMap: s.idMap,
+          confirmed: s.confirmed,
           ownerId: s.ownerId,
           lastSyncedAt: s.lastSyncedAt,
         }) as OutboxState,
