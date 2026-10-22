@@ -1387,8 +1387,8 @@ function Landing() {
 
             <Button
               size="sm"
-              onClick={() => scrollToAuth("login")}
-              className="hidden sm:block h-8 sm:h-9 bg-[#22c55e] hover:bg-[#16a34a] px-3 sm:px-4 text-xs sm:text-sm font-bold text-[#052e16] shadow-md shadow-emerald-500/25 shrink-0 rounded-full transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+              onClick={() => scrollToAuth("register")}
+              className="hidden sm:block h-8 sm:h-9 bg-[#22c55e] hover:bg-[#16a34a] px-3 sm:px-4 text-xs sm:text-sm font-bold text-white shadow-md shadow-emerald-500/25 shrink-0 rounded-full transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
             >
               <span>Get started free</span>
             </Button>

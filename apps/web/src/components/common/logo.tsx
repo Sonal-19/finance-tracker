@@ -9,9 +9,9 @@ export interface LogoProps {
 }
 
 /**
- * Premium 3D Metallic Logo Icon for Finance Tracker.
- * Styled with 3D metallic chrome, titanium, and emerald crystal effects (like BlackBulls),
- * featuring the Smart Wallet, Vault Shield, and Soaring Financial Growth Trajectory.
+ * Minimalist 3D Isometric Bifold Wallet Logo for Finance Tracker.
+ * Simple, iconic, and uncluttered design featuring an emerald-teal leather wallet,
+ * titanium trim, a gleaming gold payment card, and gold coin clasp.
  */
 export function LogoIcon({
   className,
@@ -30,7 +30,7 @@ export function LogoIcon({
       )}
     >
       <img
-        src="/logo.png?v=4"
+        src="/logo-clean.png?v=1"
         alt="Finance Tracker"
         className="width-82 object-contain pointer-events-none drop-shadow-md"
         loading="eager"
