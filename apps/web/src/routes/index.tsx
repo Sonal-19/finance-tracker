@@ -1281,6 +1281,10 @@ function Landing() {
     });
   };
 
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const toggleTheme = () => {
     if (theme === "dark") setTheme("light");
     else if (theme === "light") setTheme("dark");
@@ -1292,11 +1296,18 @@ function Landing() {
       {/* -------------------------------------------------------------------- */}
       {/*                            STICKY HEADER                             */}
       {/* -------------------------------------------------------------------- */}
-      <header className="pt-safe sticky top-0 z-50 border-b border-border/80 bg-background/85 backdrop-blur-xl text-foreground transition-colors duration-300 shadow-xs">
+      <header className="pt-safe fixed inset-x-0 top-0 z-50 border-b border-border/80 bg-background/85 backdrop-blur-xl text-foreground transition-colors duration-300 shadow-xs">
         <div className="mx-auto flex h-14 sm:h-16 max-w-7xl items-center justify-between px-3 sm:px-6 lg:px-8 gap-1.5 sm:gap-3">
-          {/* Left: ONLY Logo (guaranteed compact on small phones) */}
+          {/* Left: ONLY Logo (interactive, scrolls smoothly to top) */}
           <div className="flex items-center min-w-0 shrink-0">
-            <Logo />
+            <button
+              type="button"
+              onClick={scrollToTop}
+              className="flex items-center text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-xl cursor-pointer"
+              aria-label="Finance Tracker Home"
+            >
+              <Logo interactive />
+            </button>
           </div>
 
           {/* Right: Theme Toggle, Log in (responsive), and Get started free */}
@@ -1327,7 +1338,7 @@ function Landing() {
 
             <Button
               size="sm"
-              onClick={() => scrollToAuth("login")}
+              onClick={() => scrollToAuth("register")}
               className="hidden sm:block h-8 sm:h-9 bg-[#22c55e] hover:bg-[#16a34a] px-3 sm:px-4 text-xs sm:text-sm font-bold text-white shadow-md shadow-emerald-500/25 shrink-0 rounded-full transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
             >
               <span>Get started free</span>
@@ -1343,6 +1354,10 @@ function Landing() {
           </div>
         </div>
       </header>
+      {/* Spacer so content starts below the fixed header */}
+      <div aria-hidden="true" className="pt-safe">
+        <div className="h-14 sm:h-16" />
+      </div>
 
       {/* -------------------------------------------------------------------- */}
       {/*                             HERO SECTION                             */}
@@ -1756,7 +1771,14 @@ function Landing() {
         <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
           <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
             <div className="flex flex-col items-center sm:items-start gap-1">
-              <Logo />
+              <button
+                type="button"
+                onClick={scrollToTop}
+                className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-xl cursor-pointer"
+                aria-label="Scroll to top"
+              >
+                <Logo interactive />
+              </button>
               <p className="text-xs text-muted-foreground">
                 Personal finance tracker built for everyday Indian finances.
               </p>

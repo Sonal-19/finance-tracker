@@ -166,7 +166,7 @@ export function AppShell({
         >
           <Link to={homeFor(user)} aria-label="Dashboard">
             {collapsed ? (
-              <img src="/favicon.svg" alt="" className="size-8 rounded-lg" />
+              <Logo withText={false} iconClassName="size-8" />
             ) : (
               <Logo />
             )}
@@ -304,11 +304,7 @@ export function AppShell({
         <header className="pt-safe sticky top-0 z-30 border-b bg-background/85 backdrop-blur-lg">
           <div className="flex h-14 items-center justify-between gap-3 px-4 md:h-16 md:px-6 lg:px-8">
             <div className="flex min-w-0 flex-1 items-center gap-2 md:hidden">
-              <img
-                src="/favicon.svg"
-                alt=""
-                className="size-7 shrink-0 rounded-md"
-              />
+              <Logo withText={false} iconClassName="size-7 rounded-md" />
               <span className="min-w-0 leading-tight">
                 <span className="block truncate font-semibold">
                   @{user.username}

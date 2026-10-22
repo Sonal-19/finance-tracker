@@ -1,5 +1,6 @@
 import { createFileRoute, Navigate, Outlet } from "@tanstack/react-router";
 import { AppShell } from "@/components/app/app-shell";
+import { Logo } from "@/components/common/logo";
 import { Spinner } from "@/components/common/states";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -14,7 +15,7 @@ function AppLayout() {
     return (
       <div className="grid min-h-dvh place-items-center">
         <div className="flex flex-col items-center gap-4">
-          <img src="/favicon.svg" alt="" className="size-14 rounded-2xl" />
+          <Logo withText={false} iconClassName="size-14 rounded-2xl" />
           <Spinner />
         </div>
       </div>
