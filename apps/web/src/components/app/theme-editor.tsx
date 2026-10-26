@@ -309,7 +309,7 @@ function TokenRow({
         value={text}
         maxLength={7}
         spellCheck={false}
-        className="h-8 w-[5.5rem] shrink-0 px-2 font-mono text-xs md:h-8"
+        className="h-8 w-22 shrink-0 px-2 font-mono text-xs md:h-8"
         aria-invalid={!normalizeHex(text)}
         onChange={(e) => {
           setText(e.target.value);
@@ -371,7 +371,7 @@ export function ThemePreview({
         mode !== "light" && "dark",
       )}
     >
-      <div className="rounded-xl bg-gradient-to-br from-hero to-hero-end p-3 text-white">
+      <div className="rounded-xl bg-linear-to-br from-hero to-hero-end p-3 text-white">
         <p className="text-xs text-white/80">Spent this month</p>
         <p className="tabular text-xl font-bold">₹24,580.00</p>
       </div>

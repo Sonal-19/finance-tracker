@@ -40,7 +40,7 @@ export function PaymentClaims({ bookId }: { bookId: number }) {
             </span>
             <div className="min-w-0 flex-1">
               <p className="tabular font-semibold">{formatAmount(c.amount)}</p>
-              <p className="text-xs break-words text-muted-foreground">
+              <p className="text-xs wrap-break-word text-muted-foreground">
                 {[
                   c.payerName,
                   c.reference && `Ref ${c.reference}`,

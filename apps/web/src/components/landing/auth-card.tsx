@@ -533,7 +533,7 @@ export function AuthCard({
   return (
     <div className="relative w-full rounded-3xl border border-border/80 bg-card/90 p-5 shadow-2xl backdrop-blur-xl transition-all sm:p-7 dark:border-border/60 dark:bg-card/80">
       {/* Decorative ambient subtle glow */}
-      <div className="pointer-events-none absolute -inset-0.5 -z-10 rounded-3xl bg-gradient-to-b from-primary/25 via-primary/5 to-transparent opacity-50 blur-xl" />
+      <div className="pointer-events-none absolute -inset-0.5 -z-10 rounded-3xl bg-linear-to-b from-primary/25 via-primary/5 to-transparent opacity-50 blur-xl" />
 
       {/* Header security badge */}
       <div className="mb-4 flex items-center justify-between">

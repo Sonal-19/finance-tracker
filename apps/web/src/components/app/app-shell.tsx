@@ -334,7 +334,9 @@ export function AppShell({
             className="flex items-start gap-2 border-b bg-accent px-4 py-2.5 text-sm text-accent-foreground md:px-6 lg:px-8"
           >
             <Megaphone className="mt-0.5 size-4 shrink-0" />
-            <p className="min-w-0 whitespace-pre-line break-words">{notice}</p>
+            <p className="min-w-0 whitespace-pre-line wrap-break-word">
+              {notice}
+            </p>
           </div>
         )}
 
