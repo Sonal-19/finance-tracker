@@ -8,7 +8,6 @@ import {
   Repeat,
   Settings,
   ShieldCheck,
-  SlidersHorizontal,
   Tags,
   Target,
   Users,
@@ -62,16 +61,14 @@ export const NAV = [
   },
 ] as const;
 
-/** Extra entries for `role = admin` (the API enforces it; this only hides
- * the link). */
+/** For `role = admin`: the way into the admin console, which has its own
+ * shell (`routes/_admin.tsx`). The API enforces the role; this only hides
+ * the link. */
 const ADMIN_HOME = {
   to: "/admin",
-  label: "Admin dashboard",
+  label: "Admin console",
   icon: ShieldCheck,
 } as const;
-export const ADMIN_NAV = [
-  { to: "/system-config", label: "System config", icon: SlidersHorizontal },
-] as const;
 
 type NavUser = { role?: string } | null | undefined;
 
@@ -80,11 +77,11 @@ export const homeFor = (user: NavUser) =>
   user?.role === "admin" ? ADMIN_HOME.to : "/dashboard";
 
 export type NavItem = {
-  to: (typeof NAV | typeof ADMIN_NAV)[number]["to"] | typeof ADMIN_HOME.to;
+  to: (typeof NAV)[number]["to"] | typeof ADMIN_HOME.to;
   label: string;
   icon: (typeof NAV)[number]["icon"] | typeof ADMIN_HOME.icon;
   shortcut?: ShortcutAction;
 };
 
 export const navFor = (user: NavUser): NavItem[] =>
-  user?.role === "admin" ? [ADMIN_HOME, ...NAV, ...ADMIN_NAV] : [...NAV];
+  user?.role === "admin" ? [...NAV, ADMIN_HOME] : [...NAV];

@@ -15,6 +15,12 @@ export const taggedExpenseModeEnum = pgEnum(
   taggedExpenseModes,
 );
 
+/** `suspended` = an admin blocked the account: it can't sign in and its
+ * sessions are revoked. `suspended_at` says when. */
+export const userStatuses = ["active", "suspended"] as const;
+export type UserStatus = (typeof userStatuses)[number];
+export const userStatusEnum = pgEnum("user_status", userStatuses);
+
 export const usersTable = pgTable("users", (pg) => ({
   id: pg.serial().primaryKey(),
   name: pg.text().notNull(),
@@ -30,6 +36,8 @@ export const usersTable = pgTable("users", (pg) => ({
     .default("manual"),
   passwordHash: pg.text("password_hash").notNull(),
   role: userRoleEnum("role").notNull().default("user"),
+  status: userStatusEnum("status").notNull().default("active"),
+  suspendedAt: pg.timestamp("suspended_at", { withTimezone: true }),
   /** Overall monthly spending budget; null = not set. */
   monthlyBudget: pg.bigint("monthly_budget", { mode: "number" }),
   createdAt: pg

@@ -16,11 +16,26 @@ export type AdminOverview = NonNullable<
   ReturnType<typeof useAdminOverview>["data"]
 >;
 
-export const useAdminUsers = (q: string, page: number) =>
+export type UserFilter = "all" | "admin" | "suspended";
+
+export const useAdminUsers = (
+  q: string,
+  page: number,
+  filter: UserFilter = "all",
+) =>
   useQuery({
-    queryKey: ["admin", "users", q, page],
+    queryKey: ["admin", "users", q, page, filter],
     queryFn: () =>
-      call(api.admin.users.get({ query: { q: q || undefined, page } })),
+      call(
+        api.admin.users.get({
+          query: {
+            q: q || undefined,
+            page,
+            role: filter === "admin" ? "admin" : undefined,
+            status: filter === "suspended" ? "suspended" : undefined,
+          },
+        }),
+      ),
     placeholderData: keepPreviousData,
   });
 export type AdminUser = NonNullable<
@@ -41,3 +56,73 @@ export function useCreateUser() {
     onError: (e) => toast.error(e.message),
   });
 }
+
+export const useAdminUser = (id: number) =>
+  useQuery({
+    queryKey: ["admin", "user", id],
+    queryFn: () => call(api.admin.users({ id }).get()),
+  });
+export type AdminUserDetail = NonNullable<
+  ReturnType<typeof useAdminUser>["data"]
+>;
+export type AdminSession = AdminUserDetail["sessions"][number];
+
+export const useAdminSessions = (q: string, page: number) =>
+  useQuery({
+    queryKey: ["admin", "sessions", q, page],
+    queryFn: () =>
+      call(api.admin.sessions.get({ query: { q: q || undefined, page } })),
+    placeholderData: keepPreviousData,
+  });
+export type AdminLiveSession = NonNullable<
+  ReturnType<typeof useAdminSessions>["data"]
+>["items"][number];
+
+export const useAdminActivity = (page: number) =>
+  useQuery({
+    queryKey: ["admin", "activity", page],
+    queryFn: () => call(api.admin.activity.get({ query: { page } })),
+    placeholderData: keepPreviousData,
+  });
+export type AdminAction = NonNullable<
+  ReturnType<typeof useAdminActivity>["data"]
+>["items"][number];
+
+/** Every admin write: toast its message and refresh the admin screens. */
+function useAdminMutation<V>(fn: (v: V) => Promise<{ message: string }>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: ({ message }) => {
+      toast.success(message);
+      qc.invalidateQueries({ queryKey: ["admin"] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+}
+
+export const useRevokeSession = () =>
+  useAdminMutation((id: number) =>
+    callMsg(api.admin.sessions({ id }).delete()),
+  );
+
+export const useRevokeAllSessions = () =>
+  useAdminMutation((userId: number) =>
+    callMsg(api.admin.users({ id: userId }).sessions.delete()),
+  );
+
+export const useSetUserRole = () =>
+  useAdminMutation(({ id, role }: { id: number; role: "user" | "admin" }) =>
+    callMsg(api.admin.users({ id }).role.patch({ role })),
+  );
+
+export const useSetUserStatus = () =>
+  useAdminMutation(
+    ({ id, status }: { id: number; status: "active" | "suspended" }) =>
+      callMsg(api.admin.users({ id }).status.patch({ status })),
+  );
+
+export const useSetUserPassword = () =>
+  useAdminMutation(({ id, password }: { id: number; password: string }) =>
+    callMsg(api.admin.users({ id }).password.post({ password })),
+  );

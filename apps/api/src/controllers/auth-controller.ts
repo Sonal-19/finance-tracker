@@ -30,22 +30,28 @@ const tPassword = t.String({ minLength: 8, maxLength: 128 });
 const tUsername = t.String({ pattern: USERNAME_PATTERN });
 const tOtp = t.String({ pattern: "^[0-9]{6}$" });
 
+const SUSPENDED = "This account is suspended. Contact the admin.";
 const SIGNUPS_CLOSED = "New sign-ups are closed right now";
 const registrationOpen = () =>
   systemConfigService.SYSTEM_CONFIG.AUTH.REGISTRATION_ENABLED;
 const registrationOtpRequired = () =>
   systemConfigService.SYSTEM_CONFIG.AUTH.REGISTRATION_OTP_REQUIRED;
 
-/** `@` means email; otherwise the username cache resolves the user id. */
+/** `@` means email; otherwise the username cache resolves the user id. A
+ * cache miss checks the table too: users made outside this process (e.g.
+ * `db:create-admin`) aren't in the cache until the next boot. */
 async function findUserByLogin(login: string) {
   if (login.includes("@")) return findUserByEmail(normalizeEmail(login));
-  const id = usernameService.findUserId(normalizeUsername(login));
-  if (id === null) return undefined;
+  const username = normalizeUsername(login);
+  const id = usernameService.findUserId(username);
   const [user] = await db
     .select()
     .from(usersTable)
-    .where(eq(usersTable.id, id))
+    .where(
+      id === null ? eq(usersTable.username, username) : eq(usersTable.id, id),
+    )
     .limit(1);
+  if (user && id === null) usernameService.set(user.id, user.username);
   return user;
 }
 
@@ -202,6 +208,7 @@ export const authController = new Elysia({
       if (!user || !valid)
         return status(403, fail("Invalid email/username or password"));
       rateLimitService.reset(key);
+      if (user.status === "suspended") return status(403, fail(SUSPENDED));
 
       await startSession(cookie, user.id, {
         ip,
@@ -251,6 +258,7 @@ export const authController = new Elysia({
         .where(eq(usersTable.id, userId))
         .limit(1);
       if (!user) return status(403, fail("This passkey isn't recognised"));
+      if (user.status === "suspended") return status(403, fail(SUSPENDED));
 
       // Same session issuance as password login.
       await startSession(cookie, user.id, {

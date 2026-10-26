@@ -1,4 +1,4 @@
-import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { SectionCard } from "@/components/app/section-card";
 import { ShortcutEditor } from "@/components/app/shortcuts";
@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { useAuth } from "@/hooks/use-auth";
 import {
   type SystemConfigData,
   useSaveSystemConfig,
@@ -27,7 +26,7 @@ import {
   shortcutProblems,
 } from "$/lib/utils/shortcuts";
 
-export const Route = createFileRoute("/_app/system-config")({
+export const Route = createFileRoute("/_admin/system-config")({
   component: SystemConfigPage,
 });
 
@@ -38,12 +37,7 @@ export const Route = createFileRoute("/_app/system-config")({
 // here still round-trips untouched.
 
 function SystemConfigPage() {
-  const { user, isConfirmed } = useAuth();
   const { data, isLoading, error } = useSystemConfig();
-
-  // Wait for the server's answer: the cached profile can predate a promotion.
-  if (isConfirmed && user?.role !== "admin")
-    return <Navigate to="/dashboard" replace />;
 
   return (
     <div className="max-w-2xl space-y-5">

@@ -2,6 +2,7 @@ import { and, eq, gt, inArray, lte } from "drizzle-orm";
 import { db } from "$/db";
 import { authsTable } from "$/db/schema";
 import { SESSION_DAYS } from "$/env";
+import { describeDevice } from "$/lib/utils/device";
 
 type CacheEntry = {
   token: string;
@@ -63,7 +64,7 @@ class CoreAuthService {
       token,
       userId,
       state: "active",
-      device: "unknown",
+      device: describeDevice(opts?.userAgent).name,
       ip: opts?.ip ?? null,
       details: opts?.userAgent ? { userAgent: opts.userAgent } : null,
       expiresAt,
@@ -103,7 +104,7 @@ class CoreAuthService {
     e.extendedAt = now;
     e.expiresAt = new Date(now + SESSION_DAYS * 86_400_000);
     db.update(authsTable)
-      .set({ expiresAt: e.expiresAt })
+      .set({ expiresAt: e.expiresAt, lastSeenAt: new Date(now) })
       .where(eq(authsTable.token, token))
       .execute()
       .catch(console.error);
@@ -116,6 +117,25 @@ class CoreAuthService {
       .update(authsTable)
       .set({ state: "revoked" })
       .where(eq(authsTable.token, token));
+  }
+
+  /** Revoke one session by its `auths.id`, only if it belongs to `userId`.
+   * Returns false when there's no such live session. */
+  async revokeSession(userId: number, id: number) {
+    const [row] = await db
+      .update(authsTable)
+      .set({ state: "revoked" })
+      .where(
+        and(
+          eq(authsTable.id, id),
+          eq(authsTable.userId, userId),
+          eq(authsTable.state, "active"),
+        ),
+      )
+      .returning({ token: authsTable.token });
+    if (!row) return false;
+    this.#del(row.token);
+    return true;
   }
 
   /** Revoke every session of a user, optionally keeping one (password change/reset). */

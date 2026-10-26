@@ -10,9 +10,10 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/_admin'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
-import { Route as AppAdminRouteImport } from './routes/_app/admin'
+import { Route as AdminSystemConfigRouteImport } from './routes/_admin/system-config'
 import { Route as AppBudgetsRouteImport } from './routes/_app/budgets'
 import { Route as AppCategoriesRouteImport } from './routes/_app/categories'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
@@ -21,9 +22,11 @@ import { Route as AppMoreRouteImport } from './routes/_app/more'
 import { Route as AppRecurringRouteImport } from './routes/_app/recurring'
 import { Route as AppReportsRouteImport } from './routes/_app/reports'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
-import { Route as AppSystemConfigRouteImport } from './routes/_app/system-config'
 import { Route as AppTransactionsRouteImport } from './routes/_app/transactions'
 import { Route as STokenRouteImport } from './routes/s.$token'
+import { Route as AdminAdminIndexRouteImport } from './routes/_admin/admin/index'
+import { Route as AdminAdminActivityRouteImport } from './routes/_admin/admin/activity'
+import { Route as AdminAdminSessionsRouteImport } from './routes/_admin/admin/sessions'
 import { Route as AppAccountsIndexRouteImport } from './routes/_app/accounts/index'
 import { Route as AppAccountsAccountIdRouteImport } from './routes/_app/accounts/$accountId'
 import { Route as AppBooksIndexRouteImport } from './routes/_app/books/index'
@@ -31,12 +34,18 @@ import { Route as AppBooksBookIdRouteImport } from './routes/_app/books/$bookId'
 import { Route as AppEventsIndexRouteImport } from './routes/_app/events/index'
 import { Route as AppEventsEventIdRouteImport } from './routes/_app/events/$eventId'
 import { Route as AppSplitIndexRouteImport } from './routes/_app/split/index'
+import { Route as AdminAdminUsersIndexRouteImport } from './routes/_admin/admin/users/index'
+import { Route as AdminAdminUsersUserIdRouteImport } from './routes/_admin/admin/users/$userId'
 import { Route as AppSplitGroupsGroupIdRouteImport } from './routes/_app/split/groups/$groupId'
 import { Route as AppSplitPeoplePersonIdRouteImport } from './routes/_app/split/people/$personId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/_admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppRoute = AppRouteImport.update({
@@ -48,10 +57,10 @@ const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppAdminRoute = AppAdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
-  getParentRoute: () => AppRoute,
+const AdminSystemConfigRoute = AdminSystemConfigRouteImport.update({
+  id: '/system-config',
+  path: '/system-config',
+  getParentRoute: () => AdminRoute,
 } as any)
 const AppBudgetsRoute = AppBudgetsRouteImport.update({
   id: '/budgets',
@@ -93,11 +102,6 @@ const AppSettingsRoute = AppSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AppRoute,
 } as any)
-const AppSystemConfigRoute = AppSystemConfigRouteImport.update({
-  id: '/system-config',
-  path: '/system-config',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppTransactionsRoute = AppTransactionsRouteImport.update({
   id: '/transactions',
   path: '/transactions',
@@ -107,6 +111,21 @@ const STokenRoute = STokenRouteImport.update({
   id: '/s/$token',
   path: '/s/$token',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AdminAdminIndexRoute = AdminAdminIndexRouteImport.update({
+  id: '/admin/',
+  path: '/admin/',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminAdminActivityRoute = AdminAdminActivityRouteImport.update({
+  id: '/admin/activity',
+  path: '/admin/activity',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminAdminSessionsRoute = AdminAdminSessionsRouteImport.update({
+  id: '/admin/sessions',
+  path: '/admin/sessions',
+  getParentRoute: () => AdminRoute,
 } as any)
 const AppAccountsIndexRoute = AppAccountsIndexRouteImport.update({
   id: '/accounts/',
@@ -143,6 +162,16 @@ const AppSplitIndexRoute = AppSplitIndexRouteImport.update({
   path: '/split/',
   getParentRoute: () => AppRoute,
 } as any)
+const AdminAdminUsersIndexRoute = AdminAdminUsersIndexRouteImport.update({
+  id: '/admin/users/',
+  path: '/admin/users/',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminAdminUsersUserIdRoute = AdminAdminUsersUserIdRouteImport.update({
+  id: '/admin/users/$userId',
+  path: '/admin/users/$userId',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AppSplitGroupsGroupIdRoute = AppSplitGroupsGroupIdRouteImport.update({
   id: '/split/groups/$groupId',
   path: '/split/groups/$groupId',
@@ -157,7 +186,7 @@ const AppSplitPeoplePersonIdRoute = AppSplitPeoplePersonIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/forgot-password': typeof ForgotPasswordRoute
-  '/admin': typeof AppAdminRoute
+  '/system-config': typeof AdminSystemConfigRoute
   '/budgets': typeof AppBudgetsRoute
   '/categories': typeof AppCategoriesRoute
   '/dashboard': typeof AppDashboardRoute
@@ -166,23 +195,27 @@ export interface FileRoutesByFullPath {
   '/recurring': typeof AppRecurringRoute
   '/reports': typeof AppReportsRoute
   '/settings': typeof AppSettingsRoute
-  '/system-config': typeof AppSystemConfigRoute
   '/transactions': typeof AppTransactionsRoute
   '/s/$token': typeof STokenRoute
+  '/admin/activity': typeof AdminAdminActivityRoute
+  '/admin/sessions': typeof AdminAdminSessionsRoute
   '/accounts/$accountId': typeof AppAccountsAccountIdRoute
   '/books/$bookId': typeof AppBooksBookIdRoute
   '/events/$eventId': typeof AppEventsEventIdRoute
+  '/admin/': typeof AdminAdminIndexRoute
   '/accounts/': typeof AppAccountsIndexRoute
   '/books/': typeof AppBooksIndexRoute
   '/events/': typeof AppEventsIndexRoute
   '/split/': typeof AppSplitIndexRoute
+  '/admin/users/$userId': typeof AdminAdminUsersUserIdRoute
   '/split/groups/$groupId': typeof AppSplitGroupsGroupIdRoute
   '/split/people/$personId': typeof AppSplitPeoplePersonIdRoute
+  '/admin/users/': typeof AdminAdminUsersIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/forgot-password': typeof ForgotPasswordRoute
-  '/admin': typeof AppAdminRoute
+  '/system-config': typeof AdminSystemConfigRoute
   '/budgets': typeof AppBudgetsRoute
   '/categories': typeof AppCategoriesRoute
   '/dashboard': typeof AppDashboardRoute
@@ -191,25 +224,30 @@ export interface FileRoutesByTo {
   '/recurring': typeof AppRecurringRoute
   '/reports': typeof AppReportsRoute
   '/settings': typeof AppSettingsRoute
-  '/system-config': typeof AppSystemConfigRoute
   '/transactions': typeof AppTransactionsRoute
   '/s/$token': typeof STokenRoute
+  '/admin/activity': typeof AdminAdminActivityRoute
+  '/admin/sessions': typeof AdminAdminSessionsRoute
   '/accounts/$accountId': typeof AppAccountsAccountIdRoute
   '/books/$bookId': typeof AppBooksBookIdRoute
   '/events/$eventId': typeof AppEventsEventIdRoute
+  '/admin': typeof AdminAdminIndexRoute
   '/accounts': typeof AppAccountsIndexRoute
   '/books': typeof AppBooksIndexRoute
   '/events': typeof AppEventsIndexRoute
   '/split': typeof AppSplitIndexRoute
+  '/admin/users/$userId': typeof AdminAdminUsersUserIdRoute
   '/split/groups/$groupId': typeof AppSplitGroupsGroupIdRoute
   '/split/people/$personId': typeof AppSplitPeoplePersonIdRoute
+  '/admin/users': typeof AdminAdminUsersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_admin': typeof AdminRouteWithChildren
   '/_app': typeof AppRouteWithChildren
   '/forgot-password': typeof ForgotPasswordRoute
-  '/_app/admin': typeof AppAdminRoute
+  '/_admin/system-config': typeof AdminSystemConfigRoute
   '/_app/budgets': typeof AppBudgetsRoute
   '/_app/categories': typeof AppCategoriesRoute
   '/_app/dashboard': typeof AppDashboardRoute
@@ -218,25 +256,29 @@ export interface FileRoutesById {
   '/_app/recurring': typeof AppRecurringRoute
   '/_app/reports': typeof AppReportsRoute
   '/_app/settings': typeof AppSettingsRoute
-  '/_app/system-config': typeof AppSystemConfigRoute
   '/_app/transactions': typeof AppTransactionsRoute
   '/s/$token': typeof STokenRoute
+  '/_admin/admin/activity': typeof AdminAdminActivityRoute
+  '/_admin/admin/sessions': typeof AdminAdminSessionsRoute
   '/_app/accounts/$accountId': typeof AppAccountsAccountIdRoute
   '/_app/books/$bookId': typeof AppBooksBookIdRoute
   '/_app/events/$eventId': typeof AppEventsEventIdRoute
+  '/_admin/admin/': typeof AdminAdminIndexRoute
   '/_app/accounts/': typeof AppAccountsIndexRoute
   '/_app/books/': typeof AppBooksIndexRoute
   '/_app/events/': typeof AppEventsIndexRoute
   '/_app/split/': typeof AppSplitIndexRoute
+  '/_admin/admin/users/$userId': typeof AdminAdminUsersUserIdRoute
   '/_app/split/groups/$groupId': typeof AppSplitGroupsGroupIdRoute
   '/_app/split/people/$personId': typeof AppSplitPeoplePersonIdRoute
+  '/_admin/admin/users/': typeof AdminAdminUsersIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/forgot-password'
-    | '/admin'
+    | '/system-config'
     | '/budgets'
     | '/categories'
     | '/dashboard'
@@ -245,23 +287,27 @@ export interface FileRouteTypes {
     | '/recurring'
     | '/reports'
     | '/settings'
-    | '/system-config'
     | '/transactions'
     | '/s/$token'
+    | '/admin/activity'
+    | '/admin/sessions'
     | '/accounts/$accountId'
     | '/books/$bookId'
     | '/events/$eventId'
+    | '/admin/'
     | '/accounts/'
     | '/books/'
     | '/events/'
     | '/split/'
+    | '/admin/users/$userId'
     | '/split/groups/$groupId'
     | '/split/people/$personId'
+    | '/admin/users/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/forgot-password'
-    | '/admin'
+    | '/system-config'
     | '/budgets'
     | '/categories'
     | '/dashboard'
@@ -270,24 +316,29 @@ export interface FileRouteTypes {
     | '/recurring'
     | '/reports'
     | '/settings'
-    | '/system-config'
     | '/transactions'
     | '/s/$token'
+    | '/admin/activity'
+    | '/admin/sessions'
     | '/accounts/$accountId'
     | '/books/$bookId'
     | '/events/$eventId'
+    | '/admin'
     | '/accounts'
     | '/books'
     | '/events'
     | '/split'
+    | '/admin/users/$userId'
     | '/split/groups/$groupId'
     | '/split/people/$personId'
+    | '/admin/users'
   id:
     | '__root__'
     | '/'
+    | '/_admin'
     | '/_app'
     | '/forgot-password'
-    | '/_app/admin'
+    | '/_admin/system-config'
     | '/_app/budgets'
     | '/_app/categories'
     | '/_app/dashboard'
@@ -296,22 +347,27 @@ export interface FileRouteTypes {
     | '/_app/recurring'
     | '/_app/reports'
     | '/_app/settings'
-    | '/_app/system-config'
     | '/_app/transactions'
     | '/s/$token'
+    | '/_admin/admin/activity'
+    | '/_admin/admin/sessions'
     | '/_app/accounts/$accountId'
     | '/_app/books/$bookId'
     | '/_app/events/$eventId'
+    | '/_admin/admin/'
     | '/_app/accounts/'
     | '/_app/books/'
     | '/_app/events/'
     | '/_app/split/'
+    | '/_admin/admin/users/$userId'
     | '/_app/split/groups/$groupId'
     | '/_app/split/people/$personId'
+    | '/_admin/admin/users/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRouteWithChildren
   AppRoute: typeof AppRouteWithChildren
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   STokenRoute: typeof STokenRoute
@@ -324,6 +380,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_admin': {
+      id: '/_admin'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app': {
@@ -340,12 +403,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_app/admin': {
-      id: '/_app/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof AppAdminRouteImport
-      parentRoute: typeof AppRoute
+    '/_admin/system-config': {
+      id: '/_admin/system-config'
+      path: '/system-config'
+      fullPath: '/system-config'
+      preLoaderRoute: typeof AdminSystemConfigRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/_app/budgets': {
       id: '/_app/budgets'
@@ -403,13 +466,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/system-config': {
-      id: '/_app/system-config'
-      path: '/system-config'
-      fullPath: '/system-config'
-      preLoaderRoute: typeof AppSystemConfigRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/transactions': {
       id: '/_app/transactions'
       path: '/transactions'
@@ -423,6 +479,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/s/$token'
       preLoaderRoute: typeof STokenRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_admin/admin/': {
+      id: '/_admin/admin/'
+      path: '/admin'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminAdminIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/_admin/admin/activity': {
+      id: '/_admin/admin/activity'
+      path: '/admin/activity'
+      fullPath: '/admin/activity'
+      preLoaderRoute: typeof AdminAdminActivityRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/_admin/admin/sessions': {
+      id: '/_admin/admin/sessions'
+      path: '/admin/sessions'
+      fullPath: '/admin/sessions'
+      preLoaderRoute: typeof AdminAdminSessionsRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/_app/accounts/': {
       id: '/_app/accounts/'
@@ -473,6 +550,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSplitIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_admin/admin/users/': {
+      id: '/_admin/admin/users/'
+      path: '/admin/users'
+      fullPath: '/admin/users/'
+      preLoaderRoute: typeof AdminAdminUsersIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/_admin/admin/users/$userId': {
+      id: '/_admin/admin/users/$userId'
+      path: '/admin/users/$userId'
+      fullPath: '/admin/users/$userId'
+      preLoaderRoute: typeof AdminAdminUsersUserIdRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/_app/split/groups/$groupId': {
       id: '/_app/split/groups/$groupId'
       path: '/split/groups/$groupId'
@@ -490,8 +581,27 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AdminRouteChildren {
+  AdminSystemConfigRoute: typeof AdminSystemConfigRoute
+  AdminAdminActivityRoute: typeof AdminAdminActivityRoute
+  AdminAdminSessionsRoute: typeof AdminAdminSessionsRoute
+  AdminAdminIndexRoute: typeof AdminAdminIndexRoute
+  AdminAdminUsersUserIdRoute: typeof AdminAdminUsersUserIdRoute
+  AdminAdminUsersIndexRoute: typeof AdminAdminUsersIndexRoute
+}
+
+const AdminRouteChildren: AdminRouteChildren = {
+  AdminSystemConfigRoute: AdminSystemConfigRoute,
+  AdminAdminActivityRoute: AdminAdminActivityRoute,
+  AdminAdminSessionsRoute: AdminAdminSessionsRoute,
+  AdminAdminIndexRoute: AdminAdminIndexRoute,
+  AdminAdminUsersUserIdRoute: AdminAdminUsersUserIdRoute,
+  AdminAdminUsersIndexRoute: AdminAdminUsersIndexRoute,
+}
+
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+
 interface AppRouteChildren {
-  AppAdminRoute: typeof AppAdminRoute
   AppBudgetsRoute: typeof AppBudgetsRoute
   AppCategoriesRoute: typeof AppCategoriesRoute
   AppDashboardRoute: typeof AppDashboardRoute
@@ -500,7 +610,6 @@ interface AppRouteChildren {
   AppRecurringRoute: typeof AppRecurringRoute
   AppReportsRoute: typeof AppReportsRoute
   AppSettingsRoute: typeof AppSettingsRoute
-  AppSystemConfigRoute: typeof AppSystemConfigRoute
   AppTransactionsRoute: typeof AppTransactionsRoute
   AppAccountsAccountIdRoute: typeof AppAccountsAccountIdRoute
   AppBooksBookIdRoute: typeof AppBooksBookIdRoute
@@ -514,7 +623,6 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
-  AppAdminRoute: AppAdminRoute,
   AppBudgetsRoute: AppBudgetsRoute,
   AppCategoriesRoute: AppCategoriesRoute,
   AppDashboardRoute: AppDashboardRoute,
@@ -523,7 +631,6 @@ const AppRouteChildren: AppRouteChildren = {
   AppRecurringRoute: AppRecurringRoute,
   AppReportsRoute: AppReportsRoute,
   AppSettingsRoute: AppSettingsRoute,
-  AppSystemConfigRoute: AppSystemConfigRoute,
   AppTransactionsRoute: AppTransactionsRoute,
   AppAccountsAccountIdRoute: AppAccountsAccountIdRoute,
   AppBooksBookIdRoute: AppBooksBookIdRoute,
@@ -540,6 +647,7 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRouteWithChildren,
   AppRoute: AppRouteWithChildren,
   ForgotPasswordRoute: ForgotPasswordRoute,
   STokenRoute: STokenRoute,
