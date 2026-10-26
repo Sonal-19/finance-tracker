@@ -14,6 +14,21 @@ export const recurringStatusEnum = pgEnum(
   recurringStatuses,
 );
 
+/** When a rule reminds before it posts: `default` = 3, 2 and 1 days before
+ * at 09:00 (`DEFAULT_RECURRING_REMINDER`), `custom` = the rule's own
+ * `reminder_*` columns, `off` = never. */
+export const recurringReminderModes = ["default", "custom", "off"] as const;
+export type RecurringReminderMode = (typeof recurringReminderModes)[number];
+export const recurringReminderModeEnum = pgEnum(
+  "recurring_reminder_mode",
+  recurringReminderModes,
+);
+
+/** A custom recurring reminder: every day from N days before, or once. */
+export const reminderCadences = ["daily", "once"] as const;
+export type ReminderCadence = (typeof reminderCadences)[number];
+export const reminderCadenceEnum = pgEnum("reminder_cadence", reminderCadences);
+
 /** A rule that auto-posts a transaction every period (rent, salary, EMI…). */
 export const recurringRulesTable = pgTable(
   "recurring_rules",
@@ -43,6 +58,15 @@ export const recurringRulesTable = pgTable(
     endDate: pg.date("end_date", { mode: "string" }),
     nextRunDate: pg.date("next_run_date", { mode: "string" }).notNull(),
     status: recurringStatusEnum("status").notNull().default("active"),
+    reminder: recurringReminderModeEnum("reminder")
+      .notNull()
+      .default("default"),
+    /** `custom` only: how many days before the run date (0 = on the day). */
+    reminderDaysBefore: pg.integer("reminder_days_before"),
+    /** `custom` only: time of day, `HH:mm` in APP_TZ. */
+    reminderTime: pg.text("reminder_time"),
+    /** `custom` only: every day until the run date, or just once. */
+    reminderCadence: reminderCadenceEnum("reminder_cadence"),
     pausedAt: pg.timestamp("paused_at", { withTimezone: true }),
     completedAt: pg.timestamp("completed_at", { withTimezone: true }),
     createdAt: pg

@@ -1,6 +1,7 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   ArrowLeftRight,
+  Bell,
   Keyboard,
   LayoutDashboard,
   LogOut,
@@ -17,12 +18,14 @@ import { SplitSheet } from "@/components/split/split-sheet";
 import { TransactionSheet } from "@/components/transactions/transaction-sheet";
 import { Button } from "@/components/ui/button";
 import { usePublicConfig } from "@/hooks/use-passkeys";
+import { useNotifications } from "@/hooks/use-reminders";
 import {
   bindingText,
   useGlobalShortcuts,
   useShortcutMap,
 } from "@/hooks/use-shortcuts";
 import { syncNow } from "@/lib/offline/sync";
+import { syncPush } from "@/lib/push";
 import { cn } from "@/lib/utils";
 import type { AppUser } from "@/stores/auth-store";
 import { useSplitSheet } from "@/stores/split-sheet-store";
@@ -114,7 +117,31 @@ const MORE_PATHS = [
   "/recurring",
   "/categories",
   "/settings",
+  "/reminders",
 ];
+
+/** The header bell: unread notifications, opens the Reminders inbox. */
+function NotificationBell() {
+  const unread = useNotifications().data?.unread ?? 0;
+  return (
+    <Button variant="ghost" size="icon" className="relative" asChild>
+      <Link
+        to="/reminders"
+        aria-label={
+          unread ? `Notifications, ${unread} unread` : "Notifications"
+        }
+        title="Notifications"
+      >
+        <Bell />
+        {unread > 0 && (
+          <span className="absolute top-1 right-1 grid min-w-4 place-items-center rounded-full bg-expense px-1 text-[10px] leading-4 font-bold text-white">
+            {unread > 9 ? "9+" : unread}
+          </span>
+        )}
+      </Link>
+    </Button>
+  );
+}
 
 export function AppShell({
   user,
@@ -137,6 +164,11 @@ export function AppShell({
     binding ? `${label} (${bindingText(binding)})` : label;
   useShortcutHandlers();
   useLaunchAction();
+  // A browser that already allows notifications is re-registered to this
+  // session (subscriptions rotate; a new login is a new session).
+  React.useEffect(() => {
+    void syncPush(user.id);
+  }, [user.id]);
 
   return (
     <div
@@ -317,6 +349,7 @@ export function AppShell({
                 <SyncStatus compact />
               </div>
               <BookSwitcher />
+              <NotificationBell />
               <UserMenu user={user} />
             </div>
           </div>

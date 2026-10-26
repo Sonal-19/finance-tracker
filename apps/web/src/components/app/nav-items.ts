@@ -1,5 +1,6 @@
 import {
   ArrowLeftRight,
+  BellRing,
   BookOpen,
   Landmark,
   LayoutDashboard,
@@ -47,6 +48,7 @@ export const NAV = [
     icon: Repeat,
     shortcut: "goRecurring",
   },
+  { to: "/reminders", label: "Reminders", icon: BellRing },
   {
     to: "/categories",
     label: "Categories",

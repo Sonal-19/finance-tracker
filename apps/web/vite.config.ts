@@ -34,6 +34,8 @@ export default defineConfig({
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api/, /^\/s\//],
         cleanupOutdatedCaches: true,
+        // Draws reminder pushes and handles their taps (public/push-sw.js).
+        importScripts: ["/push-sw.js"],
         // API data is kept offline by the app (IndexedDB), not the worker.
         runtimeCaching: [
           {

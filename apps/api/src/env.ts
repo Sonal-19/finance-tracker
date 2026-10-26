@@ -29,6 +29,14 @@ export const DEV_OTP = "123456";
 /** All dates are bucketed in this timezone. */
 export const APP_TZ = "Asia/Kolkata";
 
+/** Web Push (VAPID) for reminders. Without the keys push is off and
+ * reminders only reach the in-app notification inbox. */
+export const VAPID = {
+  publicKey: process.env.VAPID_PUBLIC_KEY || "",
+  privateKey: process.env.VAPID_PRIVATE_KEY || "",
+  subject: process.env.VAPID_SUBJECT || "https://ft.u4.lol",
+};
+
 /** USD→INR used only if every exchange-rate source is unreachable. */
 export const FX_FALLBACK_USD_INR = Number(
   process.env.FX_FALLBACK_USD_INR ?? 95,

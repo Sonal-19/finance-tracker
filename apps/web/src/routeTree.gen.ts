@@ -20,6 +20,7 @@ import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppGoalsRouteImport } from './routes/_app/goals'
 import { Route as AppMoreRouteImport } from './routes/_app/more'
 import { Route as AppRecurringRouteImport } from './routes/_app/recurring'
+import { Route as AppRemindersRouteImport } from './routes/_app/reminders'
 import { Route as AppReportsRouteImport } from './routes/_app/reports'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppTransactionsRouteImport } from './routes/_app/transactions'
@@ -90,6 +91,11 @@ const AppMoreRoute = AppMoreRouteImport.update({
 const AppRecurringRoute = AppRecurringRouteImport.update({
   id: '/recurring',
   path: '/recurring',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppRemindersRoute = AppRemindersRouteImport.update({
+  id: '/reminders',
+  path: '/reminders',
   getParentRoute: () => AppRoute,
 } as any)
 const AppReportsRoute = AppReportsRouteImport.update({
@@ -193,6 +199,7 @@ export interface FileRoutesByFullPath {
   '/goals': typeof AppGoalsRoute
   '/more': typeof AppMoreRoute
   '/recurring': typeof AppRecurringRoute
+  '/reminders': typeof AppRemindersRoute
   '/reports': typeof AppReportsRoute
   '/settings': typeof AppSettingsRoute
   '/transactions': typeof AppTransactionsRoute
@@ -222,6 +229,7 @@ export interface FileRoutesByTo {
   '/goals': typeof AppGoalsRoute
   '/more': typeof AppMoreRoute
   '/recurring': typeof AppRecurringRoute
+  '/reminders': typeof AppRemindersRoute
   '/reports': typeof AppReportsRoute
   '/settings': typeof AppSettingsRoute
   '/transactions': typeof AppTransactionsRoute
@@ -254,6 +262,7 @@ export interface FileRoutesById {
   '/_app/goals': typeof AppGoalsRoute
   '/_app/more': typeof AppMoreRoute
   '/_app/recurring': typeof AppRecurringRoute
+  '/_app/reminders': typeof AppRemindersRoute
   '/_app/reports': typeof AppReportsRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/transactions': typeof AppTransactionsRoute
@@ -285,6 +294,7 @@ export interface FileRouteTypes {
     | '/goals'
     | '/more'
     | '/recurring'
+    | '/reminders'
     | '/reports'
     | '/settings'
     | '/transactions'
@@ -314,6 +324,7 @@ export interface FileRouteTypes {
     | '/goals'
     | '/more'
     | '/recurring'
+    | '/reminders'
     | '/reports'
     | '/settings'
     | '/transactions'
@@ -345,6 +356,7 @@ export interface FileRouteTypes {
     | '/_app/goals'
     | '/_app/more'
     | '/_app/recurring'
+    | '/_app/reminders'
     | '/_app/reports'
     | '/_app/settings'
     | '/_app/transactions'
@@ -450,6 +462,13 @@ declare module '@tanstack/react-router' {
       path: '/recurring'
       fullPath: '/recurring'
       preLoaderRoute: typeof AppRecurringRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/reminders': {
+      id: '/_app/reminders'
+      path: '/reminders'
+      fullPath: '/reminders'
+      preLoaderRoute: typeof AppRemindersRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/reports': {
@@ -608,6 +627,7 @@ interface AppRouteChildren {
   AppGoalsRoute: typeof AppGoalsRoute
   AppMoreRoute: typeof AppMoreRoute
   AppRecurringRoute: typeof AppRecurringRoute
+  AppRemindersRoute: typeof AppRemindersRoute
   AppReportsRoute: typeof AppReportsRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppTransactionsRoute: typeof AppTransactionsRoute
@@ -629,6 +649,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppGoalsRoute: AppGoalsRoute,
   AppMoreRoute: AppMoreRoute,
   AppRecurringRoute: AppRecurringRoute,
+  AppRemindersRoute: AppRemindersRoute,
   AppReportsRoute: AppReportsRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppTransactionsRoute: AppTransactionsRoute,

@@ -4,7 +4,9 @@ import { db } from "$/db";
 import {
   categoriesTable,
   frequencies,
+  recurringReminderModes,
   recurringRulesTable,
+  reminderCadences,
   txnTypes,
 } from "$/db/schema";
 import { resolveAccountId } from "$/lib/services/account-service";
@@ -13,6 +15,7 @@ import { recurringService } from "$/lib/services/recurring-service";
 import { ownedCategory } from "$/lib/services/transaction-service";
 import { fail, ok } from "$/lib/utils";
 import { amountOf } from "$/lib/utils/money";
+import { MAX_DAYS_BEFORE, TIME_PATTERN } from "$/lib/utils/reminders";
 import { tEnum } from "$/lib/utils/schema";
 import { protectedUser } from "$/pre-processor";
 
@@ -31,7 +34,32 @@ const ruleBody = t.Object({
   frequency: tEnum(frequencies),
   startDate: tDate,
   endDate: t.Optional(t.Nullable(tDate)),
+  /** Omitted = `default` (3, 2 and 1 days before at 09:00). */
+  reminder: t.Optional(tEnum(recurringReminderModes)),
+  /** `custom` only. */
+  reminderDaysBefore: t.Optional(
+    t.Nullable(t.Integer({ minimum: 0, maximum: MAX_DAYS_BEFORE })),
+  ),
+  reminderTime: t.Optional(t.Nullable(t.String({ pattern: TIME_PATTERN }))),
+  reminderCadence: t.Optional(t.Nullable(tEnum(reminderCadences))),
 });
+
+/** The reminder columns to store: the custom ones only for `custom`. */
+function reminderColumns(body: {
+  reminder?: (typeof recurringReminderModes)[number];
+  reminderDaysBefore?: number | null;
+  reminderTime?: string | null;
+  reminderCadence?: (typeof reminderCadences)[number] | null;
+}) {
+  if (body.reminder === undefined) return {};
+  const custom = body.reminder === "custom";
+  return {
+    reminder: body.reminder,
+    reminderDaysBefore: custom ? (body.reminderDaysBefore ?? 3) : null,
+    reminderTime: custom ? (body.reminderTime ?? "09:00") : null,
+    reminderCadence: custom ? (body.reminderCadence ?? "daily") : null,
+  };
+}
 
 async function listRules(userId: number) {
   const rows = await db
@@ -72,8 +100,16 @@ export const recurringController = new Elysia({
       if (!account.ok) return status(400, fail(account.message));
       const book = await resolveBookId(user.id, body.bookId);
       if (!book.ok) return status(400, fail(book.message));
+      const {
+        reminder: _r,
+        reminderDaysBefore: _d,
+        reminderTime: _t,
+        reminderCadence: _c,
+        ...rest
+      } = body;
       await db.insert(R).values({
-        ...body,
+        ...rest,
+        ...reminderColumns(body),
         accountId: account.id,
         bookId: book.id,
         note: body.note?.trim() || null,
@@ -129,6 +165,7 @@ export const recurringController = new Elysia({
           ...(body.note !== undefined && { note: body.note?.trim() || null }),
           ...(body.frequency && { frequency: body.frequency }),
           ...(body.endDate !== undefined && { endDate: body.endDate }),
+          ...reminderColumns(body),
           ...(body.status &&
             body.status !== rule.status && {
               status: body.status,
