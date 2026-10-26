@@ -5,6 +5,7 @@ import {
   ago,
   count,
   Pager,
+  RequirePermission,
   RoleBadge,
   SearchBox,
   StatusBadge,
@@ -29,6 +30,7 @@ import { Input } from "@/components/ui/input";
 import {
   type NewUser,
   type UserFilter,
+  useAdminCan,
   useAdminUsers,
   useCreateUser,
 } from "@/hooks/use-admin";
@@ -42,6 +44,15 @@ export const Route = createFileRoute("/_admin/admin/users/")({
 });
 
 function AdminUsersPage() {
+  return (
+    <RequirePermission permission="users.view">
+      <UserList />
+    </RequirePermission>
+  );
+}
+
+function UserList() {
+  const { can } = useAdminCan();
   const { create } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const [page, setPage] = useState(1);
@@ -62,9 +73,11 @@ function AdminUsersPage() {
         title="Users"
         description="Open someone to see their devices, sign them out, suspend them or change their role."
         actions={
-          <Button onClick={() => setCreating(true)}>
-            <UserPlus /> Create user
-          </Button>
+          can("users.create") && (
+            <Button onClick={() => setCreating(true)}>
+              <UserPlus /> Create user
+            </Button>
+          )
         }
       />
       <SectionCard className="overflow-hidden p-0 sm:p-0">
@@ -117,7 +130,7 @@ function AdminUsersPage() {
                     <div className="min-w-0 flex-1">
                       <p className="flex items-center gap-1.5 font-medium">
                         <span className="truncate">{u.name}</span>
-                        <RoleBadge role={u.role} />
+                        <RoleBadge role={u.role} master={u.masterSince} />
                         <StatusBadge status={u.status} />
                       </p>
                       <p className="truncate text-xs text-muted-foreground">
@@ -186,7 +199,11 @@ function AdminUsersPage() {
                       </td>
                       <td className="px-3 py-3">
                         <span className="flex gap-1">
-                          <RoleBadge role={u.role} always />
+                          <RoleBadge
+                            role={u.role}
+                            master={u.masterSince}
+                            always
+                          />
                           <StatusBadge status={u.status} />
                         </span>
                       </td>
@@ -211,7 +228,10 @@ function AdminUsersPage() {
           </>
         )}
       </SectionCard>
-      <CreateUserSheet open={!!create} onClose={() => setCreating(false)} />
+      <CreateUserSheet
+        open={!!create && can("users.create")}
+        onClose={() => setCreating(false)}
+      />
     </div>
   );
 }
@@ -233,6 +253,7 @@ function CreateUserSheet({
 }) {
   const [form, setForm] = useState<NewUser>(EMPTY);
   const create = useCreateUser();
+  const { master } = useAdminCan();
   const username = normalizeUsername(form.username);
   const close = () => {
     setForm(EMPTY);
@@ -308,17 +329,20 @@ function CreateUserSheet({
             onChange={(e) => setForm({ ...form, password: e.target.value })}
           />
         </Field>
-        <Field label="Role">
-          <Segmented
-            className="w-full"
-            value={form.role ?? "user"}
-            onChange={(role) => setForm({ ...form, role })}
-            options={[
-              { value: "user", label: "User" },
-              { value: "admin", label: "Admin" },
-            ]}
-          />
-        </Field>
+        {/* Only the master admin makes admins. */}
+        {master && (
+          <Field label="Role">
+            <Segmented
+              className="w-full"
+              value={form.role ?? "user"}
+              onChange={(role) => setForm({ ...form, role })}
+              options={[
+                { value: "user", label: "User" },
+                { value: "admin", label: "Admin" },
+              ]}
+            />
+          </Field>
+        )}
         <Button
           type="submit"
           size="lg"

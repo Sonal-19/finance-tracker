@@ -13,6 +13,7 @@ export * from "./finance/transactions.sql";
 export * from "./system/system-config.sql";
 export * from "./system/system-config-history.sql";
 export * from "./users/admin-actions.sql";
+export * from "./users/admin-grants.sql";
 export * from "./users/auths.sql";
 export * from "./users/email-otps.sql";
 export * from "./users/passkeys.sql";

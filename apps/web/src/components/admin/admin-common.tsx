@@ -4,7 +4,9 @@ import {
   Ban,
   ChevronLeft,
   ChevronRight,
+  Crown,
   HelpCircle,
+  Lock,
   LogOut,
   Monitor,
   Search,
@@ -15,11 +17,14 @@ import {
 import type * as React from "react";
 import { useEffect, useState } from "react";
 import { confirm } from "@/components/common/confirm-dialog";
+import { EmptyState } from "@/components/common/states";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   type AdminAction,
+  type AdminPermission,
   type AdminSession,
+  useAdminCan,
   useRevokeSession,
 } from "@/hooks/use-admin";
 import { formatDate } from "@/lib/format";
@@ -117,11 +122,20 @@ const pill =
 
 export function RoleBadge({
   role,
+  master,
   always,
 }: {
   role: "user" | "admin";
+  /** The user's `masterSince`: set = the master admin. */
+  master?: string | Date | null;
   always?: boolean;
 }) {
+  if (master)
+    return (
+      <span className={cn(pill, "bg-warning/15 text-warning")}>
+        <Crown className="size-3" /> Master admin
+      </span>
+    );
   if (role !== "admin" && !always) return null;
   return (
     <span
@@ -191,12 +205,15 @@ export function SessionItem({
   session: s,
   ended,
   owner,
+  canRevoke = true,
 }: {
   session: SessionLike;
   /** Past session: no button, dimmed. */
   ended?: boolean;
   /** Shown under the device on the cross-user list. */
   owner?: React.ReactNode;
+  /** False hides "Sign out" (no permission, or someone they can't manage). */
+  canRevoke?: boolean;
 }) {
   const revoke = useRevokeSession();
   return (
@@ -227,7 +244,7 @@ export function SessionItem({
             .join(" · ")}
         </p>
       </div>
-      {!ended && (
+      {!ended && canRevoke && (
         <Button
           variant="outline"
           size="sm"
@@ -261,6 +278,10 @@ const ACTION_TEXT: Record<AdminAction["action"], string> = {
   suspend: "suspended the account",
   reactivate: "reactivated the account",
   reset_password: "set a new password",
+  edit_user: "edited the profile",
+  delete_user: "deleted the account",
+  change_permissions: "changed admin permissions",
+  transfer_master: "made them the master admin",
 };
 
 /** "Riya signed out a device (Chrome on Android)". */
@@ -273,7 +294,15 @@ export function actionText(a: Pick<AdminAction, "action" | "details">) {
         ? d.device
         : a.action === "create_user"
           ? d.role
-          : null;
+          : a.action === "edit_user"
+            ? d.fields
+            : a.action === "delete_user"
+              ? `@${d.username}`
+              : a.action === "change_permissions"
+                ? [d.added && `+ ${d.added}`, d.removed && `− ${d.removed}`]
+                    .filter(Boolean)
+                    .join("; ")
+                : null;
   return extra ? `${ACTION_TEXT[a.action]} (${extra})` : ACTION_TEXT[a.action];
 }
 
@@ -281,13 +310,16 @@ export function UserLink({
   id,
   name,
   username,
+  fallback = "a deleted user",
 }: {
   id: number | null;
   name: string | null;
   username?: string | null;
+  /** Shown when the account no longer exists. */
+  fallback?: string;
 }) {
   if (id === null || !name)
-    return <span className="text-muted-foreground">a deleted user</span>;
+    return <span className="text-muted-foreground">{fallback}</span>;
   return (
     <Link
       to="/admin/users/$userId"
@@ -296,5 +328,114 @@ export function UserLink({
     >
       {username ? `@${username}` : name}
     </Link>
+  );
+}
+
+/** Every permission the master can grant, in the order shown. */
+export const PERMISSION_INFO: {
+  key: AdminPermission;
+  label: string;
+  hint: string;
+}[] = [
+  {
+    key: "users.view",
+    label: "View users",
+    hint: "The user list and each user's profile and counts.",
+  },
+  {
+    key: "users.create",
+    label: "Create users",
+    hint: "Add new user accounts (not admins).",
+  },
+  {
+    key: "users.edit",
+    label: "Edit users",
+    hint: "Change a user's name, email and username.",
+  },
+  {
+    key: "users.delete",
+    label: "Delete users",
+    hint: "Delete an account and all its data.",
+  },
+  {
+    key: "users.suspend",
+    label: "Suspend users",
+    hint: "Block and unblock sign-in.",
+  },
+  {
+    key: "users.password",
+    label: "Set passwords",
+    hint: "Give a user a new password.",
+  },
+  {
+    key: "sessions.view",
+    label: "View sessions",
+    hint: "See who is signed in, on which devices.",
+  },
+  {
+    key: "sessions.revoke",
+    label: "Sign out devices",
+    hint: "Sign a user out of one device or all.",
+  },
+  {
+    key: "activity.view",
+    label: "View activity log",
+    hint: "See what admins have done.",
+  },
+  {
+    key: "system_config.edit",
+    label: "System config",
+    hint: "Sign-ups, passkeys, notice banner, theme and shortcut defaults.",
+  },
+];
+
+/** Renders `children` only for an admin holding `permission`. */
+export function RequirePermission({
+  permission,
+  children,
+}: {
+  permission: AdminPermission;
+  children: React.ReactNode;
+}) {
+  const { can, loaded } = useAdminCan();
+  if (!loaded) return null;
+  if (!can(permission))
+    return (
+      <EmptyState icon={<Lock />} title="You don't have access to this">
+        Ask the master admin to give you this permission.
+      </EmptyState>
+    );
+  return <>{children}</>;
+}
+
+/** "@sonal_admin suspended the account for @riya". */
+export function ActionLine({
+  a,
+  className,
+}: {
+  a: AdminAction;
+  className?: string;
+}) {
+  return (
+    <p className={cn("min-w-0", className)}>
+      <UserLink
+        id={a.adminId}
+        name={a.adminName}
+        username={a.adminUsername}
+        fallback="A deleted admin"
+      />{" "}
+      {actionText(a)}
+      {/* A deleted account's name is already in the text. */}
+      {a.action !== "delete_user" && (
+        <>
+          {" for "}
+          <UserLink
+            id={a.targetId}
+            name={a.targetName}
+            username={a.targetUsername}
+          />
+        </>
+      )}
+    </p>
   );
 }

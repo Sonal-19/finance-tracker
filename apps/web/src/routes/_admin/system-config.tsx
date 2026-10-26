@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { RequirePermission } from "@/components/admin/admin-common";
 import { SectionCard } from "@/components/app/section-card";
 import { ShortcutEditor } from "@/components/app/shortcuts";
 import {
@@ -37,6 +38,14 @@ export const Route = createFileRoute("/_admin/system-config")({
 // here still round-trips untouched.
 
 function SystemConfigPage() {
+  return (
+    <RequirePermission permission="system_config.edit">
+      <SystemConfigScreen />
+    </RequirePermission>
+  );
+}
+
+function SystemConfigScreen() {
   const { data, isLoading, error } = useSystemConfig();
 
   return (

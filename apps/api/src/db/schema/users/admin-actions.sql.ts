@@ -10,6 +10,10 @@ export const adminActionTypes = [
   "suspend",
   "reactivate",
   "reset_password",
+  "edit_user",
+  "delete_user",
+  "change_permissions",
+  "transfer_master",
 ] as const;
 export type AdminActionType = (typeof adminActionTypes)[number];
 export const adminActionTypeEnum = pgEnum(

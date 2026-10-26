@@ -126,3 +126,53 @@ export const useSetUserPassword = () =>
   useAdminMutation(({ id, password }: { id: number; password: string }) =>
     callMsg(api.admin.users({ id }).password.post({ password })),
   );
+
+/** The signed-in admin's own access: master or not, and their permissions. */
+export const useAdminMe = () =>
+  useQuery({
+    queryKey: ["admin", "me"],
+    queryFn: () => call(api.admin.me.get()),
+    staleTime: 30_000,
+  });
+export type AdminPermission = NonNullable<
+  ReturnType<typeof useAdminMe>["data"]
+>["permissions"][number];
+
+/** `can("users.edit")`; false until the answer arrives. */
+export function useAdminCan() {
+  const { data } = useAdminMe();
+  return {
+    master: data?.master ?? false,
+    can: (p: AdminPermission) => data?.permissions.includes(p) ?? false,
+    loaded: !!data,
+  };
+}
+
+export const useEditUser = () =>
+  useAdminMutation(
+    ({
+      id,
+      ...body
+    }: {
+      id: number;
+      name?: string;
+      email?: string;
+      username?: string;
+    }) => callMsg(api.admin.users({ id }).patch(body)),
+  );
+
+export const useDeleteUser = () =>
+  useAdminMutation(({ id, confirm }: { id: number; confirm: string }) =>
+    callMsg(api.admin.users({ id }).delete({ confirm })),
+  );
+
+export const useSetPermissions = () =>
+  useAdminMutation(
+    ({ id, permissions }: { id: number; permissions: AdminPermission[] }) =>
+      callMsg(api.admin.users({ id }).permissions.put({ permissions })),
+  );
+
+export const useTransferMaster = () =>
+  useAdminMutation((id: number) =>
+    callMsg(api.admin.users({ id }).master.post()),
+  );

@@ -18,7 +18,7 @@ import {
   YAxis,
 } from "recharts";
 import {
-  actionText,
+  ActionLine,
   ago,
   count,
   DeviceIcon,
@@ -35,6 +35,7 @@ import { Button } from "@/components/ui/button";
 import {
   type AdminOverview,
   useAdminActivity,
+  useAdminCan,
   useAdminOverview,
   useAdminSessions,
 } from "@/hooks/use-admin";
@@ -45,17 +46,21 @@ export const Route = createFileRoute("/_admin/admin/")({
 
 function AdminOverviewPage() {
   const overview = useAdminOverview();
+  const { can } = useAdminCan();
   return (
     <div className="space-y-5">
       <PageHeader
         title="Admin overview"
         description="Everyone using the app, at a glance. Counts only, never anyone's amounts."
         actions={
-          <Button asChild>
-            <Link to="/admin/users" search={{ create: true }}>
-              <UserPlus /> Create user
-            </Link>
-          </Button>
+          can("users.create") &&
+          can("users.view") && (
+            <Button asChild>
+              <Link to="/admin/users" search={{ create: true }}>
+                <UserPlus /> Create user
+              </Link>
+            </Button>
+          )
         }
       />
       {overview.isLoading ? (
@@ -66,8 +71,8 @@ function AdminOverviewPage() {
         <Overview data={overview.data} />
       )}
       <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
-        <RecentSessions />
-        <RecentActivity />
+        {can("sessions.view") && <RecentSessions />}
+        {can("activity.view") && <RecentActivity />}
       </div>
     </div>
   );
@@ -357,19 +362,7 @@ function RecentActivity() {
         <ul className="space-y-3 text-sm">
           {data.items.slice(0, 6).map((a) => (
             <li key={a.id}>
-              <p>
-                <UserLink
-                  id={a.adminId}
-                  name={a.adminName}
-                  username={a.adminUsername}
-                />{" "}
-                {actionText(a)} for{" "}
-                <UserLink
-                  id={a.targetId}
-                  name={a.targetName}
-                  username={a.targetUsername}
-                />
-              </p>
+              <ActionLine a={a} />
               <p className="text-xs text-muted-foreground">
                 {ago(a.createdAt)}
               </p>

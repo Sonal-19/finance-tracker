@@ -2,10 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { useState } from "react";
 import {
-  actionText,
+  ActionLine,
   ago,
   Pager,
-  UserLink,
+  RequirePermission,
 } from "@/components/admin/admin-common";
 import { SectionCard } from "@/components/app/section-card";
 import { PageHeader } from "@/components/common/page-header";
@@ -17,6 +17,14 @@ export const Route = createFileRoute("/_admin/admin/activity")({
 });
 
 function AdminActivityPage() {
+  return (
+    <RequirePermission permission="activity.view">
+      <ActivityLog />
+    </RequirePermission>
+  );
+}
+
+function ActivityLog() {
   const [page, setPage] = useState(1);
   const { data, isLoading, error } = useAdminActivity(page);
   const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
@@ -44,19 +52,7 @@ function AdminActivityPage() {
                   key={a.id}
                   className="flex flex-col gap-0.5 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5"
                 >
-                  <p className="min-w-0">
-                    <UserLink
-                      id={a.adminId}
-                      name={a.adminName}
-                      username={a.adminUsername}
-                    />{" "}
-                    {actionText(a)} for{" "}
-                    <UserLink
-                      id={a.targetId}
-                      name={a.targetName}
-                      username={a.targetUsername}
-                    />
-                  </p>
+                  <ActionLine a={a} />
                   <time
                     dateTime={String(a.createdAt)}
                     title={format(new Date(a.createdAt), "d MMM yyyy, h:mm a")}

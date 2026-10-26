@@ -3,6 +3,7 @@ import { useState } from "react";
 import {
   count,
   Pager,
+  RequirePermission,
   RoleBadge,
   SearchBox,
   SessionItem,
@@ -17,13 +18,24 @@ import {
   PageLoader,
   Spinner,
 } from "@/components/common/states";
-import { useAdminSessions } from "@/hooks/use-admin";
+import { useAdminCan, useAdminSessions } from "@/hooks/use-admin";
+import { useAuth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/_admin/admin/sessions")({
   component: AdminSessionsPage,
 });
 
 function AdminSessionsPage() {
+  return (
+    <RequirePermission permission="sessions.view">
+      <SessionList />
+    </RequirePermission>
+  );
+}
+
+function SessionList() {
+  const { user: me } = useAuth();
+  const { master, can } = useAdminCan();
   const [page, setPage] = useState(1);
   const search = useSearchText(() => setPage(1));
   const { data, isLoading, isFetching, error } = useAdminSessions(
@@ -70,6 +82,11 @@ function AdminSessionsPage() {
                 <SessionItem
                   key={s.id}
                   session={s}
+                  // Other admins' devices are the master's to sign out.
+                  canRevoke={
+                    can("sessions.revoke") &&
+                    (master || s.user.role !== "admin" || s.user.id === me?.id)
+                  }
                   owner={
                     <p className="flex min-w-0 items-center gap-1.5 text-xs">
                       <UserLink
@@ -80,7 +97,10 @@ function AdminSessionsPage() {
                       <span className="truncate text-muted-foreground">
                         {s.user.name}
                       </span>
-                      <RoleBadge role={s.user.role} />
+                      <RoleBadge
+                        role={s.user.role}
+                        master={s.user.masterSince}
+                      />
                     </p>
                   }
                 />

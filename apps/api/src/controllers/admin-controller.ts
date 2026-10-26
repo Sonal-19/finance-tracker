@@ -14,14 +14,18 @@ import Elysia, { t } from "elysia";
 import { db } from "$/db";
 import {
   type AdminActionType,
+  type AdminPermission,
   accountsTable,
   adminActionsTable,
+  adminGrantsTable,
+  adminPermissions,
   attachmentsTable,
   authsTable,
   booksTable,
   passkeysTable,
   peopleTable,
   type SelectAuth,
+  type SelectUser,
   splitsTable,
   transactionsTable,
   userRoles,
@@ -29,9 +33,15 @@ import {
   usersTable,
 } from "$/db/schema";
 import { APP_TZ } from "$/env";
+import {
+  adminPermissionsOf,
+  isMaster,
+  lacks,
+  targetProblem,
+} from "$/lib/services/admin-access-service";
 import { coreAuthService } from "$/lib/services/core-auth-service";
 import { userCacheService } from "$/lib/services/user-cache-service";
-import { createUser } from "$/lib/services/user-service";
+import { createUser, deleteUser } from "$/lib/services/user-service";
 import {
   isUniqueViolation,
   normalizeUsername,
@@ -46,7 +56,9 @@ import { tEnum } from "$/lib/utils/schema";
 import { protectedAdmin } from "$/pre-processor";
 
 // The only routes that read across users. Return counts and profile fields,
-// never anyone's amounts.
+// never anyone's amounts. Any admin sees the overview; everything else needs
+// a permission the master admin granted (`authorize`), and roles, grants and
+// other admins' accounts are the master's alone.
 
 const SIGNUP_DAYS = 30;
 const PAGE_SIZE = 25;
@@ -64,6 +76,7 @@ const profileColumns = {
   email: usersTable.email,
   username: usersTable.username,
   role: usersTable.role,
+  masterSince: usersTable.masterSince,
   status: usersTable.status,
   suspendedAt: usersTable.suspendedAt,
   createdAt: usersTable.createdAt,
@@ -132,12 +145,54 @@ async function findUser(id: number) {
     .limit(1);
   return row;
 }
+type Target = NonNullable<Awaited<ReturnType<typeof findUser>>>;
+
+type Denied = { code: 400 | 403 | 404; message: string };
+const MASTER_ONLY = "Only the master admin can do that";
+
+/** Checks `admin` may do `need` (a permission, or "master"). With a
+ * `targetId`, also loads that user and checks they may act on them. */
+async function authorize(
+  admin: SelectUser,
+  need: AdminPermission | "master",
+): Promise<Denied | null>;
+async function authorize(
+  admin: SelectUser,
+  need: AdminPermission | "master",
+  targetId: number,
+): Promise<Denied | Target>;
+async function authorize(
+  admin: SelectUser,
+  need: AdminPermission | "master",
+  targetId?: number,
+): Promise<Denied | Target | null> {
+  if (need === "master") {
+    if (!isMaster(admin)) return { code: 403, message: MASTER_ONLY };
+  } else {
+    const missing = await lacks(admin, need);
+    if (missing) return { code: 403, message: missing };
+  }
+  if (targetId === undefined) return null;
+  const target = await findUser(targetId);
+  if (!target) return { code: 404, message: "User not found" };
+  const problem = targetProblem(admin, target);
+  return problem ? { code: 403, message: problem } : target;
+}
+const denied = (r: unknown): r is Denied =>
+  !!r && typeof r === "object" && "code" in r;
 
 export const adminController = new Elysia({
   name: "admin_controller",
   prefix: "/admin",
 })
   .use(protectedAdmin)
+  /** The signed-in admin's own access, so the console shows only what works. */
+  .get("/me", async ({ user }) =>
+    ok({
+      master: isMaster(user),
+      permissions: await adminPermissionsOf(user),
+    }),
+  )
   .get("/overview", async () => {
     const now = new Date();
     const end = today();
@@ -229,7 +284,9 @@ export const adminController = new Elysia({
   })
   .get(
     "/users",
-    async ({ query }) => {
+    async ({ query, status, user: admin }) => {
+      const no = await authorize(admin, "users.view");
+      if (no) return status(no.code, fail(no.message));
       const q = query.q?.trim();
       const page = query.page ?? 1;
       const like = q ? `%${q.replace(/[\\%_]/g, "\\$&")}%` : null;
@@ -283,6 +340,11 @@ export const adminController = new Elysia({
   .post(
     "/users",
     async ({ body, status, user: admin }) => {
+      const no = await authorize(
+        admin,
+        body.role === "admin" ? "master" : "users.create",
+      );
+      if (no) return status(no.code, fail(no.message));
       const email = normalizeEmail(body.email);
       const username = normalizeUsername(body.username);
       const invalid = validateUsername(username);
@@ -335,10 +397,13 @@ export const adminController = new Elysia({
   )
   .get(
     "/users/:id",
-    async ({ params, status, token }) => {
+    async ({ params, status, token, user: me }) => {
+      const no = await authorize(me, "users.view");
+      if (no) return status(no.code, fail(no.message));
       const profile = await findUser(params.id);
       if (!profile) return status(404, fail("User not found"));
       const id = profile.id;
+      const mine = await adminPermissionsOf(me);
       const countOf = (
         table:
           | typeof transactionsTable
@@ -366,6 +431,7 @@ export const adminController = new Elysia({
         [files],
         sessions,
         actions,
+        grants,
       ] = await Promise.all([
         countOf(transactionsTable),
         countOf(splitsTable),
@@ -384,7 +450,11 @@ export const adminController = new Elysia({
         db
           .select(sessionColumns)
           .from(authsTable)
-          .where(eq(authsTable.userId, id))
+          .where(
+            mine.includes("sessions.view")
+              ? eq(authsTable.userId, id)
+              : sql`false`,
+          )
           .orderBy(
             sql`(${authsTable.state} = 'active' and ${authsTable.expiresAt} > now()) desc`,
             desc(authsTable.createdAt),
@@ -402,9 +472,14 @@ export const adminController = new Elysia({
           .from(adminActionsTable)
           .leftJoin(admin, eq(admin.id, adminActionsTable.adminId))
           .leftJoin(target, eq(target.id, adminActionsTable.targetUserId))
-          .where(eq(adminActionsTable.targetUserId, id))
+          .where(
+            mine.includes("activity.view")
+              ? eq(adminActionsTable.targetUserId, id)
+              : sql`false`,
+          )
           .orderBy(desc(adminActionsTable.createdAt))
           .limit(20),
+        adminPermissionsOf(profile),
       ]);
 
       const now = new Date();
@@ -427,6 +502,10 @@ export const adminController = new Elysia({
         sessions: all.filter((s) => s.live),
         pastSessions: all.filter((s) => !s.live).slice(0, 15),
         actions,
+        /** An admin's permissions (every one for the master). */
+        permissions: grants,
+        /** What the signed-in admin may do to this account. */
+        canManage: targetProblem(me, profile) === null,
       });
     },
     { params: tId },
@@ -434,8 +513,8 @@ export const adminController = new Elysia({
   .delete(
     "/users/:id/sessions",
     async ({ params, status, user: admin, token }) => {
-      const target = await findUser(params.id);
-      if (!target) return status(404, fail("User not found"));
+      const target = await authorize(admin, "sessions.revoke", params.id);
+      if (denied(target)) return status(target.code, fail(target.message));
       // An admin signing themself out everywhere keeps this session.
       const keep = target.id === admin.id ? (token ?? undefined) : undefined;
       await coreAuthService.revokeAllForUser(target.id, keep);
@@ -451,7 +530,9 @@ export const adminController = new Elysia({
   )
   .get(
     "/sessions",
-    async ({ query, token }) => {
+    async ({ query, token, status, user: admin }) => {
+      const no = await authorize(admin, "sessions.view");
+      if (no) return status(no.code, fail(no.message));
       const q = query.q?.trim();
       const page = query.page ?? 1;
       const like = q ? `%${q.replace(/[\\%_]/g, "\\$&")}%` : null;
@@ -476,6 +557,7 @@ export const adminController = new Elysia({
             username: usersTable.username,
             email: usersTable.email,
             role: usersTable.role,
+            masterSince: usersTable.masterSince,
           })
           .from(authsTable)
           .innerJoin(usersTable, eq(usersTable.id, authsTable.userId))
@@ -495,10 +577,12 @@ export const adminController = new Elysia({
           .where(where),
       ]);
       return ok({
-        items: rows.map(({ userId, name, username, email, role, ...s }) => ({
-          ...serializeSession(s, token),
-          user: { id: userId, name, username, email, role },
-        })),
+        items: rows.map(
+          ({ userId, name, username, email, role, masterSince, ...s }) => ({
+            ...serializeSession(s, token),
+            user: { id: userId, name, username, email, role, masterSince },
+          }),
+        ),
         total: total!.n,
         page,
         pageSize: PAGE_SIZE,
@@ -522,7 +606,10 @@ export const adminController = new Elysia({
         .from(authsTable)
         .where(eq(authsTable.id, params.id))
         .limit(1);
-      if (!row || !(await coreAuthService.revokeSession(row.userId, params.id)))
+      if (!row) return status(404, fail("That session has already ended"));
+      const target = await authorize(admin, "sessions.revoke", row.userId);
+      if (denied(target)) return status(target.code, fail(target.message));
+      if (!(await coreAuthService.revokeSession(row.userId, params.id)))
         return status(404, fail("That session has already ended"));
       const device = describeDevice(row.details?.userAgent).name;
       logAction(admin.id, "revoke_session", row.userId, { device });
@@ -535,14 +622,22 @@ export const adminController = new Elysia({
     async ({ params, body, status, user: admin }) => {
       if (params.id === admin.id)
         return status(400, fail("You can't change your own role"));
-      const before = await findUser(params.id);
-      if (!before) return status(404, fail("User not found"));
+      const before = await authorize(admin, "master", params.id);
+      if (denied(before)) return status(before.code, fail(before.message));
       if (before.role === body.role) return ok(null, "Nothing to change");
-      const [row] = await db
-        .update(usersTable)
-        .set({ role: body.role })
-        .where(eq(usersTable.id, params.id))
-        .returning();
+      const row = await db.transaction(async (tx) => {
+        // A former admin keeps no permissions to come back to.
+        if (body.role === "user")
+          await tx
+            .delete(adminGrantsTable)
+            .where(eq(adminGrantsTable.userId, params.id));
+        const [r] = await tx
+          .update(usersTable)
+          .set({ role: body.role })
+          .where(eq(usersTable.id, params.id))
+          .returning();
+        return r;
+      });
       userCacheService.set(row!);
       logAction(admin.id, "change_role", row!.id, {
         from: before.role,
@@ -562,8 +657,8 @@ export const adminController = new Elysia({
     async ({ params, body, status, user: admin }) => {
       if (params.id === admin.id)
         return status(400, fail("You can't suspend your own account"));
-      const before = await findUser(params.id);
-      if (!before) return status(404, fail("User not found"));
+      const before = await authorize(admin, "users.suspend", params.id);
+      if (denied(before)) return status(before.code, fail(before.message));
       if (before.status === body.status) return ok(null, "Nothing to change");
       const suspend = body.status === "suspended";
       const [row] = await db
@@ -588,8 +683,8 @@ export const adminController = new Elysia({
     async ({ params, body, status, user: admin }) => {
       if (params.id === admin.id)
         return status(400, fail("Change your own password in Settings"));
-      const target = await findUser(params.id);
-      if (!target) return status(404, fail("User not found"));
+      const target = await authorize(admin, "users.password", params.id);
+      if (denied(target)) return status(target.code, fail(target.message));
       await db
         .update(usersTable)
         .set({ passwordHash: await Bun.password.hash(body.password) })
@@ -609,7 +704,9 @@ export const adminController = new Elysia({
   )
   .get(
     "/activity",
-    async ({ query }) => {
+    async ({ query, status, user: me }) => {
+      const no = await authorize(me, "activity.view");
+      if (no) return status(no.code, fail(no.message));
       const page = query.page ?? 1;
       const target = alias(usersTable, "target");
       const admin = alias(usersTable, "admin");
@@ -641,4 +738,161 @@ export const adminController = new Elysia({
       return ok({ items: rows, total: total!.n, page, pageSize: PAGE_SIZE });
     },
     { query: t.Object({ page: t.Optional(t.Numeric({ minimum: 1 })) }) },
+  )
+  .patch(
+    "/users/:id",
+    async ({ params, body, status, user: admin }) => {
+      const target = await authorize(admin, "users.edit", params.id);
+      if (denied(target)) return status(target.code, fail(target.message));
+      const set: Partial<
+        Pick<SelectUser, "name" | "email" | "username" | "usernameChangedAt">
+      > = {};
+      if (body.name !== undefined) set.name = body.name.trim();
+      if (body.email !== undefined) {
+        const email = normalizeEmail(body.email);
+        if (email !== target.email) {
+          const [taken] = await db
+            .select({ id: usersTable.id })
+            .from(usersTable)
+            .where(eq(usersTable.email, email));
+          if (taken)
+            return status(
+              409,
+              fail("An account with this email already exists"),
+            );
+          set.email = email;
+        }
+      }
+      if (body.username !== undefined) {
+        const username = normalizeUsername(body.username);
+        if (username !== target.username) {
+          const invalid = validateUsername(username);
+          if (invalid) return status(400, fail(invalid));
+          if (usernameService.isTaken(username))
+            return status(409, fail("That username is taken"));
+          // An admin's rename doesn't start the user's 30-day wait.
+          set.username = username;
+        }
+      }
+      if (!Object.keys(set).length) return ok(null, "Nothing to change");
+      try {
+        const [row] = await db
+          .update(usersTable)
+          .set(set)
+          .where(eq(usersTable.id, target.id))
+          .returning();
+        userCacheService.set(row!);
+        if (set.username)
+          usernameService.set(row!.id, row!.username, target.username);
+        logAction(admin.id, "edit_user", row!.id, {
+          fields: Object.keys(set).join(", "),
+        });
+        return ok(null, `Saved @${row!.username}`);
+      } catch (e) {
+        if (isUniqueViolation(e))
+          return status(409, fail("That username or email is already taken"));
+        throw e;
+      }
+    },
+    {
+      params: tId,
+      body: t.Object({
+        name: t.Optional(t.String({ minLength: 2, maxLength: 80 })),
+        email: t.Optional(t.String({ format: "email", maxLength: 254 })),
+        username: t.Optional(t.String({ pattern: USERNAME_PATTERN })),
+      }),
+    },
+  )
+  .delete(
+    "/users/:id",
+    async ({ params, body, status, user: admin }) => {
+      if (params.id === admin.id)
+        return status(400, fail("Delete your own account from Settings"));
+      const target = await authorize(admin, "users.delete", params.id);
+      if (denied(target)) return status(target.code, fail(target.message));
+      if (normalizeUsername(body.confirm) !== target.username)
+        return status(400, fail(`Type ${target.username} to confirm`));
+      await deleteUser(target);
+      // The target is gone, so the log keeps who it was.
+      logAction(admin.id, "delete_user", null, {
+        username: target.username,
+        email: target.email,
+      });
+      return ok(null, `Deleted @${target.username} and all their data`);
+    },
+    { params: tId, body: t.Object({ confirm: t.String({ maxLength: 40 }) }) },
+  )
+  .put(
+    "/users/:id/permissions",
+    async ({ params, body, status, user: admin }) => {
+      const target = await authorize(admin, "master", params.id);
+      if (denied(target)) return status(target.code, fail(target.message));
+      if (target.role !== "admin")
+        return status(400, fail("Make them an admin first"));
+      if (isMaster(target))
+        return status(400, fail("The master admin has every permission"));
+      const next = [...new Set(body.permissions)];
+      const before = await adminPermissionsOf(target);
+      await db.transaction(async (tx) => {
+        await tx
+          .delete(adminGrantsTable)
+          .where(eq(adminGrantsTable.userId, target.id));
+        if (next.length)
+          await tx.insert(adminGrantsTable).values(
+            next.map((permission) => ({
+              userId: target.id,
+              permission,
+              grantedBy: admin.id,
+            })),
+          );
+      });
+      const added = next.filter((p) => !before.includes(p));
+      const removed = before.filter((p) => !next.includes(p));
+      if (added.length || removed.length)
+        logAction(admin.id, "change_permissions", target.id, {
+          ...(added.length && { added: added.join(", ") }),
+          ...(removed.length && { removed: removed.join(", ") }),
+        });
+      return ok(next, `Permissions saved for @${target.username}`);
+    },
+    {
+      params: tId,
+      body: t.Object({
+        permissions: t.Array(tEnum(adminPermissions), { maxItems: 50 }),
+      }),
+    },
+  )
+  .post(
+    "/users/:id/master",
+    async ({ params, status, user: admin }) => {
+      const target = await authorize(admin, "master", params.id);
+      if (denied(target)) return status(target.code, fail(target.message));
+      if (target.id === admin.id)
+        return status(400, fail("You're already the master admin"));
+      if (target.role !== "admin" || target.status !== "active")
+        return status(400, fail("Only an active admin can become master"));
+      const [mine, theirs] = await db.transaction(async (tx) => {
+        // Clear ours first: the unique index allows one master at a time.
+        const [a] = await tx
+          .update(usersTable)
+          .set({ masterSince: null })
+          .where(eq(usersTable.id, admin.id))
+          .returning();
+        const [b] = await tx
+          .update(usersTable)
+          .set({ masterSince: new Date() })
+          .where(eq(usersTable.id, target.id))
+          .returning();
+        // The new master has everything; stored grants would only be noise.
+        await tx
+          .delete(adminGrantsTable)
+          .where(eq(adminGrantsTable.userId, target.id));
+        return [a!, b!];
+      });
+      userCacheService.set(mine);
+      userCacheService.set(theirs);
+      logAction(admin.id, "transfer_master", target.id);
+      return ok(null, `@${target.username} is now the master admin`);
+    },
+    { params: tId },
   );

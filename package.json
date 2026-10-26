@@ -13,7 +13,8 @@
     "deploy:backend": "zsh scripts/deploy-backend.sh",
     "deploy:frontend": "zsh scripts/deploy-frontend.sh",
     "deploy:seed": "zsh scripts/deploy-seed.sh",
-    "deploy:make-admin": "zsh scripts/deploy-make-admin.sh"
+    "deploy:make-admin": "zsh scripts/deploy-make-admin.sh",
+    "deploy:create-admin": "zsh scripts/deploy-create-admin.sh"
   },
   "workspaces": {
     "catalog": {

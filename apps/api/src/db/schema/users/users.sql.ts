@@ -1,4 +1,11 @@
-import { index, pgEnum, pgTable, primaryKey } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import {
+  index,
+  pgEnum,
+  pgTable,
+  primaryKey,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 
 /** `admin` unlocks the system-config page (see `protectedAdmin`). Promote
  * a user with `bun run --cwd apps/api db:make-admin <email>`. */
@@ -21,35 +28,47 @@ export const userStatuses = ["active", "suspended"] as const;
 export type UserStatus = (typeof userStatuses)[number];
 export const userStatusEnum = pgEnum("user_status", userStatuses);
 
-export const usersTable = pgTable("users", (pg) => ({
-  id: pg.serial().primaryKey(),
-  name: pg.text().notNull(),
-  email: pg.text().notNull().unique(),
-  /** Lowercase `[a-z0-9_]{3,20}`; the handle others tag on splits. Kept in
-   * memory by `usernameService` for fast availability checks. */
-  username: pg.text().notNull().unique(),
-  usernameChangedAt: pg.timestamp("username_changed_at", {
-    withTimezone: true,
+export const usersTable = pgTable(
+  "users",
+  (pg) => ({
+    id: pg.serial().primaryKey(),
+    name: pg.text().notNull(),
+    email: pg.text().notNull().unique(),
+    /** Lowercase `[a-z0-9_]{3,20}`; the handle others tag on splits. Kept in
+     * memory by `usernameService` for fast availability checks. */
+    username: pg.text().notNull().unique(),
+    usernameChangedAt: pg.timestamp("username_changed_at", {
+      withTimezone: true,
+    }),
+    taggedExpenses: taggedExpenseModeEnum("tagged_expenses")
+      .notNull()
+      .default("manual"),
+    passwordHash: pg.text("password_hash").notNull(),
+    role: userRoleEnum("role").notNull().default("user"),
+    /** Set on the one master admin (an admin who alone changes roles and
+     * grants admin permissions); null for everyone else. */
+    masterSince: pg.timestamp("master_since", { withTimezone: true }),
+    status: userStatusEnum("status").notNull().default("active"),
+    suspendedAt: pg.timestamp("suspended_at", { withTimezone: true }),
+    /** Overall monthly spending budget; null = not set. */
+    monthlyBudget: pg.bigint("monthly_budget", { mode: "number" }),
+    createdAt: pg
+      .timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: pg
+      .timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
   }),
-  taggedExpenses: taggedExpenseModeEnum("tagged_expenses")
-    .notNull()
-    .default("manual"),
-  passwordHash: pg.text("password_hash").notNull(),
-  role: userRoleEnum("role").notNull().default("user"),
-  status: userStatusEnum("status").notNull().default("active"),
-  suspendedAt: pg.timestamp("suspended_at", { withTimezone: true }),
-  /** Overall monthly spending budget; null = not set. */
-  monthlyBudget: pg.bigint("monthly_budget", { mode: "number" }),
-  createdAt: pg
-    .timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  updatedAt: pg
-    .timestamp("updated_at", { withTimezone: true })
-    .defaultNow()
-    .notNull()
-    .$onUpdate(() => new Date()),
-}));
+  (t) => [
+    // At most one master: every non-null row indexes the same `true`.
+    uniqueIndex("users_one_master_uq")
+      .on(sql`(${t.masterSince} is not null)`)
+      .where(sql`${t.masterSince} is not null`),
+  ],
+);
 
 export type InsertUser = typeof usersTable.$inferInsert;
 export type SelectUser = typeof usersTable.$inferSelect;

@@ -1,5 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
+  Crown,
   History,
   LayoutDashboard,
   LogOut,
@@ -13,31 +14,53 @@ import type * as React from "react";
 import { Avatar, UserMenu, useSignOut } from "@/components/app/user-menu";
 import { Logo } from "@/components/common/logo";
 import { Button } from "@/components/ui/button";
+import { type AdminPermission, useAdminCan } from "@/hooks/use-admin";
 import { cn } from "@/lib/utils";
 import type { AppUser } from "@/stores/auth-store";
 
-export const ADMIN_AREA_NAV = [
+/** `needs`: the permission that opens the page (the overview needs none). */
+const ADMIN_AREA_NAV: {
+  to:
+    | "/admin"
+    | "/admin/users"
+    | "/admin/sessions"
+    | "/admin/activity"
+    | "/system-config";
+  label: string;
+  short: string;
+  icon: typeof Users;
+  needs?: AdminPermission;
+}[] = [
   { to: "/admin", label: "Overview", short: "Overview", icon: LayoutDashboard },
-  { to: "/admin/users", label: "Users", short: "Users", icon: Users },
+  {
+    to: "/admin/users",
+    label: "Users",
+    short: "Users",
+    icon: Users,
+    needs: "users.view",
+  },
   {
     to: "/admin/sessions",
     label: "Sessions & devices",
     short: "Sessions",
     icon: MonitorSmartphone,
+    needs: "sessions.view",
   },
   {
     to: "/admin/activity",
     label: "Activity log",
     short: "Activity",
     icon: History,
+    needs: "activity.view",
   },
   {
     to: "/system-config",
     label: "System config",
     short: "Config",
     icon: SlidersHorizontal,
+    needs: "system_config.edit",
   },
-] as const;
+];
 
 /** `/admin` is active only on itself; the others on their sub-pages too. */
 const isActive = (pathname: string, to: string) =>
@@ -54,6 +77,8 @@ export function AdminShell({
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const signOut = useSignOut();
+  const { master, can } = useAdminCan();
+  const nav = ADMIN_AREA_NAV.filter((n) => !n.needs || can(n.needs));
 
   return (
     <div className="min-h-dvh md:grid md:grid-cols-[220px_1fr] lg:grid-cols-[248px_1fr]">
@@ -62,11 +87,17 @@ export function AdminShell({
         <Link to="/admin" className="flex items-center gap-2 px-5 py-5">
           <Logo />
         </Link>
-        <p className="mx-5 mb-3 inline-flex w-fit items-center gap-1.5 rounded-full bg-primary/12 px-2.5 py-1 text-xs font-semibold text-primary">
-          <ShieldCheck className="size-3.5" /> Admin console
-        </p>
+        {master ? (
+          <p className="mx-5 mb-3 inline-flex w-fit items-center gap-1.5 rounded-full bg-warning/15 px-2.5 py-1 text-xs font-semibold text-warning">
+            <Crown className="size-3.5" /> Master admin
+          </p>
+        ) : (
+          <p className="mx-5 mb-3 inline-flex w-fit items-center gap-1.5 rounded-full bg-primary/12 px-2.5 py-1 text-xs font-semibold text-primary">
+            <ShieldCheck className="size-3.5" /> Admin console
+          </p>
+        )}
         <nav className="flex-1 space-y-0.5 overflow-y-auto px-3">
-          {ADMIN_AREA_NAV.map((n) => (
+          {nav.map((n) => (
             <Link
               key={n.to}
               to={n.to}
@@ -139,8 +170,11 @@ export function AdminShell({
 
       {/* Phone bottom tab bar */}
       <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t bg-card/95 backdrop-blur-lg md:hidden">
-        <div className="grid h-16 grid-cols-5 items-center">
-          {ADMIN_AREA_NAV.map((n) => {
+        <div
+          className="grid h-16 items-center"
+          style={{ gridTemplateColumns: `repeat(${nav.length}, 1fr)` }}
+        >
+          {nav.map((n) => {
             const active = isActive(pathname, n.to);
             return (
               <Link
