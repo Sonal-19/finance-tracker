@@ -8,10 +8,6 @@ import {
   userBlocksTable,
   usersTable,
 } from "$/db/schema";
-import {
-  attachmentKeysOf,
-  deleteStoredObjects,
-} from "$/lib/services/attachment-service";
 import { coreAuthService } from "$/lib/services/core-auth-service";
 import { publicUser } from "$/lib/services/session-service";
 import { systemConfigService } from "$/lib/services/system-config-service";
@@ -20,6 +16,7 @@ import {
   type UserConfigPatch,
   userConfigService,
 } from "$/lib/services/user-config-service";
+import { deleteUser } from "$/lib/services/user-service";
 import {
   isUniqueViolation,
   normalizeUsername,
@@ -248,13 +245,12 @@ export const profileController = new Elysia({
     async ({ user, body, status, cookie }) => {
       const valid = await Bun.password.verify(body.password, user.passwordHash);
       if (!valid) return status(400, fail("Password is incorrect"));
-      await coreAuthService.revokeAllForUser(user.id);
-      // The attachment rows cascade away with the user, so note their files first.
-      const storedKeys = await attachmentKeysOf(user.id);
-      await db.delete(usersTable).where(eq(usersTable.id, user.id));
-      userCacheService.invalidate(user.id);
-      userConfigService.invalidate(user.id);
-      deleteStoredObjects(storedKeys).catch(console.error);
+      if (user.masterSince)
+        return status(
+          400,
+          fail("Make another admin the master before deleting your account"),
+        );
+      await deleteUser(user);
       cookie?.token?.remove();
       return ok(null, "Account deleted");
     },

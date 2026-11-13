@@ -1,6 +1,7 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   ArrowLeftRight,
+  Bell,
   Keyboard,
   LayoutDashboard,
   LogOut,
@@ -17,12 +18,14 @@ import { SplitSheet } from "@/components/split/split-sheet";
 import { TransactionSheet } from "@/components/transactions/transaction-sheet";
 import { Button } from "@/components/ui/button";
 import { usePublicConfig } from "@/hooks/use-passkeys";
+import { useNotifications } from "@/hooks/use-reminders";
 import {
   bindingText,
   useGlobalShortcuts,
   useShortcutMap,
 } from "@/hooks/use-shortcuts";
 import { syncNow } from "@/lib/offline/sync";
+import { syncPush } from "@/lib/push";
 import { cn } from "@/lib/utils";
 import type { AppUser } from "@/stores/auth-store";
 import { useSplitSheet } from "@/stores/split-sheet-store";
@@ -30,7 +33,7 @@ import { useTxnSheet } from "@/stores/txn-sheet-store";
 import { useUiStore } from "@/stores/ui-store";
 import { BookSwitcher } from "./book-switcher";
 import { InstallButton } from "./install-app";
-import { homeFor, navFor } from "./nav-items";
+import { navFor } from "./nav-items";
 import { ShortcutKeys, ShortcutsDialog } from "./shortcuts";
 import { SyncStatus } from "./sync-status";
 import { Avatar, UserMenu, useSignOut } from "./user-menu";
@@ -114,8 +117,31 @@ const MORE_PATHS = [
   "/recurring",
   "/categories",
   "/settings",
-  "/system-config",
+  "/reminders",
 ];
+
+/** The header bell: unread notifications, opens the Reminders inbox. */
+function NotificationBell() {
+  const unread = useNotifications().data?.unread ?? 0;
+  return (
+    <Button variant="ghost" size="icon" className="relative" asChild>
+      <Link
+        to="/reminders"
+        aria-label={
+          unread ? `Notifications, ${unread} unread` : "Notifications"
+        }
+        title="Notifications"
+      >
+        <Bell />
+        {unread > 0 && (
+          <span className="absolute top-1 right-1 grid min-w-4 place-items-center rounded-full bg-expense px-1 text-[10px] leading-4 font-bold text-white">
+            {unread > 9 ? "9+" : unread}
+          </span>
+        )}
+      </Link>
+    </Button>
+  );
+}
 
 export function AppShell({
   user,
@@ -128,11 +154,6 @@ export function AppShell({
   const openNew = useTxnSheet((s) => s.openNew);
   const signOut = useSignOut();
   const nav = navFor(user);
-  const home = homeFor(user);
-  // An admin's Home tab is the admin dashboard, so their own finances sit
-  // under More.
-  const morePaths =
-    home === "/dashboard" ? MORE_PATHS : [...MORE_PATHS, "/dashboard"];
   const notice = usePublicConfig().data?.notice;
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
@@ -143,6 +164,11 @@ export function AppShell({
     binding ? `${label} (${bindingText(binding)})` : label;
   useShortcutHandlers();
   useLaunchAction();
+  // A browser that already allows notifications is re-registered to this
+  // session (subscriptions rotate; a new login is a new session).
+  React.useEffect(() => {
+    void syncPush(user.id);
+  }, [user.id]);
 
   return (
     <div
@@ -164,7 +190,7 @@ export function AppShell({
             collapsed ? "flex-col px-2" : "justify-between px-5",
           )}
         >
-          <Link to={homeFor(user)} aria-label="Dashboard">
+          <Link to="/dashboard" aria-label="Dashboard">
             {collapsed ? (
               <Logo withText={false} iconClassName="size-8" />
             ) : (
@@ -323,6 +349,7 @@ export function AppShell({
                 <SyncStatus compact />
               </div>
               <BookSwitcher />
+              <NotificationBell />
               <UserMenu user={user} />
             </div>
           </div>
@@ -362,10 +389,10 @@ export function AppShell({
                   </button>
                 </div>
               );
-            const to = tab.to === "/dashboard" ? home : tab.to;
+            const to = tab.to;
             const active =
               to === "/more"
-                ? morePaths.some((p) => pathname.startsWith(p))
+                ? MORE_PATHS.some((p) => pathname.startsWith(p))
                 : pathname.startsWith(to);
             return (
               <Link

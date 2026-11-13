@@ -2,6 +2,7 @@ import { queryOptions, useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { ApiError, api, call } from "@/lib/api";
 import { claimDevice, forgetDevice } from "@/lib/offline/sync";
+import { resetPush } from "@/lib/push";
 import { useAuthStore } from "@/stores/auth-store";
 
 export const authQueryOptions = queryOptions({
@@ -37,6 +38,7 @@ export function useAuth() {
 export function useLogout() {
   const clearUser = useAuthStore((s) => s.clearUser);
   return async () => {
+    void resetPush();
     await api.auth.logout.post().catch(() => {});
     clearUser();
     await forgetDevice();

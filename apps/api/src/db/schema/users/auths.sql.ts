@@ -28,6 +28,9 @@ export const authsTable = pgTable(
     ip: pg.text("ip"),
     details: pg.jsonb("details").$type<{ userAgent?: string }>(),
     expiresAt: pg.timestamp("expires_at", { withTimezone: true }).notNull(),
+    /** Last request seen, moved with the rolling expiry (so at most hourly);
+     * null = not used since sign-in. */
+    lastSeenAt: pg.timestamp("last_seen_at", { withTimezone: true }),
     createdAt: pg
       .timestamp("created_at", { withTimezone: true })
       .defaultNow()

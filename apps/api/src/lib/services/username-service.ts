@@ -95,6 +95,11 @@ class UsernameService {
     if (previous) this.#byName.delete(previous);
     this.#byName.set(username, userId);
   }
+
+  /** Free a deleted user's username. */
+  remove(username: string) {
+    this.#byName.delete(username);
+  }
 }
 
 export const usernameService = new UsernameService();

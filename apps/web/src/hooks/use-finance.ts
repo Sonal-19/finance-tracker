@@ -346,6 +346,10 @@ export type RecurringInput = {
   frequency: "daily" | "weekly" | "monthly" | "yearly";
   startDate: string;
   endDate?: string | null;
+  reminder?: "default" | "custom" | "off";
+  reminderDaysBefore?: number | null;
+  reminderTime?: string | null;
+  reminderCadence?: "daily" | "once" | null;
 };
 
 export function useSaveRecurring() {

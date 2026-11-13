@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "$/db";
 import {
   accountsTable,
@@ -386,7 +386,7 @@ async function mainSeed() {
     await seedSplits(tx, user.id, cat, end, goaTrip!.id);
     console.info(`Seeded ${txns.length} transactions + shared expenses`);
 
-    await createUser(
+    const admin = await createUser(
       {
         name: "Admin",
         email: ADMIN_EMAIL,
@@ -396,6 +396,11 @@ async function mainSeed() {
       },
       tx,
     );
+    // The only admin, so the master (grants other admins their permissions).
+    await tx
+      .update(usersTable)
+      .set({ masterSince: new Date() })
+      .where(eq(usersTable.id, admin.id));
   });
 
   console.info("✅ Seed complete");

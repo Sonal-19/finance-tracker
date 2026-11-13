@@ -6,6 +6,7 @@ import { ALLOWED_ORIGIN_HOSTS, IS_PROD, PORT } from "./env";
 import { startAttachmentSweep } from "./lib/services/attachment-service";
 import { coreAuthService } from "./lib/services/core-auth-service";
 import { recurringService } from "./lib/services/recurring-service";
+import { reminderService } from "./lib/services/reminder-service";
 import { systemConfigService } from "./lib/services/system-config-service";
 import { usernameService } from "./lib/services/username-service";
 
@@ -35,6 +36,7 @@ connectionTest().then(async (res) => {
     await systemConfigService.initialize();
     await usernameService.initialize();
     recurringService.startSchedule();
+    reminderService.start();
     startAttachmentSweep();
     app.listen(PORT);
     console.info(`ENV is ${process.env.NODE_ENV}`);

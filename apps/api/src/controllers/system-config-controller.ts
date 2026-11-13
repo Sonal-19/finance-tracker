@@ -1,5 +1,6 @@
 import Elysia, { t } from "elysia";
 import { IS_PROD } from "$/env";
+import { lacks } from "$/lib/services/admin-access-service";
 import { mailService } from "$/lib/services/mail-service";
 import { systemConfigService } from "$/lib/services/system-config-service";
 import { fail, ok } from "$/lib/utils";
@@ -65,6 +66,11 @@ export const systemConfigController = new Elysia({
   prefix: "/admin/system-config",
 })
   .use(protectedAdmin)
+  // Reading the config needs the same grant as changing it.
+  .onBeforeHandle(async ({ user, status }) => {
+    const missing = await lacks(user, "system_config.edit");
+    if (missing) return status(403, fail(missing));
+  })
   .get("/", () => ok(systemConfigService.SYSTEM_CONFIG))
   .patch(
     "/",

@@ -23,7 +23,9 @@ export const authProcessor = new Elysia({ name: "auth_processor" }).derive(
       if (!userId) return { auth: { user: null, token: null } };
 
       const user = await userCacheService.get(userId);
-      if (!user) return { auth: { user: null, token: null } };
+      // Suspending revokes sessions too; this covers the cache's TTL.
+      if (!user || user.status === "suspended")
+        return { auth: { user: null, token: null } };
 
       // Rolling expiry, at most once an hour per session: no DB write and
       // no Set-Cookie on the requests in between.
@@ -80,5 +82,5 @@ export const protectedAdmin = new Elysia({ name: "protected_admin" })
     if (auth?.user?.role !== "admin") {
       return status(404, { success: false, message: "Not found" });
     }
-    return { user: auth.user };
+    return { user: auth.user, token: auth.token };
   });

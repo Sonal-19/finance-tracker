@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronRight, LogOut } from "lucide-react";
-import { homeFor, navFor } from "@/components/app/nav-items";
+import { navFor } from "@/components/app/nav-items";
 import { Avatar, useSignOut } from "@/components/app/user-menu";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -13,7 +13,7 @@ function MorePage() {
   const { user } = useAuth();
   const signOut = useSignOut();
   // Drop what the bottom tab bar already has.
-  const tabs = [homeFor(user), "/transactions", "/reports"];
+  const tabs: string[] = ["/dashboard", "/transactions", "/reports"];
   const items = navFor(user).filter((n) => !tabs.includes(n.to));
   return (
     <div className="space-y-5">

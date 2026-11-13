@@ -1,5 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Pause, Pencil, Play, Plus, Repeat, Trash2 } from "lucide-react";
+import {
+  Bell,
+  BellOff,
+  Pause,
+  Pencil,
+  Play,
+  Plus,
+  Repeat,
+  Trash2,
+} from "lucide-react";
 import { useState } from "react";
 import { AccountPicker, BookPicker } from "@/components/app/pickers";
 import { CategoryIcon } from "@/components/common/category-icon";
@@ -11,6 +20,7 @@ import { PageHeader } from "@/components/common/page-header";
 import { ResponsiveSheet } from "@/components/common/responsive-sheet";
 import { Segmented } from "@/components/common/segmented";
 import { EmptyState, PageLoader } from "@/components/common/states";
+import { TimeInput } from "@/components/common/time-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,7 +42,9 @@ import {
   todayStr,
   ymd,
 } from "@/lib/format";
+import { describeReminder } from "@/lib/reminders";
 import { cn } from "@/lib/utils";
+import { MAX_DAYS_BEFORE } from "$/lib/utils/reminders";
 
 export const Route = createFileRoute("/_app/recurring")({
   component: RecurringPage,
@@ -117,6 +129,16 @@ function RecurringPage() {
                       : "paused"}
                   {r.endDate ? ` · until ${shortDate(r.endDate)}` : ""}
                 </p>
+                {r.status === "active" && (
+                  <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
+                    {r.reminder === "off" ? (
+                      <BellOff className="size-3 shrink-0" />
+                    ) : (
+                      <Bell className="size-3 shrink-0" />
+                    )}
+                    {describeReminder(r)}
+                  </p>
+                )}
               </div>
               <span
                 className={cn(
@@ -202,6 +224,10 @@ function RecurringSheet({
     frequency: "monthly",
     startDate: todayStr(),
     endDate: null,
+    reminder: "default",
+    reminderDaysBefore: 3,
+    reminderTime: "09:00",
+    reminderCadence: "daily",
   };
   const [form, setForm] = useState<Form>(blank);
   const [last, setLast] = useState(value);
@@ -219,6 +245,10 @@ function RecurringSheet({
             frequency: value.frequency,
             startDate: ymd(value.startDate),
             endDate: value.endDate ? ymd(value.endDate) : null,
+            reminder: value.reminder,
+            reminderDaysBefore: value.reminderDaysBefore ?? 3,
+            reminderTime: value.reminderTime ?? "09:00",
+            reminderCadence: value.reminderCadence ?? "daily",
           }
         : blank,
     );
@@ -348,6 +378,7 @@ function RecurringSheet({
           value={form.bookId ?? defaultBook?.id ?? null}
           onChange={(id) => setForm({ ...form, bookId: id })}
         />
+        <ReminderFields form={form} setForm={setForm} />
         <Field label="Label" htmlFor="rec-note">
           <Input
             id="rec-note"
@@ -367,5 +398,81 @@ function RecurringSheet({
         </Button>
       </form>
     </ResponsiveSheet>
+  );
+}
+
+/** When to be reminded before the entry posts. */
+function ReminderFields({
+  form,
+  setForm,
+}: {
+  form: Form;
+  setForm: (f: Form) => void;
+}) {
+  const mode = form.reminder ?? "default";
+  const days = form.reminderDaysBefore ?? 3;
+  return (
+    <div className="space-y-3 rounded-xl border p-3">
+      <div className="flex items-center justify-between gap-2">
+        <Label className="flex items-center gap-1.5">
+          <Bell className="size-4" /> Reminder
+        </Label>
+        <span className="text-xs text-muted-foreground">
+          {describeReminder({ ...form, reminder: mode })}
+        </span>
+      </div>
+      <Segmented
+        className="w-full"
+        size="sm"
+        value={mode}
+        onChange={(reminder) => setForm({ ...form, reminder })}
+        options={[
+          { value: "default", label: "3 days before" },
+          { value: "custom", label: "Custom" },
+          { value: "off", label: "Off" },
+        ]}
+      />
+      {mode === "custom" && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Days before" htmlFor="rec-rem-days">
+              <Input
+                id="rec-rem-days"
+                inputMode="numeric"
+                value={String(days)}
+                onChange={(e) => {
+                  const n = Number(e.target.value.replace(/\D/g, "") || 0);
+                  setForm({
+                    ...form,
+                    reminderDaysBefore: Math.min(MAX_DAYS_BEFORE, n),
+                  });
+                }}
+              />
+            </Field>
+            <Field label="At" htmlFor="rec-rem-time">
+              <TimeInput
+                id="rec-rem-time"
+                value={form.reminderTime ?? "09:00"}
+                onChange={(reminderTime) => setForm({ ...form, reminderTime })}
+              />
+            </Field>
+          </div>
+          {days > 0 && (
+            <Segmented
+              className="w-full"
+              size="sm"
+              value={form.reminderCadence ?? "daily"}
+              onChange={(reminderCadence) =>
+                setForm({ ...form, reminderCadence })
+              }
+              options={[
+                { value: "daily", label: "Every day until due" },
+                { value: "once", label: "Just once" },
+              ]}
+            />
+          )}
+        </div>
+      )}
+    </div>
   );
 }

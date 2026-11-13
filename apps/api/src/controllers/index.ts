@@ -11,7 +11,12 @@ import { fxController } from "./fx-controller";
 import { goalsController } from "./goals-controller";
 import { passkeysController } from "./passkeys-controller";
 import { profileController } from "./profile-controller";
+import { pushController } from "./push-controller";
 import { recurringController } from "./recurring-controller";
+import {
+  notificationsController,
+  remindersController,
+} from "./reminders-controller";
 import { reportsController } from "./reports-controller";
 import { publicSharesController, sharesController } from "./shares-controller";
 import { splitControllers } from "./splits-controller";
@@ -28,6 +33,9 @@ const userControllers = new Elysia({ name: "user_controllers" })
   .use(reportsController)
   .use(budgetsController)
   .use(recurringController)
+  .use(remindersController)
+  .use(notificationsController)
+  .use(pushController)
   .use(goalsController)
   .use(fxController)
   .use(splitControllers)
