@@ -166,6 +166,7 @@ export async function shareEntries(share: SelectBookShare, book: SelectBook) {
         date: T.date,
         note: T.note,
         category: {
+          id: categoriesTable.id,
           name: categoriesTable.name,
           icon: categoriesTable.icon,
           color: categoriesTable.color,

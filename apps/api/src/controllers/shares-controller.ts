@@ -440,14 +440,24 @@ export const publicSharesController = new Elysia({
   )
   .get(
     "/:token/export.csv",
-    async ({ params, ip, cookie, set, status }) => {
+    async ({ params, query, ip, cookie, set, status }) => {
       const found = await findShareFrom(params.token, ip);
       if (!found) return status(404, fail(NOT_FOUND));
       const { share, book } = found;
       if (!isUnlocked(share, cookie[shareCookieName(share)]?.value))
         return status(401, fail("Enter the password first"));
       const { items } = await shareEntries(share, book);
-      const lines = items.map((i) =>
+      // `?categories=1,2`: only that spending, as the page shows it.
+      const picked = new Set(
+        (query.categories ?? "")
+          .split(",")
+          .map(Number)
+          .filter((n) => Number.isInteger(n) && n > 0),
+      );
+      const shown = picked.size
+        ? items.filter((i) => i.type === "debit" && picked.has(i.category.id))
+        : items;
+      const lines = shown.map((i) =>
         [
           i.date,
           i.type === "debit" ? "Spent" : "Received",
@@ -463,7 +473,12 @@ export const publicSharesController = new Elysia({
         `attachment; filename="${(share.title ?? book.name).replace(/[^a-zA-Z0-9 _-]/g, "_")}-expenses.csv"`;
       return ["Date,Type,Category,Note,Amount (INR)", ...lines].join("\n");
     },
-    { params: tToken },
+    {
+      params: tToken,
+      query: t.Object({
+        categories: t.Optional(t.String({ maxLength: 500 })),
+      }),
+    },
   )
   .get(
     "/:token/attachments/:id/file",

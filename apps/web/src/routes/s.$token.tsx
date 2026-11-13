@@ -10,9 +10,10 @@ import {
   Lock,
   Printer,
   Smartphone,
+  X,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { periodLabel } from "@/components/books/share-links";
 import { CategoryIcon } from "@/components/common/category-icon";
@@ -135,11 +136,44 @@ function SharedBook({ token, data }: { token: string; data: PublicShare }) {
   const [preview, setPreview] = useState<{ src: string; name: string } | null>(
     null,
   );
-  // Newest first, so a month's entries are one run of the list.
-  const monthSections = data.months.map((m) => ({
-    ...m,
-    days: groupByDay(items.filter((t) => ymd(t.date).startsWith(m.month))),
-  }));
+  // Spending categories over the whole period, biggest first.
+  const categories = useMemo(() => periodCategories(data.months), [data]);
+  const [picked, setPicked] = useState<ReadonlySet<number>>(new Set());
+  const filtering = picked.size > 0;
+  const toggle = (id: number) =>
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  // Newest first, so a month's entries are one run of the list. While some
+  // categories are picked, only their spending is shown (payments received
+  // belong to no category, so they're left out).
+  const monthSections = data.months
+    .map((m) => {
+      const inMonth = items.filter((t) => ymd(t.date).startsWith(m.month));
+      if (!filtering) return { ...m, days: groupByDay(inMonth) };
+      const cats = m.categories.filter((c) => picked.has(c.categoryId));
+      return {
+        ...m,
+        categories: cats,
+        spent: cats.reduce((n, c) => n + c.amount, 0),
+        received: 0,
+        count: cats.reduce((n, c) => n + c.count, 0),
+        days: groupByDay(
+          inMonth.filter(
+            (t) => t.type === "debit" && picked.has(t.category.id),
+          ),
+        ),
+      };
+    })
+    .filter((m) => !filtering || m.count > 0);
+  const pickedCategories = categories.filter((c) => picked.has(c.categoryId));
+  const csv = `${base}/export.csv${
+    filtering ? `?categories=${[...picked].join(",")}` : ""
+  }`;
 
   return (
     <>
@@ -227,12 +261,21 @@ function SharedBook({ token, data }: { token: string; data: PublicShare }) {
         />
       )}
 
+      {categories.length > 1 && (
+        <CategoryFilter
+          categories={categories}
+          picked={picked}
+          onToggle={toggle}
+          onClear={() => setPicked(new Set())}
+        />
+      )}
+
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-2">
           <h2 className="font-semibold">Month by month</h2>
           <div className="flex gap-1 print:hidden">
             <Button variant="ghost" size="sm" asChild>
-              <a href={`${base}/export.csv`} download>
+              <a href={csv} download>
                 <Download /> CSV
               </a>
             </Button>
@@ -241,6 +284,28 @@ function SharedBook({ token, data }: { token: string; data: PublicShare }) {
             </Button>
           </div>
         </div>
+        {filtering && (
+          <div className="flex items-center gap-3 rounded-2xl bg-muted/60 px-4 py-3 text-sm">
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium">
+                {pickedCategories.map((c) => c.name).join(", ")}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {pickedCategories.reduce((n, c) => n + c.count, 0)} entries ·{" "}
+                {totals.spent > 0
+                  ? `${Math.round(
+                      (pickedCategories.reduce((n, c) => n + c.amount, 0) /
+                        totals.spent) *
+                        100,
+                    )}% of all spending`
+                  : ""}
+              </p>
+            </div>
+            <span className="tabular shrink-0 text-lg font-bold">
+              {formatAmount(pickedCategories.reduce((n, c) => n + c.amount, 0))}
+            </span>
+          </div>
+        )}
         {monthSections.length === 0 ? (
           <EmptyState title="Nothing here yet" />
         ) : (
@@ -250,6 +315,8 @@ function SharedBook({ token, data }: { token: string; data: PublicShare }) {
               month={m}
               separate={due !== null}
               base={base}
+              picked={picked}
+              onToggle={categories.length > 1 ? toggle : undefined}
               onPreview={setPreview}
             />
           ))
@@ -284,6 +351,96 @@ function SharedBook({ token, data }: { token: string; data: PublicShare }) {
   );
 }
 
+type PeriodCategory = PublicShare["months"][number]["categories"][number];
+
+/** Every month's spending added up per category, biggest first. */
+function periodCategories(months: PublicShare["months"]) {
+  const byId = new Map<number, PeriodCategory>();
+  for (const m of months)
+    for (const c of m.categories) {
+      const prev = byId.get(c.categoryId);
+      byId.set(
+        c.categoryId,
+        prev
+          ? {
+              ...prev,
+              amount: prev.amount + c.amount,
+              count: prev.count + c.count,
+            }
+          : { ...c },
+      );
+    }
+  return [...byId.values()].sort((a, b) => b.amount - a.amount);
+}
+
+/** Pick one or more categories to see only those entries. */
+function CategoryFilter({
+  categories,
+  picked,
+  onToggle,
+  onClear,
+}: {
+  categories: PeriodCategory[];
+  picked: ReadonlySet<number>;
+  onToggle: (id: number) => void;
+  onClear: () => void;
+}) {
+  const chip =
+    "inline-flex max-w-full shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border py-1 pr-3 pl-1 text-sm transition";
+  return (
+    <section className="space-y-2 print:hidden">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="font-semibold">Categories</h2>
+        {picked.size > 0 && (
+          <Button variant="ghost" size="sm" onClick={onClear}>
+            <X /> Clear
+          </Button>
+        )}
+      </div>
+      {/* One swipeable row on phones, wrapped on wider screens. */}
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0 sm:pb-0">
+        <button
+          type="button"
+          aria-pressed={picked.size === 0}
+          onClick={onClear}
+          className={cn(
+            chip,
+            "pl-3",
+            picked.size === 0
+              ? "border-primary bg-primary text-primary-foreground"
+              : "bg-card hover:bg-muted",
+          )}
+        >
+          All
+        </button>
+        {categories.map((c) => {
+          const on = picked.has(c.categoryId);
+          return (
+            <button
+              key={c.categoryId}
+              type="button"
+              aria-pressed={on}
+              onClick={() => onToggle(c.categoryId)}
+              className={cn(
+                chip,
+                on
+                  ? "border-primary bg-accent text-accent-foreground"
+                  : "bg-card hover:bg-muted",
+              )}
+            >
+              <CategoryIcon icon={c.icon} color={c.color} size="sm" />
+              <span className="truncate">{c.name}</span>
+              <span className="tabular shrink-0 text-xs opacity-70">
+                {formatAmount(c.amount)}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function groupByDay(items: PublicShare["items"]) {
   const days: { date: string; items: PublicShare["items"] }[] = [];
   for (const t of items) {
@@ -304,12 +461,17 @@ function MonthCard({
   month,
   separate,
   base,
+  picked,
+  onToggle,
   onPreview,
 }: {
   month: MonthSection;
   /** Money paid back is tracked too, so show it beside the spending. */
   separate: boolean;
   base: string;
+  picked: ReadonlySet<number>;
+  /** Tapping a category picks it in the filter. */
+  onToggle?: (id: number) => void;
   onPreview: (f: { src: string; name: string }) => void;
 }) {
   const top = month.categories[0]?.amount ?? 0;
@@ -341,27 +503,36 @@ function MonthCard({
         <ul className="space-y-2 border-b px-4 py-3">
           {month.categories.map((c) => (
             <li key={c.categoryId}>
-              <div className="flex items-center gap-2 text-sm">
-                <CategoryIcon icon={c.icon} color={c.color} size="sm" />
-                <span className="min-w-0 flex-1 truncate">{c.name}</span>
-                <span className="tabular shrink-0 text-xs text-muted-foreground">
-                  {month.spent > 0
-                    ? `${Math.round((c.amount / month.spent) * 100)}%`
-                    : ""}
-                </span>
-                <span className="tabular w-24 shrink-0 text-right font-medium">
-                  {formatAmount(c.amount)}
-                </span>
-              </div>
-              <div className="mt-1 ml-8 h-1.5 overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${top > 0 ? Math.max((c.amount / top) * 100, 2) : 0}%`,
-                    backgroundColor: c.color,
-                  }}
-                />
-              </div>
+              <button
+                type="button"
+                disabled={!onToggle}
+                aria-pressed={picked.has(c.categoryId)}
+                title={onToggle ? `Show only ${c.name}` : undefined}
+                onClick={() => onToggle?.(c.categoryId)}
+                className="-mx-1.5 block w-[calc(100%+0.75rem)] rounded-lg px-1.5 py-0.5 text-left enabled:hover:bg-muted"
+              >
+                <div className="flex items-center gap-2 text-sm">
+                  <CategoryIcon icon={c.icon} color={c.color} size="sm" />
+                  <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                  <span className="tabular shrink-0 text-xs text-muted-foreground">
+                    {month.spent > 0
+                      ? `${Math.round((c.amount / month.spent) * 100)}%`
+                      : ""}
+                  </span>
+                  <span className="tabular w-24 shrink-0 text-right font-medium">
+                    {formatAmount(c.amount)}
+                  </span>
+                </div>
+                <div className="mt-1 ml-8 h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${top > 0 ? Math.max((c.amount / top) * 100, 2) : 0}%`,
+                      backgroundColor: c.color,
+                    }}
+                  />
+                </div>
+              </button>
             </li>
           ))}
         </ul>
