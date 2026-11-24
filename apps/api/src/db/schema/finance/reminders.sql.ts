@@ -58,7 +58,12 @@ export const remindersTable = pgTable(
 );
 export type SelectReminder = typeof remindersTable.$inferSelect;
 
-export const notificationKinds = ["recurring", "reminder", "test"] as const;
+export const notificationKinds = [
+  "recurring",
+  "reminder",
+  "payment",
+  "test",
+] as const;
 export type NotificationKind = (typeof notificationKinds)[number];
 export const notificationKindEnum = pgEnum(
   "notification_kind",

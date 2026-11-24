@@ -5,6 +5,7 @@ import {
   BellOff,
   BellRing,
   CheckCheck,
+  HandCoins,
   Pause,
   Pencil,
   Play,
@@ -178,7 +179,13 @@ function NotificationRow({
   onOpen: () => void;
 }) {
   const Icon =
-    n.kind === "recurring" ? Repeat : n.kind === "test" ? Send : BellRing;
+    n.kind === "recurring"
+      ? Repeat
+      : n.kind === "test"
+        ? Send
+        : n.kind === "payment"
+          ? HandCoins
+          : BellRing;
   return (
     <li>
       <button

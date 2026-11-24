@@ -10,12 +10,14 @@ import {
   type EditablePerson,
   PersonSheet,
 } from "@/components/split/person-sheet";
+import { SharedCategorySheet } from "@/components/split/shared-category-sheet";
 import { BalanceLabel, PersonAvatar } from "@/components/split/split-common";
 import { SplitRow } from "@/components/split/split-row";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
   type GroupInput,
+  type SharedSplit,
   usePeople,
   useSetSharedAdded,
   useSharedSplits,
@@ -202,6 +204,14 @@ function PeopleTab({ onAdd }: { onAdd: () => void }) {
                 {relationLabel(p.relation)}
               </p>
             </div>
+            {p.pendingClaims > 0 && (
+              <span
+                className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground"
+                title="Says they paid you — confirm it"
+              >
+                PAID?
+              </span>
+            )}
             <BalanceLabel net={p.balance.net} />
             <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
           </Link>
@@ -279,10 +289,12 @@ function ActivityTab() {
   );
 }
 
-/** Splits other people tagged me on. Read-only, but I choose whether my share counts as an expense. */
+/** Splits other people tagged me on. Read-only, but I choose whether my
+ * share counts as an expense, and in which of my categories. */
 function SharedTab() {
   const { data = [], isLoading } = useSharedSplits();
   const setAdded = useSetSharedAdded();
+  const [picking, setPicking] = useState<SharedSplit | null>(null);
   if (isLoading) return <PageLoader />;
   if (!data.length)
     return (
@@ -295,35 +307,65 @@ function SharedTab() {
     );
   return (
     <div className="divide-y overflow-hidden rounded-2xl border bg-card">
-      {data.map((s) => (
-        <div key={s.id} className="flex items-center gap-3 px-4 py-3">
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-medium">{s.description}</p>
-            <p className="truncate text-xs text-muted-foreground">
-              {s.date} · from {s.ownerName} (@{s.ownerUsername}) · bill{" "}
-              {formatAmount(s.total)}
-            </p>
+      {data.map((s) => {
+        const added = s.decision === "added";
+        // Filed in the catch-all because nothing matched their category.
+        const needsPick = s.categoryMatch === "unmatched" && !!s.sourceCategory;
+        return (
+          <div key={s.id} className="flex items-center gap-3 px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium">{s.description}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {s.date} · from {s.ownerName} (@{s.ownerUsername}) · bill{" "}
+                {formatAmount(s.total)}
+              </p>
+              {added && s.category && (
+                <button
+                  type="button"
+                  onClick={() => setPicking(s)}
+                  className={cn(
+                    "mt-1.5 inline-flex max-w-full items-center gap-1.5 rounded-full border py-0.5 pr-2.5 pl-0.5 text-xs",
+                    needsPick
+                      ? "border-dashed border-primary text-primary"
+                      : "hover:bg-muted",
+                  )}
+                >
+                  <CategoryIcon
+                    icon={s.category.icon}
+                    color={s.category.color}
+                    size="sm"
+                  />
+                  <span className="truncate">
+                    {needsPick ? "Pick a category" : s.category.name}
+                  </span>
+                </button>
+              )}
+            </div>
+            <div className="text-right">
+              <p className="tabular font-semibold text-expense">
+                −{formatAmount(s.myShare)}
+              </p>
+              <label className="mt-1 flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
+                Add to expenses
+                <Switch
+                  checked={added}
+                  disabled={setAdded.isPending}
+                  onCheckedChange={(on) => {
+                    // Nothing of mine matches their category: ask first.
+                    if (on && !s.suggestedCategoryId) setPicking(s);
+                    else
+                      setAdded.mutate({
+                        id: s.id,
+                        decision: on ? "added" : "skipped",
+                      });
+                  }}
+                />
+              </label>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="tabular font-semibold text-expense">
-              −{formatAmount(s.myShare)}
-            </p>
-            <label className="mt-1 flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
-              Add to expenses
-              <Switch
-                checked={s.decision === "added"}
-                disabled={setAdded.isPending}
-                onCheckedChange={(on) =>
-                  setAdded.mutate({
-                    id: s.id,
-                    decision: on ? "added" : "skipped",
-                  })
-                }
-              />
-            </label>
-          </div>
-        </div>
-      ))}
+        );
+      })}
+      <SharedCategorySheet split={picking} onClose={() => setPicking(null)} />
     </div>
   );
 }

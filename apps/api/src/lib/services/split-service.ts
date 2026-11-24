@@ -15,6 +15,7 @@ import {
   peopleTable,
   type SplitMethod,
   settlementsTable,
+  sharedCategoryRulesTable,
   sharedSplitPrefsTable,
   splitGroupsTable,
   splitSharesTable,
@@ -321,14 +322,14 @@ export async function syncShareTransaction(
 
 /* ---------------- tagged users' copies of a split ---------------- */
 
-const SHARED_CATEGORY = {
+export const SHARED_CATEGORY = {
   name: "Shared expenses",
   icon: "users",
   color: "#0d9488",
 } as const;
 
 /** The tagged user's "Shared expenses" debit category, created on first use. */
-async function sharedCategoryId(tx: TX, userId: number) {
+export async function sharedCategoryId(tx: TX, userId: number) {
   const find = () =>
     tx
       .select({ id: categoriesTable.id })
@@ -350,6 +351,112 @@ async function sharedCategoryId(tx: TX, userId: number) {
   return (await find())[0]!.id;
 }
 
+/** How a tagged user's copy found its category: `picked` by them for that
+ * split, a `remembered` rule, the `same_name` as the owner's, or
+ * `unmatched` (it falls back to "Shared expenses" and the web asks). */
+export type SharedCategoryMatch =
+  | "picked"
+  | "remembered"
+  | "same_name"
+  | "unmatched";
+
+/**
+ * The tagged user's category for a split whose owner filed it under
+ * `sourceCategoryId`: a rule they saved for it, else their own expense
+ * category of the same name (any case), else none.
+ */
+export async function matchSharedCategory(
+  q: TX | typeof db,
+  userId: number,
+  sourceCategoryId: number | null,
+): Promise<{ categoryId: number; match: SharedCategoryMatch } | null> {
+  if (!sourceCategoryId) return null;
+  const [rule] = await q
+    .select({ categoryId: sharedCategoryRulesTable.categoryId })
+    .from(sharedCategoryRulesTable)
+    .where(
+      and(
+        eq(sharedCategoryRulesTable.userId, userId),
+        eq(sharedCategoryRulesTable.sourceCategoryId, sourceCategoryId),
+      ),
+    )
+    .limit(1);
+  if (rule) return { categoryId: rule.categoryId, match: "remembered" };
+  const source = sql`(select lower(trim(${categoriesTable.name})) from ${categoriesTable} where ${categoriesTable.id} = ${sourceCategoryId})`;
+  const [same] = await q
+    .select({ id: categoriesTable.id })
+    .from(categoriesTable)
+    .where(
+      and(
+        eq(categoriesTable.userId, userId),
+        eq(categoriesTable.type, "debit"),
+        sql`lower(trim(${categoriesTable.name})) = ${source}`,
+      ),
+    )
+    .orderBy(categoriesTable.id)
+    .limit(1);
+  return same ? { categoryId: same.id, match: "same_name" } : null;
+}
+
+/** Saves "their category X is my category Y" for the next splits. */
+export async function rememberSharedCategory(
+  q: TX | typeof db,
+  userId: number,
+  sourceCategoryId: number,
+  categoryId: number,
+) {
+  await q
+    .insert(sharedCategoryRulesTable)
+    .values({ userId, sourceCategoryId, categoryId })
+    .onConflictDoUpdate({
+      target: [
+        sharedCategoryRulesTable.userId,
+        sharedCategoryRulesTable.sourceCategoryId,
+      ],
+      set: { categoryId, createdAt: new Date() },
+    });
+}
+
+/**
+ * After a rule is saved, moves the user's other copies from that owner
+ * category that are still sitting in "Shared expenses" (and weren't picked
+ * by hand) to the new category. Returns how many moved.
+ */
+export async function refileFallbackCopies(
+  tx: TX,
+  userId: number,
+  sourceCategoryId: number,
+  categoryId: number,
+) {
+  const [fallback] = await tx
+    .select({ id: categoriesTable.id })
+    .from(categoriesTable)
+    .where(
+      and(
+        eq(categoriesTable.userId, userId),
+        eq(categoriesTable.type, "debit"),
+        eq(categoriesTable.name, SHARED_CATEGORY.name),
+      ),
+    )
+    .limit(1);
+  if (!fallback || fallback.id === categoryId) return 0;
+  const T = transactionsTable;
+  const rows = await tx
+    .update(T)
+    .set({ categoryId })
+    .where(
+      and(
+        eq(T.userId, userId),
+        eq(T.categoryId, fallback.id),
+        // Spelled out: columns inside sql`` lose their table in an update.
+        sql`"transactions"."shared_split_id" in (select s."id" from "splits" s where s."category_id" = ${sourceCategoryId})`,
+        sql`not exists (select 1 from "shared_split_prefs" p where p."split_id" = "transactions"."shared_split_id" and p."user_id" = ${userId} and p."category_id" is not null)`,
+      ),
+    )
+    .returning({ id: T.id });
+  return rows.length;
+}
+
 /** Which of `linkedIds` have blocked `ownerId` from tagging them. */
 export async function usersBlocking(ownerId: number, linkedIds: number[]) {
   if (!linkedIds.length) return [];
@@ -369,13 +476,23 @@ export async function usersBlocking(ownerId: number, linkedIds: number[]) {
  * Keeps each tagged user's own copy of the split in step: one debit
  * transaction (`shared_split_id`) for their share when they want it (their
  * per-split decision, else their `tagged_expenses` setting), none otherwise.
- * An existing copy only has amount/date/note refreshed, so a category or
- * account the tagged user changed sticks. Pass `onlyUserId` to refresh one user.
+ * A new copy goes to the category `matchSharedCategory` finds, else
+ * "Shared expenses". An existing copy only has amount/date/note refreshed,
+ * so a category or account the tagged user changed sticks. Pass
+ * `onlyUserId` to refresh one user, and `categoryId` (theirs) to move that
+ * user's copy to a category they just picked.
  */
 export async function syncSharedTransactions(
   tx: TX,
-  split: { id: number; userId: number; description: string; date: string },
+  split: {
+    id: number;
+    userId: number;
+    description: string;
+    date: string;
+    categoryId: number | null;
+  },
   onlyUserId?: number,
+  categoryId?: number,
 ) {
   const tagged = await tx
     .select({
@@ -383,6 +500,7 @@ export async function syncSharedTransactions(
       mode: usersTable.taggedExpenses,
       amount: splitSharesTable.amount,
       decision: sharedSplitPrefsTable.decision,
+      picked: sharedSplitPrefsTable.categoryId,
     })
     .from(splitSharesTable)
     .innerJoin(peopleTable, eq(peopleTable.id, splitSharesTable.personId))
@@ -434,6 +552,7 @@ export async function syncSharedTransactions(
       amount: t.amount,
       date: split.date,
       note: `Split: ${split.description}`,
+      ...(categoryId && onlyUserId === t.userId && { categoryId }),
     };
     if (existing) {
       await tx
@@ -445,7 +564,12 @@ export async function syncSharedTransactions(
         ...values,
         userId: t.userId,
         type: "debit",
-        categoryId: await sharedCategoryId(tx, t.userId),
+        categoryId:
+          values.categoryId ??
+          t.picked ??
+          (await matchSharedCategory(tx, t.userId, split.categoryId))
+            ?.categoryId ??
+          (await sharedCategoryId(tx, t.userId)),
         accountId: await defaultAccountId(t.userId, tx),
         bookId: await defaultBookId(t.userId, tx),
         sharedSplitId: split.id,

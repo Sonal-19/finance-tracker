@@ -7,6 +7,7 @@ export * from "./finance/categories.sql";
 export * from "./finance/enums.sql";
 export * from "./finance/events.sql";
 export * from "./finance/goals.sql";
+export * from "./finance/person-shares.sql";
 export * from "./finance/recurring.sql";
 export * from "./finance/reminders.sql";
 export * from "./finance/splits.sql";

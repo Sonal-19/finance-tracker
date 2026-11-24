@@ -13,6 +13,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { confirm } from "@/components/common/confirm-dialog";
 import { EmptyState, ErrorState, PageLoader } from "@/components/common/states";
+import { PersonLinks, SettlementClaims } from "@/components/split/person-links";
 import {
   type EditablePerson,
   PersonSheet,
@@ -25,6 +26,7 @@ import { PersonAvatar } from "@/components/split/split-common";
 import { SplitRow } from "@/components/split/split-row";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
+import { personShareUrl, usePersonShares } from "@/hooks/use-person-shares";
 import {
   useDeletePerson,
   useDeleteSettlement,
@@ -43,6 +45,7 @@ function PersonPage() {
   const { personId } = Route.useParams();
   const id = Number(personId);
   const { data, isLoading, error } = usePerson(id);
+  const { data: links = [] } = usePersonShares(id);
   const { user } = useAuth();
   const navigate = useNavigate();
   const openSplit = useSplitSheet((s) => s.openNew);
@@ -58,7 +61,13 @@ function PersonPage() {
   const first = person.name.split(" ")[0];
 
   const remind = async () => {
-    const text = reminderText(person.name, net, user?.name ?? "");
+    const link = links.find((l) => !l.expired);
+    const text = reminderText(
+      person.name,
+      net,
+      user?.name ?? "",
+      link && personShareUrl(link.token),
+    );
     if (person.phone) {
       window.open(
         `https://wa.me/${waPhone(person.phone)}?text=${encodeURIComponent(text)}`,
@@ -189,6 +198,9 @@ function PersonPage() {
           </Button>
         </div>
       </div>
+
+      <SettlementClaims personId={person.id} name={person.name} />
+      <PersonLinks personId={person.id} name={person.name} />
 
       <section className="space-y-2">
         <h2 className="font-semibold">History</h2>

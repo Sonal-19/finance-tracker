@@ -14,6 +14,7 @@ import {
 import { amountOf } from "$/lib/utils/money";
 import { today } from "$/lib/utils/period";
 import { attachmentsByTransaction } from "./attachment-service";
+import { rateLimitService } from "./rate-limit-service";
 
 const S = bookSharesTable;
 const T = transactionsTable;
@@ -61,18 +62,39 @@ export async function findShare(token: string) {
   return row;
 }
 
+/** Wrong tokens one IP may try per window before every lookup from it
+ * answers "not found" (keeps 6-character tokens from being guessed). Book
+ * and person links share the count. */
+const MISS_LIMIT = 30;
+const MISS_WINDOW_MS = 15 * 60 * 1000;
+
+/** Runs a token lookup, counting misses per IP. */
+export async function lookupFrom<T>(
+  ip: string,
+  find: () => Promise<T | undefined>,
+): Promise<T | null | undefined> {
+  const key = `share-miss:${ip}`;
+  if (rateLimitService.isOver(key, MISS_LIMIT)) return null;
+  const found = await find();
+  if (!found) rateLimitService.hit(key, MISS_LIMIT, MISS_WINDOW_MS);
+  return found;
+}
+
 /* ---------- password unlock (cookie) ---------- */
 
 export const shareCookieName = (s: SelectBookShare) => `share_${s.id}`;
 
+/** What every kind of link (book or person) keeps to lock itself. */
+type Lockable = Pick<SelectBookShare, "secret" | "passwordHash">;
+
 /** What the unlock cookie must hold. It is tied to the link's secret and its
  * current password, so changing or removing the password locks everyone out. */
-export const shareCookieValue = (s: SelectBookShare) =>
+export const shareCookieValue = (s: Lockable) =>
   createHmac("sha256", s.secret)
     .update(s.passwordHash ?? "")
     .digest("hex");
 
-export function isUnlocked(s: SelectBookShare, cookie: unknown) {
+export function isUnlocked(s: Lockable, cookie: unknown) {
   if (!s.passwordHash) return true;
   if (typeof cookie !== "string") return false;
   const want = Buffer.from(shareCookieValue(s));

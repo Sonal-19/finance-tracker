@@ -10,6 +10,10 @@ import { eventsController } from "./events-controller";
 import { fxController } from "./fx-controller";
 import { goalsController } from "./goals-controller";
 import { passkeysController } from "./passkeys-controller";
+import {
+  personSharesController,
+  publicPersonSharesController,
+} from "./person-shares-controller";
 import { profileController } from "./profile-controller";
 import { pushController } from "./push-controller";
 import { recurringController } from "./recurring-controller";
@@ -43,7 +47,8 @@ const userControllers = new Elysia({ name: "user_controllers" })
   .use(eventsController)
   .use(booksController)
   .use(attachmentsController)
-  .use(sharesController);
+  .use(sharesController)
+  .use(personSharesController);
 
 /** Admin-only routes, grouped for the same reason as above. */
 const adminControllers = new Elysia({ name: "admin_controllers" })
@@ -56,5 +61,6 @@ export const mainController = new Elysia({
 })
   .use(authController)
   .use(publicSharesController)
+  .use(publicPersonSharesController)
   .use(userControllers)
   .use(adminControllers);

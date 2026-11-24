@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import Elysia, { t } from "elysia";
 import { db } from "$/db";
 import {
@@ -7,6 +8,7 @@ import {
   ownShareModes,
   peopleTable,
   relations,
+  settlementClaimsTable,
   settlementDirections,
   settlementsTable,
   sharedSplitDecisions,
@@ -25,10 +27,14 @@ import { rateLimitService } from "$/lib/services/rate-limit-service";
 import {
   balanceInRupees,
   computeShares,
+  matchSharedCategory,
   ownedDebitCategory,
   ownedGroup,
   ownedPeople,
   personBalances,
+  refileFallbackCopies,
+  rememberSharedCategory,
+  type SharedCategoryMatch,
   syncSharedTransactions,
   syncShareTransaction,
   usersBlocking,
@@ -166,7 +172,7 @@ const peopleController = new Elysia({
 })
   .use(protectedUser)
   .get("/", async ({ user }) => {
-    const [rows, balances] = await Promise.all([
+    const [rows, balances, claims] = await Promise.all([
       db
         .select({ person: peopleTable, username: usersTable.username })
         .from(peopleTable)
@@ -174,12 +180,27 @@ const peopleController = new Elysia({
         .where(eq(peopleTable.userId, user.id))
         .orderBy(peopleTable.name),
       personBalances(user.id),
+      // "I've paid" reports from their links, waiting for the user.
+      db
+        .select({
+          personId: settlementClaimsTable.personId,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(settlementClaimsTable)
+        .where(
+          and(
+            eq(settlementClaimsTable.userId, user.id),
+            eq(settlementClaimsTable.status, "pending"),
+          ),
+        )
+        .groupBy(settlementClaimsTable.personId),
     ]);
     return ok(
       rows.map(({ person: p, username }) => ({
         ...p,
         username,
         balance: balanceInRupees(balances.get(p.id)),
+        pendingClaims: claims.find((c) => c.personId === p.id)?.count ?? 0,
       })),
     );
   })
@@ -223,8 +244,13 @@ const peopleController = new Elysia({
         ...splits.map((s) => {
           const theirShare =
             s.shares.find((x) => x.personId === person.id)?.amount ?? 0;
-          // Effect on this person's balance with the user.
-          const effect = s.paidBy?.id === person.id ? -s.myShare : theirShare;
+          // Effect on this person's balance with the user (a bill a third
+          // person paid doesn't move it, as in personBalances).
+          const effect = !s.paidBy
+            ? theirShare
+            : s.paidBy.id === person.id
+              ? -s.myShare
+              : 0;
           return {
             kind: "split" as const,
             key: `s${s.id}`,
@@ -657,8 +683,11 @@ const splitsController = new Elysia({
       }),
     },
   )
-  /** Splits other users tagged me on (read-only), with whether my copy is booked. */
+  /** Splits other users tagged me on (read-only), with whether my copy is
+   * booked, where it is filed and the category it would go to. */
   .get("/shared", async ({ user }) => {
+    const source = alias(categoriesTable, "source_category");
+    const mine = alias(categoriesTable, "copy_category");
     const rows = await db
       .select({
         id: splitsTable.id,
@@ -669,11 +698,25 @@ const splitsController = new Elysia({
         ownerName: usersTable.name,
         ownerUsername: usersTable.username,
         copyId: transactionsTable.id,
+        picked: sharedSplitPrefsTable.categoryId,
+        sourceCategory: {
+          id: source.id,
+          name: source.name,
+          icon: source.icon,
+          color: source.color,
+        },
+        category: {
+          id: mine.id,
+          name: mine.name,
+          icon: mine.icon,
+          color: mine.color,
+        },
       })
       .from(splitSharesTable)
       .innerJoin(peopleTable, eq(peopleTable.id, splitSharesTable.personId))
       .innerJoin(splitsTable, eq(splitsTable.id, splitSharesTable.splitId))
       .innerJoin(usersTable, eq(usersTable.id, splitsTable.userId))
+      .leftJoin(source, eq(source.id, splitsTable.categoryId))
       .leftJoin(
         transactionsTable,
         and(
@@ -681,16 +724,47 @@ const splitsController = new Elysia({
           eq(transactionsTable.userId, user.id),
         ),
       )
+      .leftJoin(mine, eq(mine.id, transactionsTable.categoryId))
+      .leftJoin(
+        sharedSplitPrefsTable,
+        and(
+          eq(sharedSplitPrefsTable.splitId, splitsTable.id),
+          eq(sharedSplitPrefsTable.userId, user.id),
+        ),
+      )
       .where(eq(peopleTable.linkedUserId, user.id))
       .orderBy(desc(splitsTable.date), desc(splitsTable.id));
+
+    // One lookup per owner category, however many splits use it.
+    const matches = new Map<
+      number,
+      Awaited<ReturnType<typeof matchSharedCategory>>
+    >();
+    for (const r of rows) {
+      const id = r.sourceCategory?.id;
+      if (id && !matches.has(id))
+        matches.set(id, await matchSharedCategory(db, user.id, id));
+    }
     return ok(
-      rows.map(({ copyId, total, myShare, ...r }) => ({
-        ...r,
-        total: amountOf(total),
-        myShare: amountOf(myShare),
-        /** Whether my share is booked as an expense in my own books. */
-        decision: copyId !== null ? ("added" as const) : ("skipped" as const),
-      })),
+      rows.map(({ copyId, total, myShare, picked, ...r }) => {
+        const found = r.sourceCategory
+          ? matches.get(r.sourceCategory.id)
+          : null;
+        const match: SharedCategoryMatch = picked
+          ? "picked"
+          : (found?.match ?? "unmatched");
+        return {
+          ...r,
+          total: amountOf(total),
+          myShare: amountOf(myShare),
+          /** Whether my share is booked as an expense in my own books. */
+          decision: copyId !== null ? ("added" as const) : ("skipped" as const),
+          /** My category for it: my pick, a remembered rule, the same name
+           * as theirs, or `unmatched` (ask me). */
+          categoryMatch: match,
+          suggestedCategoryId: picked ?? found?.categoryId ?? null,
+        };
+      }),
     );
   })
   .put(
@@ -702,6 +776,7 @@ const splitsController = new Elysia({
           userId: splitsTable.userId,
           description: splitsTable.description,
           date: splitsTable.date,
+          categoryId: splitsTable.categoryId,
         })
         .from(splitsTable)
         .innerJoin(
@@ -717,6 +792,18 @@ const splitsController = new Elysia({
         )
         .limit(1);
       if (!split) return status(404, fail("Split not found"));
+      const category = body.categoryId
+        ? await ownedDebitCategory(user.id, body.categoryId)
+        : undefined;
+      if (body.categoryId && !category)
+        return status(400, fail("Pick one of your expense categories"));
+      const always = body.remember === "always" && !!category;
+      if (always && !split.categoryId)
+        return status(
+          400,
+          fail("This split has no category of theirs to remember"),
+        );
+      let moved = 0;
       await db.transaction(async (tx) => {
         await tx
           .insert(sharedSplitPrefsTable)
@@ -724,24 +811,55 @@ const splitsController = new Elysia({
             splitId: split.id,
             userId: user.id,
             decision: body.decision,
+            categoryId: category?.id ?? null,
           })
           .onConflictDoUpdate({
             target: [
               sharedSplitPrefsTable.splitId,
               sharedSplitPrefsTable.userId,
             ],
-            set: { decision: body.decision, decidedAt: new Date() },
+            set: {
+              decision: body.decision,
+              decidedAt: new Date(),
+              ...(category && { categoryId: category.id }),
+            },
           });
-        await syncSharedTransactions(tx, split, user.id);
+        await syncSharedTransactions(tx, split, user.id, category?.id);
+        if (always && category && split.categoryId) {
+          await rememberSharedCategory(
+            tx,
+            user.id,
+            split.categoryId,
+            category.id,
+          );
+          moved = await refileFallbackCopies(
+            tx,
+            user.id,
+            split.categoryId,
+            category.id,
+          );
+        }
       });
+      const where = category ? ` under ${category.name}` : "";
       return ok(
         { decision: body.decision },
         body.decision === "added"
-          ? "Added to your expenses"
+          ? `Added to your expenses${where}${
+              moved ? ` (and moved ${moved} more like it)` : ""
+            }`
           : "Removed from your expenses",
       );
     },
-    { params: tId, body: t.Object({ decision: tEnum(sharedSplitDecisions) }) },
+    {
+      params: tId,
+      body: t.Object({
+        decision: tEnum(sharedSplitDecisions),
+        /** My expense category for the copy; omitted = keep / match. */
+        categoryId: t.Optional(t.Integer({ minimum: 1 })),
+        /** `always` also files their future splits in that category here. */
+        remember: t.Optional(tEnum(["split", "always"] as const)),
+      }),
+    },
   )
   .get("/summary", async ({ user }) => {
     const balances = await personBalances(user.id);

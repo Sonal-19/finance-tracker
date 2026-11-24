@@ -91,6 +91,13 @@ export function waPhone(raw: string) {
   return d;
 }
 
-export function reminderText(name: string, amount: number, myName: string) {
-  return `Hi ${name.split(" ")[0]}, just a friendly reminder: you owe me ${formatAmount(amount)} from our shared expenses. You can pay by UPI whenever convenient. Thanks! – ${myName.split(" ")[0]}`;
+export function reminderText(
+  name: string,
+  amount: number,
+  myName: string,
+  /** Their share link, when there is one: every bill and a UPI QR. */
+  link?: string,
+) {
+  const details = link ? ` All the bills and a UPI QR are here: ${link}` : "";
+  return `Hi ${name.split(" ")[0]}, just a friendly reminder: you owe me ${formatAmount(amount)} from our shared expenses.${details} You can pay by UPI whenever convenient. Thanks! – ${myName.split(" ")[0]}`;
 }

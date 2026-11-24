@@ -14,9 +14,11 @@ import { IS_PROD } from "$/env";
 import { resolveAccountId } from "$/lib/services/account-service";
 import { ownedBook } from "$/lib/services/book-service";
 import { clientIp, rateLimitService } from "$/lib/services/rate-limit-service";
+import { deliver } from "$/lib/services/reminder-service";
 import {
   findShare,
   isUnlocked,
+  lookupFrom,
   MAX_PENDING_CLAIMS,
   newShareSecret,
   newShareToken,
@@ -303,19 +305,9 @@ const CLAIM_LIMIT = 5;
 const CLAIM_WINDOW_MS = 60 * 60 * 1000;
 const NOT_FOUND = "This link doesn't exist or has expired";
 const tToken = t.Object({ token: t.String({ minLength: 6, maxLength: 64 }) });
-/** Wrong tokens one IP may try per window before every lookup from it
- * answers "not found" (keeps 6-character tokens from being guessed). */
-const MISS_LIMIT = 30;
-const MISS_WINDOW_MS = 15 * 60 * 1000;
-
 /** `findShare`, counting misses per IP. */
-async function findShareFrom(token: string, ip: string) {
-  const key = `share-miss:${ip}`;
-  if (rateLimitService.isOver(key, MISS_LIMIT)) return null;
-  const found = await findShare(token);
-  if (!found) rateLimitService.hit(key, MISS_LIMIT, MISS_WINDOW_MS);
-  return found;
-}
+const findShareFrom = (token: string, ip: string) =>
+  lookupFrom(ip, () => findShare(token));
 
 /** What anyone holding a link sees. No login: the token is the key, plus
  * the link's password (kept as an httpOnly cookie once entered). */
@@ -415,14 +407,25 @@ export const publicSharesController = new Elysia({
           429,
           fail("There are already reports waiting to be checked"),
         );
-      await db.insert(C).values({
+      const [claim] = await db
+        .insert(C)
+        .values({
+          userId: share.userId,
+          bookId: share.bookId,
+          shareId: share.id,
+          amount: body.amount,
+          payerName: body.payerName?.trim() || null,
+          reference: body.reference?.trim() || null,
+        })
+        .returning({ id: C.id });
+      deliver({
         userId: share.userId,
-        bookId: share.bookId,
-        shareId: share.id,
-        amount: body.amount,
-        payerName: body.payerName?.trim() || null,
-        reference: body.reference?.trim() || null,
-      });
+        kind: "payment",
+        title: `${body.payerName?.trim() || "Someone"} says they paid you`,
+        body: `${formatAmount(body.amount)} for ${found.book.name} · confirm it to record it`,
+        url: `/books/${share.bookId}`,
+        dedupeKey: `payment-claim:${claim!.id}`,
+      }).catch(console.error);
       const owner = await userCacheService.get(share.userId);
       return ok(
         null,

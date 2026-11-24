@@ -251,6 +251,11 @@ export const sharedSplitPrefsTable = pgTable(
       .notNull()
       .references(() => usersTable.id, { onDelete: "cascade" }),
     decision: sharedSplitDecisionEnum("decision").notNull(),
+    /** The tagged user's category for their copy, when they picked one;
+     * null = matched automatically (see `matchSharedCategory`). */
+    categoryId: pg
+      .integer("category_id")
+      .references(() => categoriesTable.id, { onDelete: "set null" }),
     decidedAt: pg
       .timestamp("decided_at", { withTimezone: true })
       .defaultNow()
@@ -259,5 +264,42 @@ export const sharedSplitPrefsTable = pgTable(
   (t) => [
     primaryKey({ columns: [t.splitId, t.userId] }),
     index("shared_split_prefs_user_idx").on(t.userId),
+    index("shared_split_prefs_category_idx")
+      .on(t.categoryId)
+      .where(sql`${t.categoryId} is not null`),
+  ],
+);
+
+/**
+ * Where a tagged user wants their copy of someone else's split to go:
+ * "their `sourceCategoryId` is my `categoryId`". Saved when they pick a
+ * category and ask for it to be remembered; used before name matching.
+ */
+export const sharedCategoryRulesTable = pgTable(
+  "shared_category_rules",
+  (pg) => ({
+    userId: pg
+      .integer("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    /** The split owner's category (identifies the owner too). */
+    sourceCategoryId: pg
+      .integer("source_category_id")
+      .notNull()
+      .references(() => categoriesTable.id, { onDelete: "cascade" }),
+    /** The tagged user's own debit category. */
+    categoryId: pg
+      .integer("category_id")
+      .notNull()
+      .references(() => categoriesTable.id, { onDelete: "cascade" }),
+    createdAt: pg
+      .timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (t) => [
+    primaryKey({ columns: [t.userId, t.sourceCategoryId] }),
+    index("shared_category_rules_source_idx").on(t.sourceCategoryId),
+    index("shared_category_rules_category_idx").on(t.categoryId),
   ],
 );

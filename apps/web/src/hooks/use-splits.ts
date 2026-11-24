@@ -254,11 +254,15 @@ export function useSetSharedAdded() {
   return useMutation({
     mutationFn: ({
       id,
-      decision,
+      ...body
     }: {
       id: number;
       decision: SharedSplit["decision"];
-    }) => callMsg(api.splits.shared({ id }).decision.put({ decision })),
+      /** My expense category for the copy; omitted = keep / match. */
+      categoryId?: number;
+      /** `always` also files their future splits from that category there. */
+      remember?: "split" | "always";
+    }) => callMsg(api.splits.shared({ id }).decision.put(body)),
     onSuccess: ({ message }) => {
       toast.success(message);
       qc.invalidateQueries({ queryKey: ["splits", "shared"] });

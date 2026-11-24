@@ -24,6 +24,7 @@ import { Route as AppRemindersRouteImport } from './routes/_app/reminders'
 import { Route as AppReportsRouteImport } from './routes/_app/reports'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppTransactionsRouteImport } from './routes/_app/transactions'
+import { Route as PTokenRouteImport } from './routes/p.$token'
 import { Route as STokenRouteImport } from './routes/s.$token'
 import { Route as AdminAdminIndexRouteImport } from './routes/_admin/admin/index'
 import { Route as AdminAdminActivityRouteImport } from './routes/_admin/admin/activity'
@@ -112,6 +113,11 @@ const AppTransactionsRoute = AppTransactionsRouteImport.update({
   id: '/transactions',
   path: '/transactions',
   getParentRoute: () => AppRoute,
+} as any)
+const PTokenRoute = PTokenRouteImport.update({
+  id: '/p/$token',
+  path: '/p/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const STokenRoute = STokenRouteImport.update({
   id: '/s/$token',
@@ -203,6 +209,7 @@ export interface FileRoutesByFullPath {
   '/reports': typeof AppReportsRoute
   '/settings': typeof AppSettingsRoute
   '/transactions': typeof AppTransactionsRoute
+  '/p/$token': typeof PTokenRoute
   '/s/$token': typeof STokenRoute
   '/admin/activity': typeof AdminAdminActivityRoute
   '/admin/sessions': typeof AdminAdminSessionsRoute
@@ -233,6 +240,7 @@ export interface FileRoutesByTo {
   '/reports': typeof AppReportsRoute
   '/settings': typeof AppSettingsRoute
   '/transactions': typeof AppTransactionsRoute
+  '/p/$token': typeof PTokenRoute
   '/s/$token': typeof STokenRoute
   '/admin/activity': typeof AdminAdminActivityRoute
   '/admin/sessions': typeof AdminAdminSessionsRoute
@@ -266,6 +274,7 @@ export interface FileRoutesById {
   '/_app/reports': typeof AppReportsRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/transactions': typeof AppTransactionsRoute
+  '/p/$token': typeof PTokenRoute
   '/s/$token': typeof STokenRoute
   '/_admin/admin/activity': typeof AdminAdminActivityRoute
   '/_admin/admin/sessions': typeof AdminAdminSessionsRoute
@@ -298,6 +307,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/settings'
     | '/transactions'
+    | '/p/$token'
     | '/s/$token'
     | '/admin/activity'
     | '/admin/sessions'
@@ -328,6 +338,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/settings'
     | '/transactions'
+    | '/p/$token'
     | '/s/$token'
     | '/admin/activity'
     | '/admin/sessions'
@@ -360,6 +371,7 @@ export interface FileRouteTypes {
     | '/_app/reports'
     | '/_app/settings'
     | '/_app/transactions'
+    | '/p/$token'
     | '/s/$token'
     | '/_admin/admin/activity'
     | '/_admin/admin/sessions'
@@ -382,6 +394,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRouteWithChildren
   AppRoute: typeof AppRouteWithChildren
   ForgotPasswordRoute: typeof ForgotPasswordRoute
+  PTokenRoute: typeof PTokenRoute
   STokenRoute: typeof STokenRoute
 }
 
@@ -491,6 +504,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/transactions'
       preLoaderRoute: typeof AppTransactionsRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/p/$token': {
+      id: '/p/$token'
+      path: '/p/$token'
+      fullPath: '/p/$token'
+      preLoaderRoute: typeof PTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/s/$token': {
       id: '/s/$token'
@@ -671,6 +691,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRouteWithChildren,
   AppRoute: AppRouteWithChildren,
   ForgotPasswordRoute: ForgotPasswordRoute,
+  PTokenRoute: PTokenRoute,
   STokenRoute: STokenRoute,
 }
 export const routeTree = rootRouteImport
