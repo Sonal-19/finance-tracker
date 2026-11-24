@@ -18,6 +18,7 @@ import {
   type EditablePerson,
   PersonSheet,
 } from "@/components/split/person-sheet";
+import { PersonTag } from "@/components/split/person-tag";
 import {
   SettleSheet,
   type SettleTarget,
@@ -107,6 +108,7 @@ function PersonPage() {
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-xl font-bold">{person.name}</h1>
             <p className="text-sm text-muted-foreground">
+              {person.username ? `@${person.username} · ` : ""}
               {relationLabel(person.relation)}
             </p>
             {person.phone && (
@@ -200,6 +202,11 @@ function PersonPage() {
       </div>
 
       <SettlementClaims personId={person.id} name={person.name} />
+      <PersonTag
+        personId={person.id}
+        name={person.name}
+        username={person.username}
+      />
       <PersonLinks personId={person.id} name={person.name} />
 
       <section className="space-y-2">

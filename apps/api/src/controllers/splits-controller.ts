@@ -159,6 +159,49 @@ async function hydrateSplits(userId: number, rows: SplitRow[]) {
 
 /* ============================ people ============================ */
 
+const tUsername = t.Object({ username: t.String({ maxLength: 40 }) });
+
+/** Splits this person has a share in (the ones a tagged user sees). */
+const personSplitIds = (personId: number) =>
+  db
+    .select({ id: splitSharesTable.splitId })
+    .from(splitSharesTable)
+    .where(eq(splitSharesTable.personId, personId));
+
+/** The platform user behind an exact @username, if this user may tag them. */
+async function findTaggable(userId: number, username: string) {
+  if (!rateLimitService.hit(`tag:${userId}`, 30, 60_000))
+    return {
+      ok: false as const,
+      code: 429 as const,
+      message: "Too many lookups. Try again shortly.",
+    };
+  // Same message for unknown and blocked: don't reveal who blocked whom.
+  const notFound = {
+    ok: false as const,
+    code: 404 as const,
+    message: "No user found with that username",
+  };
+  const id = usernameService.findUserId(
+    normalizeUsername(username.trim().replace(/^@/, "")),
+  );
+  if (id === null) return notFound;
+  if (id === userId)
+    return {
+      ok: false as const,
+      code: 400 as const,
+      message: "You can't tag yourself",
+    };
+  if ((await usersBlocking(userId, [id])).length) return notFound;
+  const [target] = await db
+    .select({ name: usersTable.name, username: usersTable.username })
+    .from(usersTable)
+    .where(eq(usersTable.id, id))
+    .limit(1);
+  if (!target) return notFound;
+  return { ok: true as const, id, target };
+}
+
 const personBody = t.Object({
   name: t.String({ minLength: 1, maxLength: 60 }),
   phone: t.Optional(t.Nullable(t.String({ maxLength: 20 }))),
@@ -209,11 +252,8 @@ const peopleController = new Elysia({
     async ({ user, params, status }) => {
       const [person] = await ownedPeople(user.id, [params.id]);
       if (!person) return status(404, fail("Person not found"));
-      const shareSplitIds = db
-        .select({ id: splitSharesTable.splitId })
-        .from(splitSharesTable)
-        .where(eq(splitSharesTable.personId, person.id));
-      const [balances, splitRows, settlements] = await Promise.all([
+      const shareSplitIds = personSplitIds(person.id);
+      const [balances, splitRows, settlements, linked] = await Promise.all([
         personBalances(user.id),
         db
           .select()
@@ -238,6 +278,13 @@ const peopleController = new Elysia({
             ),
           )
           .orderBy(desc(settlementsTable.date), desc(settlementsTable.id)),
+        person.linkedUserId
+          ? db
+              .select({ username: usersTable.username })
+              .from(usersTable)
+              .where(eq(usersTable.id, person.linkedUserId))
+              .limit(1)
+          : [],
       ]);
       const splits = await hydrateSplits(user.id, splitRows);
       const activity = [
@@ -271,7 +318,7 @@ const peopleController = new Elysia({
         })),
       ].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
       return ok({
-        person,
+        person: { ...person, username: linked[0]?.username ?? null },
         balance: balanceInRupees(balances.get(person.id)),
         activity,
       });
@@ -302,24 +349,9 @@ const peopleController = new Elysia({
   .post(
     "/link",
     async ({ user, body, status }) => {
-      if (!rateLimitService.hit(`tag:${user.id}`, 30, 60_000))
-        return status(429, fail("Too many lookups. Try again shortly."));
-      const targetId = usernameService.findUserId(
-        normalizeUsername(body.username),
-      );
-      // Same message for unknown and blocked: don't reveal who blocked whom.
-      const notFound = fail("No user found with that username");
-      if (targetId === null) return status(404, notFound);
-      if (targetId === user.id)
-        return status(400, fail("You can't tag yourself"));
-      if ((await usersBlocking(user.id, [targetId])).length)
-        return status(404, notFound);
-      const [target] = await db
-        .select({ name: usersTable.name, username: usersTable.username })
-        .from(usersTable)
-        .where(eq(usersTable.id, targetId))
-        .limit(1);
-      if (!target) return status(404, notFound);
+      const found = await findTaggable(user.id, body.username);
+      if (!found.ok) return status(found.code, fail(found.message));
+      const { id: targetId, target } = found;
       await db
         .insert(peopleTable)
         .values({
@@ -348,7 +380,124 @@ const peopleController = new Elysia({
         `@${target.username} added`,
       );
     },
-    { body: t.Object({ username: t.String({ maxLength: 40 }) }) },
+    { body: tUsername },
+  )
+  /**
+   * Tag someone already in the user's people (added before they joined) by
+   * their @username. Every split they're on so far is shared with them at
+   * once, exactly as if they'd been tagged from the start.
+   */
+  .post(
+    "/:id/link",
+    async ({ user, params, body, status }) => {
+      const [person] = await ownedPeople(user.id, [params.id]);
+      if (!person) return status(404, fail("Person not found"));
+      const found = await findTaggable(user.id, body.username);
+      if (!found.ok) return status(found.code, fail(found.message));
+      const { id: targetId, target } = found;
+      if (person.linkedUserId === targetId)
+        return ok(
+          { ...person, username: target.username, shared: 0 },
+          `${person.name} is already @${target.username}`,
+        );
+      if (person.linkedUserId)
+        return status(
+          409,
+          fail(`${person.name} is already tagged. Untag them first.`),
+        );
+      const [other] = await db
+        .select({ name: peopleTable.name })
+        .from(peopleTable)
+        .where(
+          and(
+            eq(peopleTable.userId, user.id),
+            eq(peopleTable.linkedUserId, targetId),
+          ),
+        )
+        .limit(1);
+      if (other)
+        return status(
+          409,
+          fail(
+            `@${target.username} is already in your people as ${other.name}`,
+          ),
+        );
+      let shared = 0;
+      try {
+        await db.transaction(async (tx) => {
+          await tx
+            .update(peopleTable)
+            .set({ linkedUserId: targetId })
+            .where(eq(peopleTable.id, person.id));
+          const splits = await tx
+            .select({
+              id: splitsTable.id,
+              userId: splitsTable.userId,
+              description: splitsTable.description,
+              date: splitsTable.date,
+              categoryId: splitsTable.categoryId,
+            })
+            .from(splitsTable)
+            .where(
+              and(
+                eq(splitsTable.userId, user.id),
+                inArray(splitsTable.id, personSplitIds(person.id)),
+              ),
+            );
+          for (const split of splits)
+            await syncSharedTransactions(tx, split, targetId);
+          shared = splits.length;
+        });
+      } catch (e) {
+        if (isUniqueViolation(e))
+          return status(
+            409,
+            fail(`@${target.username} is already in your people`),
+          );
+        throw e;
+      }
+      return ok(
+        {
+          ...person,
+          linkedUserId: targetId,
+          username: target.username,
+          shared,
+        },
+        shared
+          ? `${person.name} tagged as @${target.username} · ${shared} past ${shared === 1 ? "split" : "splits"} shared`
+          : `${person.name} tagged as @${target.username}`,
+      );
+    },
+    { params: tId, body: tUsername },
+  )
+  /** Untag: they stop seeing this user's splits and lose their copies. */
+  .delete(
+    "/:id/link",
+    async ({ user, params, status }) => {
+      const [person] = await ownedPeople(user.id, [params.id]);
+      if (!person) return status(404, fail("Person not found"));
+      const linked = person.linkedUserId;
+      if (!linked) return ok(person, `${person.name} isn't tagged`);
+      await db.transaction(async (tx) => {
+        await tx
+          .update(peopleTable)
+          .set({ linkedUserId: null })
+          .where(eq(peopleTable.id, person.id));
+        await tx
+          .delete(transactionsTable)
+          .where(
+            and(
+              eq(transactionsTable.userId, linked),
+              inArray(
+                transactionsTable.sharedSplitId,
+                personSplitIds(person.id),
+              ),
+            ),
+          );
+      });
+      return ok({ ...person, linkedUserId: null }, `${person.name} untagged`);
+    },
+    { params: tId },
   )
   .patch(
     "/:id",

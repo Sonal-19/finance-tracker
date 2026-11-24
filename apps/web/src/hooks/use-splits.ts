@@ -240,6 +240,33 @@ export function useLinkPerson() {
   });
 }
 
+/** Tag someone already in your people by @username; their past splits are
+ * shared with them too. */
+export function useTagPerson() {
+  const invalidate = useInvalidateSplits();
+  return useMutation({
+    mutationFn: ({ id, username }: { id: number; username: string }) =>
+      callMsg(api.people({ id }).link.post({ username })),
+    onSuccess: ({ message }) => {
+      toast.success(message);
+      invalidate();
+    },
+    onError,
+  });
+}
+
+export function useUntagPerson() {
+  const invalidate = useInvalidateSplits();
+  return useMutation({
+    mutationFn: (id: number) => callMsg(api.people({ id }).link.delete()),
+    onSuccess: ({ message }) => {
+      toast.success(message);
+      invalidate();
+    },
+    onError,
+  });
+}
+
 export const useSharedSplits = () =>
   useQuery({
     queryKey: ["splits", "shared"],
