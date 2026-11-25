@@ -13,8 +13,10 @@ import {
   Repeat,
   Send,
   Trash2,
+  Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { SectionCard } from "@/components/app/section-card";
 import { confirm } from "@/components/common/confirm-dialog";
 import { DateInput } from "@/components/common/date-input";
@@ -88,7 +90,12 @@ function RemindersPage() {
           { value: "settings", label: "Upcoming & settings" },
         ]}
       />
-      {tab === "inbox" && <Inbox />}
+      {tab === "inbox" && (
+        <>
+          <PushPrompt />
+          <Inbox />
+        </>
+      )}
       {tab === "mine" && <MyReminders onEdit={setEditing} />}
       {tab === "settings" && (
         <>
@@ -185,7 +192,9 @@ function NotificationRow({
         ? Send
         : n.kind === "payment"
           ? HandCoins
-          : BellRing;
+          : n.kind === "shared"
+            ? Users
+            : BellRing;
   return (
     <li>
       <button
@@ -471,6 +480,70 @@ const PUSH_TEXT: Record<PushState, string> = {
   unconfigured:
     "Notifications aren't set up on the server yet. Reminders still appear in the Notifications tab.",
 };
+
+/**
+ * On the Notifications tab: asks to turn notifications on for this device
+ * when they aren't (or says how to unblock them). Hidden once on, when the
+ * server has no push, or after "Not now" for this visit.
+ */
+function PushPrompt() {
+  const [state, setState] = useState<PushState | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    void pushState().then(setState);
+  }, []);
+  if (hidden || !state || state === "on" || state === "unconfigured")
+    return null;
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-primary/30 bg-accent/40 p-4">
+      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground">
+        <BellRing className="size-5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="font-medium">
+          {state === "off"
+            ? "Turn on notifications"
+            : state === "blocked"
+              ? "Notifications are blocked"
+              : "Notifications aren't available here"}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          {state === "off"
+            ? "Get reminders, shared entries and changes from friends on this device, even when the app is closed."
+            : PUSH_TEXT[state]}
+        </p>
+      </div>
+      <div className="ml-auto flex shrink-0 gap-2">
+        <Button variant="ghost" size="sm" onClick={() => setHidden(true)}>
+          Not now
+        </Button>
+        {state === "off" && (
+          <Button
+            size="sm"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                const next = await enablePush();
+                setState(next);
+                if (next === "on") toast.success("Notifications are on");
+              } catch (e) {
+                toast.error(
+                  e instanceof Error ? e.message : "Couldn't turn them on",
+                );
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <Bell /> Turn on
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function PushCard() {
   const [state, setState] = useState<PushState | null>(null);

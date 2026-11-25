@@ -25,6 +25,15 @@ import { resolveAccountId } from "$/lib/services/account-service";
 import { resolveBookId } from "$/lib/services/book-service";
 import { rateLimitService } from "$/lib/services/rate-limit-service";
 import {
+  endSharesOf,
+  sharesOfPerson,
+} from "$/lib/services/recurring-share-service";
+import {
+  notifySplitChange,
+  notifyTagged,
+  splitSnapshot,
+} from "$/lib/services/split-notify-service";
+import {
   balanceInRupees,
   computeShares,
   matchSharedCategory,
@@ -352,7 +361,7 @@ const peopleController = new Elysia({
       const found = await findTaggable(user.id, body.username);
       if (!found.ok) return status(found.code, fail(found.message));
       const { id: targetId, target } = found;
-      await db
+      const [created] = await db
         .insert(peopleTable)
         .values({
           userId: user.id,
@@ -360,7 +369,9 @@ const peopleController = new Elysia({
           name: target.name,
           relation: "friend",
         })
-        .onConflictDoNothing();
+        .onConflictDoNothing()
+        .returning({ id: peopleTable.id });
+      if (created) void notifyTagged(user, targetId, 0);
       const [row] = await db
         .select()
         .from(peopleTable)
@@ -456,6 +467,7 @@ const peopleController = new Elysia({
           );
         throw e;
       }
+      void notifyTagged(user, targetId, shared);
       return ok(
         {
           ...person,
@@ -478,6 +490,7 @@ const peopleController = new Elysia({
       if (!person) return status(404, fail("Person not found"));
       const linked = person.linkedUserId;
       if (!linked) return ok(person, `${person.name} isn't tagged`);
+      const recurring = await sharesOfPerson(user.id, person.id);
       await db.transaction(async (tx) => {
         await tx
           .update(peopleTable)
@@ -495,6 +508,7 @@ const peopleController = new Elysia({
             ),
           );
       });
+      await endSharesOf(user, recurring);
       return ok({ ...person, linkedUserId: null }, `${person.name} untagged`);
     },
     { params: tId },
@@ -526,12 +540,14 @@ const peopleController = new Elysia({
     "/:id",
     async ({ user, params, status }) => {
       try {
+        const recurring = await sharesOfPerson(user.id, params.id);
         const [row] = await db
           .delete(peopleTable)
           .where(
             and(eq(peopleTable.id, params.id), eq(peopleTable.userId, user.id)),
           )
           .returning();
+        if (row) await endSharesOf(user, recurring);
         return row
           ? ok(null, `${row.name} removed`)
           : status(404, fail("Person not found"));
@@ -1137,6 +1153,9 @@ const splitsController = new Elysia({
           if (won) return won.id;
           throw e;
         });
+      void splitSnapshot(user.id, id).then((after) =>
+        notifySplitChange(user, null, after),
+      );
       return ok(await getSplit(user.id, id), "Expense split");
     },
     { body: t.Composite([splitBody, t.Object({ clientId: tClientId })]) },
@@ -1150,6 +1169,7 @@ const splitsController = new Elysia({
       if (verdict === "stale") return status(409, staleEdit(existing));
       const prep = await prepareSplit(user.id, body);
       if ("error" in prep) return status(400, fail(prep.error!));
+      const before = await splitSnapshot(user.id, params.id);
       await db.transaction(async (tx) => {
         const [split] = await tx
           .update(splitsTable)
@@ -1178,6 +1198,9 @@ const splitsController = new Elysia({
         await syncShareTransaction(tx, split!, prep.myShare);
         await syncSharedTransactions(tx, split!);
       });
+      void splitSnapshot(user.id, params.id).then((after) =>
+        notifySplitChange(user, before, after),
+      );
       return ok(
         {
           ...(await getSplit(user.id, params.id))!,
@@ -1200,6 +1223,7 @@ const splitsController = new Elysia({
   .delete(
     "/:id",
     async ({ user, params, status }) => {
+      const before = await splitSnapshot(user.id, params.id);
       // Cascades to shares and to the user's share transaction.
       const [row] = await db
         .delete(splitsTable)
@@ -1207,6 +1231,7 @@ const splitsController = new Elysia({
           and(eq(splitsTable.id, params.id), eq(splitsTable.userId, user.id)),
         )
         .returning();
+      if (row) void notifySplitChange(user, before, null);
       return row
         ? ok(null, "Split deleted")
         : status(404, fail("Split not found"));

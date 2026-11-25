@@ -12,6 +12,20 @@ import {
 import { resolveAccountId } from "$/lib/services/account-service";
 import { resolveBookId } from "$/lib/services/book-service";
 import { recurringService } from "$/lib/services/recurring-service";
+import {
+  acceptShare,
+  declineShare,
+  endSharesOfRule,
+  hasShares,
+  incomingShares,
+  leaveShare,
+  OWNER_FIELDS,
+  setShares,
+  shareOfCopy,
+  sharesOfRules,
+  sourcesOfCopies,
+  syncOwnerEdit,
+} from "$/lib/services/recurring-share-service";
 import { ownedCategory } from "$/lib/services/transaction-service";
 import { fail, ok } from "$/lib/utils";
 import { amountOf } from "$/lib/utils/money";
@@ -76,11 +90,42 @@ async function listRules(userId: number) {
     .innerJoin(categoriesTable, eq(categoriesTable.id, R.categoryId))
     .where(eq(R.userId, userId))
     .orderBy(sql`${R.status} <> 'active'`, asc(R.nextRunDate));
-  return rows.map(({ rule, category }) => ({
-    ...rule,
-    amount: amountOf(rule.amount),
-    category,
-  }));
+  const ids = rows.map((r) => r.rule.id);
+  const [shares, sources] = await Promise.all([
+    sharesOfRules(ids),
+    sourcesOfCopies(ids),
+  ]);
+  return rows.map(({ rule, category }) => {
+    const src = sources.find((x) => x.copyRuleId === rule.id);
+    return {
+      ...rule,
+      amount: amountOf(rule.amount),
+      category,
+      /** Who the user shares this rule with (their own rules only). */
+      shares: shares
+        .filter((x) => x.ruleId === rule.id)
+        .map(({ ruleId: _r, ...x }) => x),
+      /** Set when this rule is the user's copy of someone's shared rule:
+       * the schedule, label and amount follow the owner. */
+      sharedFrom: src
+        ? {
+            shareId: src.shareId,
+            ownerName: src.ownerName,
+            ownerUsername: src.ownerUsername,
+            ownerAmount: amountOf(src.ownerAmount),
+          }
+        : null,
+    };
+  });
+}
+
+async function ownedRule(userId: number, id: number) {
+  const [rule] = await db
+    .select()
+    .from(R)
+    .where(and(eq(R.id, id), eq(R.userId, userId)))
+    .limit(1);
+  return rule;
 }
 
 export const recurringController = new Elysia({
@@ -89,6 +134,84 @@ export const recurringController = new Elysia({
 })
   .use(protectedUser)
   .get("/", async ({ user }) => ok(await listRules(user.id)))
+  /** Rules other users shared with me, waiting for accept / decline. */
+  .get("/shared", async ({ user }) => ok(await incomingShares(user.id)))
+  .post(
+    "/shared/:id/accept",
+    async ({ user, params, body, status }) => {
+      const account = await resolveAccountId(user.id, body.accountId);
+      if (!account.ok) return status(400, fail(account.message));
+      const book = await resolveBookId(user.id, body.bookId);
+      if (!book.ok) return status(400, fail(book.message));
+      const res = await acceptShare(user.id, params.id, {
+        categoryId: body.categoryId,
+        accountId: account.id,
+        bookId: book.id,
+      });
+      if (!res.ok) return status(res.code, fail(res.message));
+      await recurringService.runDue(user.id);
+      return ok({ ruleId: res.ruleId }, "Added to your recurring entries");
+    },
+    {
+      params: t.Object({ id: t.Numeric() }),
+      body: t.Object({
+        /** Omitted = matched by name, else "Shared expenses" (expenses only). */
+        categoryId: t.Optional(t.Integer({ minimum: 1 })),
+        accountId: t.Optional(t.Integer({ minimum: 1 })),
+        bookId: t.Optional(t.Integer({ minimum: 1 })),
+      }),
+    },
+  )
+  .post(
+    "/shared/:id/decline",
+    async ({ user, params, status }) =>
+      (await declineShare(user.id, params.id))
+        ? ok(null, "Declined")
+        : status(404, fail("Invitation not found")),
+    { params: t.Object({ id: t.Numeric() }) },
+  )
+  /** Who the rule is shared with, as a whole list (see `setShares`). */
+  .put(
+    "/:id/shares",
+    async ({ user, params, body, status }) => {
+      const rule = await ownedRule(user.id, params.id);
+      if (!rule) return status(404, fail("Rule not found"));
+      if (await shareOfCopy(rule.id))
+        return status(
+          400,
+          fail(
+            "This entry was shared with you, so only its owner can share it",
+          ),
+        );
+      if (rule.status === "completed" && body.shares.length)
+        return status(400, fail("This rule has ended"));
+      const res = await setShares(user, rule, body.shares);
+      if (!res.ok) return status(400, fail(res.message));
+      return ok(
+        (await sharesOfRules([rule.id])).map(({ ruleId: _r, ...x }) => x),
+        res.invited
+          ? `Shared · ${res.invited} invitation${res.invited > 1 ? "s" : ""} sent`
+          : body.shares.length
+            ? "Sharing updated"
+            : "No longer shared",
+      );
+    },
+    {
+      params: t.Object({ id: t.Numeric() }),
+      body: t.Object({
+        shares: t.Array(
+          t.Object({
+            personId: t.Integer({ minimum: 1 }),
+            /** Their share per occurrence. */
+            amount: t.Integer({ exclusiveMinimum: 0 }),
+            /** Invite again someone who declined. */
+            reinvite: t.Optional(t.Boolean()),
+          }),
+          { maxItems: 50 },
+        ),
+      }),
+    },
+  )
   .post(
     "/",
     async ({ user, body, status }) => {
@@ -130,12 +253,34 @@ export const recurringController = new Elysia({
   .patch(
     "/:id",
     async ({ user, params, body, status }) => {
-      const [rule] = await db
-        .select()
-        .from(R)
-        .where(and(eq(R.id, params.id), eq(R.userId, user.id)))
-        .limit(1);
+      const rule = await ownedRule(user.id, params.id);
       if (!rule) return status(404, fail("Rule not found"));
+      const copyOf = await shareOfCopy(rule.id);
+      if (copyOf) {
+        // A shared copy follows its owner: only where it's filed, its
+        // reminder and pause/resume are the tagged user's.
+        const changed = OWNER_FIELDS.filter((f) => {
+          const v = body[f];
+          if (v === undefined) return false;
+          if (f === "note") return (v || null) !== (rule.note || null);
+          return v !== rule[f];
+        });
+        if (changed.length)
+          return status(
+            400,
+            fail(
+              "The amount, schedule and label follow the person who shared it",
+            ),
+          );
+      } else if (
+        body.type &&
+        body.type !== rule.type &&
+        (await hasShares(rule.id))
+      )
+        return status(
+          400,
+          fail("Stop sharing this rule before switching income / expense"),
+        );
       const type = body.type ?? rule.type;
       const categoryId = body.categoryId ?? rule.categoryId;
       const cat = await ownedCategory(user.id, categoryId, type);
@@ -178,6 +323,10 @@ export const recurringController = new Elysia({
           }),
         })
         .where(and(eq(R.id, rule.id), eq(R.userId, user.id)));
+      if (!copyOf) {
+        const after = await ownedRule(user.id, rule.id);
+        if (after) await syncOwnerEdit(user, rule, after);
+      }
       await recurringService.runDue(user.id);
       return ok(null, "Recurring rule updated");
     },
@@ -193,6 +342,12 @@ export const recurringController = new Elysia({
   .delete(
     "/:id",
     async ({ user, params, status }) => {
+      const rule = await ownedRule(user.id, params.id);
+      if (!rule) return status(404, fail("Rule not found"));
+      // Shared with others: their copies pause and they're told. A copy of
+      // someone else's rule: the owner is told this user left.
+      await endSharesOfRule(user, rule);
+      await leaveShare(user.id, rule.id);
       const [row] = await db
         .delete(R)
         .where(and(eq(R.id, params.id), eq(R.userId, user.id)))

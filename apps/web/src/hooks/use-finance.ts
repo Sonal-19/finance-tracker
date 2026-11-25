@@ -158,6 +158,17 @@ export type RecurringRule = NonNullable<
   ReturnType<typeof useRecurring>["data"]
 >[number];
 
+/** Recurring entries other users shared with me, waiting for an answer. */
+export const useSharedRecurring = () =>
+  useQuery({
+    queryKey: ["recurring", "shared"],
+    queryFn: () => call(api.recurring.shared.get()),
+  });
+export type SharedRecurring = NonNullable<
+  ReturnType<typeof useSharedRecurring>["data"]
+>[number];
+export type RecurringShare = RecurringRule["shares"][number];
+
 export const useGoals = () =>
   useQuery({ queryKey: ["goals"], queryFn: () => call(api.goals.get()) });
 export type Goal = NonNullable<ReturnType<typeof useGoals>["data"]>[number];
@@ -377,6 +388,49 @@ export function useDeleteRecurring() {
   const invalidate = useInvalidate();
   return useMutation({
     mutationFn: (id: number) => callMsg(api.recurring({ id }).delete()),
+    onSuccess: ({ message }) => {
+      toast.success(message);
+      invalidate("recurring");
+    },
+    onError,
+  });
+}
+
+export function useAnswerRecurringShare() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({
+      id,
+      accept,
+      ...body
+    }: {
+      id: number;
+      accept: boolean;
+      categoryId?: number;
+      accountId?: number;
+      bookId?: number;
+    }): Promise<{ message: string }> =>
+      accept
+        ? callMsg(api.recurring.shared({ id }).accept.post(body))
+        : callMsg(api.recurring.shared({ id }).decline.post()),
+    onSuccess: ({ message }) => {
+      toast.success(message);
+      invalidate();
+    },
+    onError,
+  });
+}
+
+export function useSaveRecurringShares() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({
+      id,
+      shares,
+    }: {
+      id: number;
+      shares: { personId: number; amount: number; reinvite?: boolean }[];
+    }) => callMsg(api.recurring({ id }).shares.put({ shares })),
     onSuccess: ({ message }) => {
       toast.success(message);
       invalidate("recurring");

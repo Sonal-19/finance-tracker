@@ -62,6 +62,7 @@ export const notificationKinds = [
   "recurring",
   "reminder",
   "payment",
+  "shared",
   "test",
 ] as const;
 export type NotificationKind = (typeof notificationKinds)[number];

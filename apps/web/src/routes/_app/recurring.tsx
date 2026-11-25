@@ -7,12 +7,12 @@ import {
   Play,
   Plus,
   Repeat,
+  Share2,
   Trash2,
 } from "lucide-react";
 import { useState } from "react";
 import { AccountPicker, BookPicker } from "@/components/app/pickers";
 import { CategoryIcon } from "@/components/common/category-icon";
-import { CollapsibleGrid } from "@/components/common/collapsible-grid";
 import { confirm } from "@/components/common/confirm-dialog";
 import { DateInput } from "@/components/common/date-input";
 import { Field } from "@/components/common/field";
@@ -21,6 +21,13 @@ import { ResponsiveSheet } from "@/components/common/responsive-sheet";
 import { Segmented } from "@/components/common/segmented";
 import { EmptyState, PageLoader } from "@/components/common/states";
 import { TimeInput } from "@/components/common/time-input";
+import {
+  CategoryGrid,
+  FREQ_LABEL,
+  SharedInvites,
+  ShareLine,
+  ShareRuleSheet,
+} from "@/components/recurring/recurring-share";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,13 +57,6 @@ export const Route = createFileRoute("/_app/recurring")({
   component: RecurringPage,
 });
 
-const FREQ_LABEL = {
-  daily: "Every day",
-  weekly: "Every week",
-  monthly: "Every month",
-  yearly: "Every year",
-} as const;
-
 function RecurringPage() {
   const { data, isLoading } = useRecurring();
   const { data: accounts } = useAccounts();
@@ -65,6 +65,7 @@ function RecurringPage() {
   const save = useSaveRecurring();
   const del = useDeleteRecurring();
   const [editing, setEditing] = useState<RecurringRule | "new" | null>(null);
+  const [sharing, setSharing] = useState<RecurringRule | null>(null);
 
   const monthlyOut = (data ?? [])
     .filter((r) => r.status === "active" && r.type === "debit")
@@ -80,7 +81,7 @@ function RecurringPage() {
     <div className="space-y-5">
       <PageHeader
         title="Recurring"
-        description="Rent, salary, EMIs and subscriptions are added automatically."
+        description="Rent, salary, EMIs and subscriptions are added automatically. Share one with tagged friends so it repeats for them too."
         actions={
           <Button onClick={() => setEditing("new")}>
             <Plus /> New rule
@@ -95,6 +96,7 @@ function RecurringPage() {
           </b>
         </div>
       )}
+      <SharedInvites />
       {isLoading ? (
         <PageLoader />
       ) : !data?.length ? (
@@ -139,6 +141,7 @@ function RecurringPage() {
                     {describeReminder(r)}
                   </p>
                 )}
+                <ShareLine rule={r} />
               </div>
               <span
                 className={cn(
@@ -150,6 +153,17 @@ function RecurringPage() {
                 {formatAmount(r.amount)}
               </span>
               <div className="-mr-2 ml-auto flex shrink-0 basis-full justify-end sm:basis-auto">
+                {!r.sharedFrom && r.status !== "completed" && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Share"
+                    title="Share with friends"
+                    onClick={() => setSharing(r)}
+                  >
+                    <Share2 />
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="icon-sm"
@@ -177,13 +191,25 @@ function RecurringPage() {
                   aria-label="Delete"
                   onClick={async () => {
                     if (
-                      await confirm({
-                        title: "Delete this rule?",
-                        description:
-                          "Transactions already added stay in your history.",
-                        confirmText: "Delete",
-                        destructive: true,
-                      })
+                      await confirm(
+                        r.sharedFrom
+                          ? {
+                              title: "Leave this shared entry?",
+                              description: `It stops repeating for you and ${r.sharedFrom.ownerName} is told. Transactions already added stay in your history.`,
+                              confirmText: "Leave",
+                              destructive: true,
+                            }
+                          : {
+                              title: "Delete this rule?",
+                              description: r.shares.some(
+                                (s) => s.status !== "declined",
+                              )
+                                ? "Transactions already added stay in your history. People you shared it with have their copy paused and are notified."
+                                : "Transactions already added stay in your history.",
+                              confirmText: "Delete",
+                              destructive: true,
+                            },
+                      )
                     )
                       del.mutate(r.id);
                   }}
@@ -196,6 +222,7 @@ function RecurringPage() {
         </div>
       )}
       <RecurringSheet value={editing} onClose={() => setEditing(null)} />
+      <ShareRuleSheet rule={sharing} onClose={() => setSharing(null)} />
     </div>
   );
 }
@@ -255,19 +282,41 @@ function RecurringSheet({
   }
   const cats = categories.filter((c) => c.type === form.type);
   const valid = Number(form.amount) > 0 && form.categoryId !== null;
+  /** Someone else's shared rule: they own the amount, schedule and label. */
+  const copy = value && value !== "new" ? value.sharedFrom : null;
 
   return (
     <ResponsiveSheet
       open={!!value}
       onOpenChange={(o) => !o && onClose()}
       title={value === "new" ? "New recurring entry" : "Edit recurring entry"}
-      description="Past dates from the start date are filled in automatically."
+      description={
+        copy
+          ? `Shared by ${copy.ownerName}: they set the amount, schedule and label, and you're notified when they change. You choose where it's filed and the reminder.`
+          : "Past dates from the start date are filled in automatically."
+      }
     >
       <form
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
           if (!valid || form.categoryId === null) return;
+          if (copy && value && value !== "new") {
+            save.mutate(
+              {
+                id: value.id,
+                categoryId: form.categoryId,
+                accountId: form.accountId,
+                bookId: form.bookId,
+                reminder: form.reminder,
+                reminderDaysBefore: form.reminderDaysBefore,
+                reminderTime: form.reminderTime,
+                reminderCadence: form.reminderCadence,
+              },
+              { onSuccess: onClose },
+            );
+            return;
+          }
           save.mutate(
             {
               id: value && value !== "new" ? value.id : undefined,
@@ -281,94 +330,79 @@ function RecurringSheet({
           );
         }}
       >
-        <Segmented
-          className="w-full"
-          value={form.type}
-          onChange={(type) => setForm({ ...form, type, categoryId: null })}
-          options={[
-            { value: "debit", label: "Expense" },
-            { value: "credit", label: "Income" },
-          ]}
-        />
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Amount (₹)" htmlFor="rec-amount">
-            <Input
-              id="rec-amount"
-              inputMode="decimal"
-              value={form.amount}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  amount: e.target.value.replace(/[^\d.]/g, ""),
-                })
-              }
-              placeholder="18000"
-            />
-          </Field>
-          <Field label="Repeats" htmlFor="rec-freq">
-            <select
-              id="rec-freq"
-              className="h-11 w-full rounded-md border border-input bg-transparent px-3 md:h-9"
-              value={form.frequency}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  frequency: e.target.value as Form["frequency"],
-                })
-              }
-            >
-              {Object.entries(FREQ_LABEL).map(([v, l]) => (
-                <option key={v} value={v}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
+        <fieldset disabled={!!copy} className="space-y-4 disabled:opacity-60">
+          <Segmented
+            className="w-full"
+            value={form.type}
+            onChange={(type) => setForm({ ...form, type, categoryId: null })}
+            options={[
+              { value: "debit", label: "Expense" },
+              { value: "credit", label: "Income" },
+            ]}
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Amount (₹)" htmlFor="rec-amount">
+              <Input
+                id="rec-amount"
+                inputMode="decimal"
+                value={form.amount}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    amount: e.target.value.replace(/[^\d.]/g, ""),
+                  })
+                }
+                placeholder="18000"
+              />
+            </Field>
+            <Field label="Repeats" htmlFor="rec-freq">
+              <select
+                id="rec-freq"
+                className="h-11 w-full rounded-md border border-input bg-transparent px-3 md:h-9"
+                value={form.frequency}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    frequency: e.target.value as Form["frequency"],
+                  })
+                }
+              >
+                {Object.entries(FREQ_LABEL).map(([v, l]) => (
+                  <option key={v} value={v}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        </fieldset>
         <div className="space-y-2">
           <Label>Category</Label>
-          <CollapsibleGrid
-            variant="tile"
-            selectedIndex={cats.findIndex((c) => c.id === form.categoryId)}
-            className="grid-cols-4 gap-2 sm:grid-cols-5"
-          >
-            {cats.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setForm({ ...form, categoryId: c.id })}
-                className={cn(
-                  "flex flex-col items-center gap-1 rounded-xl border border-transparent p-2 text-center",
-                  form.categoryId === c.id
-                    ? "border-ring bg-accent"
-                    : "hover:bg-muted",
-                )}
-              >
-                <CategoryIcon icon={c.icon} color={c.color} size="sm" />
-                <span className="line-clamp-2 text-[11px] leading-tight">
-                  {c.name}
-                </span>
-              </button>
-            ))}
-          </CollapsibleGrid>
+          <CategoryGrid
+            categories={cats}
+            value={form.categoryId}
+            onChange={(categoryId) => setForm({ ...form, categoryId })}
+          />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Start date" htmlFor="rec-start">
-            <DateInput
-              id="rec-start"
-              value={form.startDate}
-              onChange={(v) => setForm({ ...form, startDate: v })}
-            />
-          </Field>
-          <Field label="End date (optional)" htmlFor="rec-end">
-            <DateInput
-              id="rec-end"
-              min={form.startDate}
-              value={form.endDate ?? ""}
-              onChange={(v) => setForm({ ...form, endDate: v || null })}
-            />
-          </Field>
-        </div>
+        <fieldset disabled={!!copy} className="space-y-4 disabled:opacity-60">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Start date" htmlFor="rec-start">
+              <DateInput
+                id="rec-start"
+                value={form.startDate}
+                onChange={(v) => setForm({ ...form, startDate: v })}
+              />
+            </Field>
+            <Field label="End date (optional)" htmlFor="rec-end">
+              <DateInput
+                id="rec-end"
+                min={form.startDate}
+                value={form.endDate ?? ""}
+                onChange={(v) => setForm({ ...form, endDate: v || null })}
+              />
+            </Field>
+          </div>
+        </fieldset>
         <AccountPicker
           label={form.type === "credit" ? "Received in" : "Paid via"}
           value={form.accountId ?? defaultAccount?.id ?? null}
@@ -379,12 +413,17 @@ function RecurringSheet({
           onChange={(id) => setForm({ ...form, bookId: id })}
         />
         <ReminderFields form={form} setForm={setForm} />
-        <Field label="Label" htmlFor="rec-note">
+        <Field
+          label="Label"
+          htmlFor="rec-note"
+          className={cn(copy && "opacity-60")}
+        >
           <Input
             id="rec-note"
             value={form.note ?? ""}
             maxLength={500}
             onChange={(e) => setForm({ ...form, note: e.target.value })}
+            disabled={!!copy}
             placeholder="e.g. Flat rent, Netflix"
           />
         </Field>
