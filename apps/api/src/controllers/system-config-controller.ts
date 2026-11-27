@@ -1,9 +1,11 @@
 import Elysia, { t } from "elysia";
+import { scanAvailabilities } from "$/db/schema";
 import { IS_PROD } from "$/env";
 import { lacks } from "$/lib/services/admin-access-service";
 import { mailService } from "$/lib/services/mail-service";
 import { systemConfigService } from "$/lib/services/system-config-service";
 import { fail, ok } from "$/lib/utils";
+import { tEnum } from "$/lib/utils/schema";
 import {
   cleanShortcuts,
   resolveShortcuts,
@@ -35,6 +37,13 @@ export const UpdateSystemConfigSchema = t.Object({
   FX: t.Optional(
     t.Object({
       FALLBACK_USD_INR: t.Number({ minimum: 1, maximum: 10_000 }),
+    }),
+  ),
+  SCAN: t.Optional(
+    t.Object({
+      AVAILABILITY: tEnum(scanAvailabilities),
+      /** 0 = unlimited */
+      DAILY_LIMIT_PER_USER: t.Integer({ minimum: 0, maximum: 10_000 }),
     }),
   ),
   NOTICE: t.Optional(

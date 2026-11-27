@@ -16,6 +16,7 @@ import {
 } from "./person-shares-controller";
 import { profileController } from "./profile-controller";
 import { pushController } from "./push-controller";
+import { receiptsController } from "./receipts-controller";
 import { recurringController } from "./recurring-controller";
 import {
   notificationsController,
@@ -47,6 +48,7 @@ const userControllers = new Elysia({ name: "user_controllers" })
   .use(eventsController)
   .use(booksController)
   .use(attachmentsController)
+  .use(receiptsController)
   .use(sharesController)
   .use(personSharesController);
 

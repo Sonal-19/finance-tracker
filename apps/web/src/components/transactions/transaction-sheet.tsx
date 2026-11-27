@@ -12,6 +12,7 @@ import { confirm } from "@/components/common/confirm-dialog";
 import { DateInput } from "@/components/common/date-input";
 import { ResponsiveSheet } from "@/components/common/responsive-sheet";
 import { Segmented } from "@/components/common/segmented";
+import { ScanButton } from "@/components/scan/scan-button";
 import { AttachmentsField } from "@/components/transactions/attachments-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -103,11 +104,13 @@ export function TransactionSheet() {
     type,
     amount: prefill.amount ? String(fromAmount(prefill.amount)) : "",
     categoryId:
+      prefill.categoryId ??
       categories.find((c) => c.type === type && c.name === prefill.categoryName)
-        ?.id ?? null,
-    date: todayStr(),
+        ?.id ??
+      null,
+    date: prefill.date ?? todayStr(),
     note: prefill.note ?? "",
-    currency: "INR",
+    currency: prefill.currency ?? "INR",
     fxRate: "",
     accountId: prefill.accountId ?? defaultAccount?.id ?? null,
     // The book being viewed in the header switcher, else the default one.
@@ -132,7 +135,7 @@ export function TransactionSheet() {
   const startOver = () => {
     putDraft(draftKey, {
       value: editing ? formOf(editing) : blank(defaultType),
-      files: [],
+      files: editing ? [] : (prefill.files ?? []),
       base: editing ? String(editing.updatedAt) : undefined,
     });
     setRestored(false);
@@ -333,6 +336,9 @@ export function TransactionSheet() {
               Start over
             </button>
           </div>
+        )}
+        {!editing && !restored && !form.amount && (
+          <ScanButton variant="tile" onOpen={closeSheet} />
         )}
         {editing && editing.type === "debit" && (
           <button

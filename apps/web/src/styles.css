@@ -534,3 +534,141 @@
 .animate-blossom-pulse {
   animation: blossom-pulse 3s ease-in-out infinite;
 }
+
+/* ── Receipt scanner ─────────────────────────────────────────────────────
+   The assistant-style glow (pink → violet → blue → cyan → amber). It is
+   decoration around photos and the scan button, never a text or surface
+   colour, so it stays the same in every theme. scan-fx.ts uses the same. */
+:root {
+  --glow-1: #ff4fd8;
+  --glow-2: #a35cff;
+  --glow-3: #4d8dff;
+  --glow-4: #2de2e6;
+  --glow-5: #ffb547;
+}
+
+@property --scan-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes scan-spin {
+  to {
+    --scan-angle: 360deg;
+  }
+}
+
+@keyframes scan-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+@keyframes scan-pop {
+  0% {
+    transform: scale(0.97);
+  }
+  45% {
+    transform: scale(1.025);
+    filter: drop-shadow(
+      0 0 14px color-mix(in oklab, var(--glow-2) 60%, transparent)
+    );
+  }
+  100% {
+    transform: none;
+    filter: none;
+  }
+}
+
+.scan-glow {
+  background: conic-gradient(
+    from var(--scan-angle),
+    var(--glow-1),
+    var(--glow-2),
+    var(--glow-3),
+    var(--glow-4),
+    var(--glow-5),
+    var(--glow-1)
+  );
+  animation: scan-spin 3s linear infinite;
+}
+
+/* The photo while it is being read. */
+.scan-ring {
+  background: conic-gradient(
+    from var(--scan-angle),
+    var(--glow-1),
+    var(--glow-2),
+    var(--glow-3),
+    var(--glow-4),
+    var(--glow-5),
+    var(--glow-1)
+  );
+  animation: scan-spin 2.4s linear infinite;
+  box-shadow:
+    0 0 40px -6px color-mix(in oklab, var(--glow-2) 60%, transparent),
+    0 0 90px -20px color-mix(in oklab, var(--glow-4) 60%, transparent);
+}
+
+/* The round camera button. */
+.scan-orb {
+  position: relative;
+  isolation: isolate;
+  color: #fff;
+  background: conic-gradient(
+    from var(--scan-angle),
+    var(--glow-1),
+    var(--glow-2),
+    var(--glow-3),
+    var(--glow-4),
+    var(--glow-5),
+    var(--glow-1)
+  );
+  animation: scan-spin 3.5s linear infinite;
+  box-shadow: 0 0 18px -4px color-mix(in oklab, var(--glow-2) 70%, transparent);
+}
+.scan-orb::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  z-index: -1;
+  border-radius: inherit;
+  background: inherit;
+  filter: blur(12px);
+  opacity: 0.5;
+}
+.scan-orb > svg {
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.35));
+}
+.scan-orb-lg {
+  animation:
+    scan-spin 4s linear infinite,
+    scan-breathe 2.8s ease-in-out infinite;
+}
+
+/* Fields wait as ghosts until their words land, then pop in. */
+.scan-field {
+  opacity: 0.18;
+  transition: opacity 0.35s ease;
+}
+.scan-field.scan-landed {
+  opacity: 1;
+  animation: scan-pop 0.55s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scan-ring,
+  .scan-orb,
+  .scan-orb-lg,
+  .scan-glow {
+    animation: none;
+  }
+  .scan-field.scan-landed {
+    animation: none;
+  }
+}

@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { RequirePermission } from "@/components/admin/admin-common";
@@ -10,6 +11,7 @@ import {
 } from "@/components/app/theme-editor";
 import { Field } from "@/components/common/field";
 import { PageHeader } from "@/components/common/page-header";
+import { Segmented } from "@/components/common/segmented";
 import { ErrorState, PageLoader } from "@/components/common/states";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +22,7 @@ import {
   useSaveSystemConfig,
   useSystemConfig,
 } from "@/hooks/use-passkeys";
+import { api, call } from "@/lib/api";
 import { useThemePreview } from "@/stores/theme-store";
 import {
   DEFAULT_SHORTCUTS,
@@ -104,6 +107,13 @@ function SystemConfigForm({ config }: { config: SystemConfigData }) {
   const [fxFallback, setFxFallback] = useState(
     String(config.FX.FALLBACK_USD_INR),
   );
+  const [scanLimit, setScanLimit] = useState(
+    String(config.SCAN.DAILY_LIMIT_PER_USER),
+  );
+  const scanConfigured = useQuery({
+    queryKey: ["receipts", "config"],
+    queryFn: () => call(api.receipts.config.get()),
+  }).data?.configured;
   const save = useSaveSystemConfig();
 
   const setAuth = (patch: Partial<SystemConfigData["AUTH"]>) =>
@@ -119,6 +129,12 @@ function SystemConfigForm({ config }: { config: SystemConfigData }) {
     maxPasskeysNum >= 0 &&
     maxPasskeysNum <= 1000;
   const fxFallbackOk = fxFallbackNum >= 1 && fxFallbackNum <= 10_000;
+  const scanLimitNum = Number(scanLimit);
+  const scanLimitOk =
+    scanLimit.trim() !== "" &&
+    Number.isInteger(scanLimitNum) &&
+    scanLimitNum >= 0 &&
+    scanLimitNum <= 10_000;
   const shortcuts = resolveShortcuts(form.SHORTCUTS.DEFAULTS, null);
   const shortcutsOk = !Object.keys(shortcutProblems(shortcuts)).length;
   const themeOk = !hasErrors(themeReport(form.THEME, null));
@@ -136,6 +152,7 @@ function SystemConfigForm({ config }: { config: SystemConfigData }) {
     ...form,
     AUTH: { ...form.AUTH, MAX_PASSKEYS_PER_USER: maxPasskeysNum },
     FX: { ...form.FX, FALLBACK_USD_INR: fxFallbackNum },
+    SCAN: { ...form.SCAN, DAILY_LIMIT_PER_USER: scanLimitNum },
   };
   const dirty = JSON.stringify(payload) !== JSON.stringify(config);
 
@@ -226,6 +243,48 @@ function SystemConfigForm({ config }: { config: SystemConfigData }) {
         </Field>
       </SectionCard>
 
+      <SectionCard title="Receipt scanning">
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            A camera button that reads a bill with Google Document AI and fills
+            in the amount, date, note and category.{" "}
+            {scanConfigured === false && (
+              <span className="text-destructive">
+                The server has no Google credentials (GOOGLE_* env), so nobody
+                sees it whatever is picked here.
+              </span>
+            )}
+          </p>
+          <Field label="Who can scan" htmlFor="cfg-scan-who">
+            <Segmented
+              value={form.SCAN.AVAILABILITY}
+              onChange={(v) =>
+                setForm((f) => ({ ...f, SCAN: { ...f.SCAN, AVAILABILITY: v } }))
+              }
+              options={[
+                { value: "off", label: "Nobody" },
+                { value: "admins", label: "Admins only" },
+                { value: "everyone", label: "Everyone" },
+              ]}
+            />
+          </Field>
+          <Field
+            label="Scans per user per day"
+            htmlFor="cfg-scan-limit"
+            hint="Each scan is a paid Document AI call. 0 = no limit."
+          >
+            <Input
+              id="cfg-scan-limit"
+              inputMode="numeric"
+              className="max-w-32"
+              aria-invalid={!scanLimitOk}
+              value={scanLimit}
+              onChange={(e) => setScanLimit(e.target.value)}
+            />
+          </Field>
+        </div>
+      </SectionCard>
+
       <SectionCard title="Keyboard shortcuts">
         <p className="mb-4 text-sm text-muted-foreground">
           The defaults for everyone. People can still change their own in
@@ -260,6 +319,7 @@ function SystemConfigForm({ config }: { config: SystemConfigData }) {
           !themeOk ||
           !maxPasskeysOk ||
           !fxFallbackOk ||
+          !scanLimitOk ||
           !shortcutsOk ||
           save.isPending
         }

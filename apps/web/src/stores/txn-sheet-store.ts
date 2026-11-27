@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Txn, TxnType } from "@/hooks/use-finance";
+import type { Currency, Txn, TxnType } from "@/hooks/use-finance";
 
 /** Defaults for a new transaction opened from a specific account, event or book page. */
 export type TxnPrefill = {
@@ -11,6 +11,14 @@ export type TxnPrefill = {
   note?: string;
   /** Preselects the category with this name, when the user has one. */
   categoryName?: string;
+  /** Preselects this category (wins over `categoryName`). */
+  categoryId?: number;
+  /** yyyy-MM-dd; today when absent. */
+  date?: string;
+  /** `amount` is in this currency (a scanned dollar receipt). */
+  currency?: Currency;
+  /** Files to attach, e.g. the scanned receipt. */
+  files?: File[];
 };
 
 /** Global add/edit transaction sheet so the FAB, dashboard and lists share one form. */

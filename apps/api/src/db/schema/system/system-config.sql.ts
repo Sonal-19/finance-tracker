@@ -13,6 +13,9 @@ import { DEFAULT_PRESET, type ThemeColors } from "$/lib/utils/theme";
 // A key left out of (3) and (4) simply isn't admin-editable and keeps the
 // default below.
 
+export const scanAvailabilities = ["off", "admins", "everyone"] as const;
+export type ScanAvailability = (typeof scanAvailabilities)[number];
+
 /** Code defaults. The live value is this merged with the `system_config`
  * row (id = 1), so a key added here needs no migration or backfill. */
 export const SYSTEM_CONFIG = {
@@ -48,6 +51,15 @@ export const SYSTEM_CONFIG = {
     DARK: {},
     AMOLED: {},
   } as ThemeColors,
+  /** Receipt scanning (Google Document AI). Also needs the GOOGLE_* env
+   * on the server; without it the scan button never shows. */
+  SCAN: {
+    /** who gets "Scan receipt": "off", "admins" (to try it out first) or
+     * "everyone" */
+    AVAILABILITY: "admins" as ScanAvailability,
+    /** scans one user may run per 24 hours; 0 = unlimited */
+    DAILY_LIMIT_PER_USER: 30,
+  },
   /** banner shown to every logged-in user at the top of the app */
   NOTICE: {
     ENABLED: false,

@@ -1,0 +1,53 @@
+{
+  "01-restaurant-thermal": {
+    "amount": 126000,
+    "date": "2026-11-08",
+    "merchant": "Sher-E-Punjab Dhaba",
+    "category": "food",
+    "items": 4
+  },
+  "02-petrol-slip": {
+    "amount": 200000,
+    "date": "2026-11-12",
+    "category": "fuel"
+  },
+  "03-pharmacy-invoice": {
+    "amount": 27981,
+    "date": "2026-11-21",
+    "merchant": "Apollo Pharmacy",
+    "category": "medical"
+  },
+  "04-grocery-long": {
+    "amount": 134900,
+    "date": "2026-11-18",
+    "merchant": "Freshway Supermarket",
+    "category": "grocery"
+  },
+  "05-food-app": {
+    "amount": 45635,
+    "date": "2026-11-24",
+    "merchant": "Burger Singh",
+    "category": "food"
+  },
+  "06-cab": {
+    "amount": 18650,
+    "date": "2026-11-22",
+    "category": "travel"
+  },
+  "07-movie": {
+    "amount": 63080,
+    "date": "2026-11-15",
+    "category": "entertainment"
+  },
+  "08-electricity": {
+    "amount": 225500,
+    "date": "2026-11-05",
+    "category": "bills"
+  },
+  "09-us-coffee": {
+    "amount": 1086,
+    "date": "2026-11-02",
+    "currency": "USD",
+    "category": "food"
+  }
+}

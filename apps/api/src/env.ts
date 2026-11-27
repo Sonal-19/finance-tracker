@@ -68,3 +68,13 @@ export const S3_CONFIGURED = !!(
   S3_BUCKET
 );
 export const LOCAL_STORAGE_DIR = process.env.LOCAL_STORAGE_DIR || "./storage";
+
+/** Google Document AI (OCR processor) for receipt scanning. Without these
+ * the scan button never shows, whatever SYSTEM_CONFIG.SCAN says. */
+export const DOCAI = {
+  projectId: process.env.GOOGLE_PROJECT_ID || "",
+  processorId: process.env.GOOGLE_PROCESSOR_ID || "",
+  location: process.env.GOOGLE_DOCAI_LOCATION || "asia-south1",
+  /** the service account's JSON key, base64-encoded */
+  serviceAccountB64: process.env.GOOGLE_SERVICE_ACCOUNT_KEY_B64 || "",
+};

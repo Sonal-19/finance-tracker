@@ -1,5 +1,5 @@
 import { FileText, Paperclip, X } from "lucide-react";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Spinner } from "@/components/common/states";
 import { Label } from "@/components/ui/label";
@@ -82,19 +82,18 @@ export function AttachmentsField({
   const upload = useUploadAttachments(transactionId);
   const del = useDeleteAttachment(transactionId);
 
-  const previews = useMemo(
-    () =>
-      pending.map((f) =>
-        f.type.startsWith("image/") ? URL.createObjectURL(f) : undefined,
-      ),
-    [pending],
-  );
-  useEffect(
-    () => () => {
-      for (const p of previews) if (p) URL.revokeObjectURL(p);
-    },
-    [previews],
-  );
+  // Made and revoked in the same effect: with useMemo, StrictMode's extra
+  // cleanup revoked the URLs the memo still handed out (broken previews).
+  const [previews, setPreviews] = useState<(string | undefined)[]>([]);
+  useEffect(() => {
+    const urls = pending.map((f) =>
+      f.type.startsWith("image/") ? URL.createObjectURL(f) : undefined,
+    );
+    setPreviews(urls);
+    return () => {
+      for (const u of urls) if (u) URL.revokeObjectURL(u);
+    };
+  }, [pending]);
 
   const count = saved.length + pending.length;
   const room = MAX_ATTACHMENTS - count;

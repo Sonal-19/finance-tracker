@@ -19,6 +19,7 @@ export const SHORTCUT_ACTIONS = [
   { id: "addExpense", label: "Add expense", group: "Create", key: "n" },
   { id: "addIncome", label: "Add income", group: "Create", key: "i" },
   { id: "addSplit", label: "Split a bill", group: "Create", key: "s" },
+  { id: "scanReceipt", label: "Scan a receipt", group: "Create", key: "r" },
   { id: "goDashboard", label: "Dashboard", group: "Go to", key: "g d" },
   { id: "goTransactions", label: "Transactions", group: "Go to", key: "g t" },
   { id: "goReports", label: "Reports", group: "Go to", key: "g r" },

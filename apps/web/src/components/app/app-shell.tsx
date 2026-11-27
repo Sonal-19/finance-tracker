@@ -14,10 +14,12 @@ import {
 } from "lucide-react";
 import * as React from "react";
 import { Logo } from "@/components/common/logo";
+import { ScanButton, ScannerHost } from "@/components/scan/scan-button";
 import { SplitSheet } from "@/components/split/split-sheet";
 import { TransactionSheet } from "@/components/transactions/transaction-sheet";
 import { Button } from "@/components/ui/button";
 import { usePublicConfig } from "@/hooks/use-passkeys";
+import { useScanAvailable } from "@/hooks/use-receipt-scan";
 import { useNotifications } from "@/hooks/use-reminders";
 import {
   bindingText,
@@ -28,6 +30,7 @@ import { syncNow } from "@/lib/offline/sync";
 import { syncPush } from "@/lib/push";
 import { cn } from "@/lib/utils";
 import type { AppUser } from "@/stores/auth-store";
+import { useScanStore } from "@/stores/scan-store";
 import { useSplitSheet } from "@/stores/split-sheet-store";
 import { useTxnSheet } from "@/stores/txn-sheet-store";
 import { useUiStore } from "@/stores/ui-store";
@@ -43,6 +46,8 @@ function useShortcutHandlers() {
   const navigate = useNavigate();
   const openNew = useTxnSheet((s) => s.openNew);
   const openSplit = useSplitSheet((s) => s.openNew);
+  const openScan = useScanStore((s) => s.openScan);
+  const { data: scanAvailable } = useScanAvailable();
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const setShortcutsOpen = useUiStore((s) => s.setShortcutsOpen);
   const go = (to: string) => () => navigate({ to });
@@ -50,6 +55,10 @@ function useShortcutHandlers() {
     addExpense: () => openNew("debit"),
     addIncome: () => openNew("credit"),
     addSplit: () => openSplit(),
+    // Only for users who have it (the overlay checks with the server too).
+    scanReceipt: () => {
+      if (scanAvailable) openScan();
+    },
     goDashboard: go("/dashboard"),
     goTransactions: go("/transactions"),
     goReports: go("/reports"),
@@ -349,6 +358,7 @@ export function AppShell({
                 <SyncStatus compact />
               </div>
               <BookSwitcher />
+              <ScanButton variant="icon" />
               <NotificationBell />
               <UserMenu user={user} />
             </div>
@@ -418,6 +428,7 @@ export function AppShell({
 
       <TransactionSheet />
       <SplitSheet />
+      <ScannerHost />
       <ShortcutsDialog />
     </div>
   );
